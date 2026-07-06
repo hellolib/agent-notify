@@ -111,6 +111,7 @@ func runTestMenu(ctx context.Context, streams Streams, prompter Prompter) error 
 		{Label: i18n.T("test.bark"), Value: "bark"},
 		{Label: i18n.T("test.ntfy"), Value: "ntfy"},
 		{Label: i18n.T("test.slack"), Value: "slack"},
+		{Label: i18n.T("test.xiaodu"), Value: "xiaodu"},
 		{Label: i18n.T("test.back"), Value: "back"},
 	}, "system")
 	if err != nil {
@@ -132,6 +133,8 @@ func runTestMenu(ctx context.Context, streams Streams, prompter Prompter) error 
 		return runTestNtfy(ctx, streams)
 	case "slack":
 		return runTestSlack(ctx, streams)
+	case "xiaodu":
+		return runTestXiaodu(ctx, streams)
 	default:
 		return nil
 	}
@@ -146,6 +149,7 @@ func runChannelsMenu(ctx context.Context, streams Streams, prompter Prompter) er
 			{Label: i18n.T("channel.bark"), Value: "bark-init"},
 			{Label: i18n.T("channel.ntfy"), Value: "ntfy-init"},
 			{Label: i18n.T("channel.slack"), Value: "slack-init"},
+			{Label: i18n.T("channel.xiaodu"), Value: "xiaodu-init"},
 			{Label: i18n.T("channel.back"), Value: "back"},
 		}, "feishu-init")
 		if err != nil {
@@ -176,6 +180,10 @@ func runChannelsMenu(ctx context.Context, streams Streams, prompter Prompter) er
 			}
 		case "slack-init":
 			if err := runInitSlack(streams, prompter); err != nil {
+				return err
+			}
+		case "xiaodu-init":
+			if err := runInitXiaodu(streams, prompter); err != nil {
 				return err
 			}
 		case "back":
@@ -254,6 +262,15 @@ func runCleanConfig(streams Streams, prompter Prompter) error {
 	defaultCfg.Notify.ClaudeCode.Channels.Ntfy.TopicURL = ""
 	defaultCfg.Notify.ClaudeCode.Channels.Slack.Enabled = false
 	defaultCfg.Notify.ClaudeCode.Channels.Slack.WebhookURL = ""
+	defaultCfg.Notify.ClaudeCode.Channels.Xiaodu.Enabled = false
+	defaultCfg.Notify.ClaudeCode.Channels.Xiaodu.AccessToken = ""
+	defaultCfg.Notify.ClaudeCode.Channels.Xiaodu.RefreshToken = ""
+	defaultCfg.Notify.ClaudeCode.Channels.Xiaodu.ClientID = ""
+	defaultCfg.Notify.ClaudeCode.Channels.Xiaodu.ClientSecret = ""
+	defaultCfg.Notify.ClaudeCode.Channels.Xiaodu.ExpiresAt = 0
+	defaultCfg.Notify.ClaudeCode.Channels.Xiaodu.DeviceID = ""
+	defaultCfg.Notify.ClaudeCode.Channels.Xiaodu.CUID = ""
+	defaultCfg.Notify.ClaudeCode.Channels.Xiaodu.APIBaseURL = ""
 	defaultCfg.Notify.ClaudeCode.Events = nil
 	// Clear Codex channel toggles
 	defaultCfg.Notify.Codex.Channels.Feishu.Enabled = false
@@ -268,6 +285,15 @@ func runCleanConfig(streams Streams, prompter Prompter) error {
 	defaultCfg.Notify.Codex.Channels.Ntfy.TopicURL = ""
 	defaultCfg.Notify.Codex.Channels.Slack.Enabled = false
 	defaultCfg.Notify.Codex.Channels.Slack.WebhookURL = ""
+	defaultCfg.Notify.Codex.Channels.Xiaodu.Enabled = false
+	defaultCfg.Notify.Codex.Channels.Xiaodu.AccessToken = ""
+	defaultCfg.Notify.Codex.Channels.Xiaodu.RefreshToken = ""
+	defaultCfg.Notify.Codex.Channels.Xiaodu.ClientID = ""
+	defaultCfg.Notify.Codex.Channels.Xiaodu.ClientSecret = ""
+	defaultCfg.Notify.Codex.Channels.Xiaodu.ExpiresAt = 0
+	defaultCfg.Notify.Codex.Channels.Xiaodu.DeviceID = ""
+	defaultCfg.Notify.Codex.Channels.Xiaodu.CUID = ""
+	defaultCfg.Notify.Codex.Channels.Xiaodu.APIBaseURL = ""
 	defaultCfg.Notify.Codex.Events = nil
 	// Clear ZCode channel toggles
 	defaultCfg.Notify.ZCode.Channels.Feishu.Enabled = false
@@ -282,6 +308,15 @@ func runCleanConfig(streams Streams, prompter Prompter) error {
 	defaultCfg.Notify.ZCode.Channels.Ntfy.TopicURL = ""
 	defaultCfg.Notify.ZCode.Channels.Slack.Enabled = false
 	defaultCfg.Notify.ZCode.Channels.Slack.WebhookURL = ""
+	defaultCfg.Notify.ZCode.Channels.Xiaodu.Enabled = false
+	defaultCfg.Notify.ZCode.Channels.Xiaodu.AccessToken = ""
+	defaultCfg.Notify.ZCode.Channels.Xiaodu.RefreshToken = ""
+	defaultCfg.Notify.ZCode.Channels.Xiaodu.ClientID = ""
+	defaultCfg.Notify.ZCode.Channels.Xiaodu.ClientSecret = ""
+	defaultCfg.Notify.ZCode.Channels.Xiaodu.ExpiresAt = 0
+	defaultCfg.Notify.ZCode.Channels.Xiaodu.DeviceID = ""
+	defaultCfg.Notify.ZCode.Channels.Xiaodu.CUID = ""
+	defaultCfg.Notify.ZCode.Channels.Xiaodu.APIBaseURL = ""
 	defaultCfg.Notify.ZCode.Events = nil
 	if err := config.Save(cfgPath, defaultCfg); err != nil {
 		return fmt.Errorf("%s: %w", i18n.T("clean.save_default_err"), err)

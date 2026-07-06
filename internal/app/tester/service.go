@@ -32,6 +32,7 @@ type Service struct {
 	barkSender       notify.Sender
 	ntfySender       notify.Sender
 	slackSender      notify.Sender
+	xiaoduSender     notify.Sender
 }
 
 // NewService creates a new tester service.
@@ -89,6 +90,11 @@ func WithNtfySender(sender notify.Sender) Option {
 // WithSlackSender sets the Slack sender.
 func WithSlackSender(sender notify.Sender) Option {
 	return func(s *Service) { s.slackSender = sender }
+}
+
+// WithXiaoduSender sets the Xiaodu sender.
+func WithXiaoduSender(sender notify.Sender) Option {
+	return func(s *Service) { s.xiaoduSender = sender }
 }
 
 // TestFeishuResult contains the result of a Feishu test.
@@ -196,6 +202,20 @@ func (s *Service) TestSlack(ctx context.Context, webhookURL string) (*TestSlackR
 	return &TestSlackResult{Message: i18n.T("test.slack_sent")}, nil
 }
 
+// TestXiaoduResult contains the result of a Xiaodu test.
+type TestXiaoduResult struct {
+	Message string
+}
+
+// TestXiaodu sends a test Xiaodu smart speaker notification.
+func (s *Service) TestXiaodu(ctx context.Context, xiaoduCfg config.XiaoduChannelConfig) (*TestXiaoduResult, error) {
+	msg := notify.Message{Event: "run_completed", Agent: "agent-notify", Title: i18n.T("test.msg_title"), Body: i18n.T("test.msg_body_xiaodu")}
+	if err := s.xiaoduNotificationSender(xiaoduCfg).Send(ctx, msg); err != nil {
+		return nil, err
+	}
+	return &TestXiaoduResult{Message: i18n.T("test.xiaodu_sent")}, nil
+}
+
 func (s *Service) defaultConfigPath() (string, error) {
 	if s.configLoader != nil {
 		return s.configLoader.DefaultPath()
@@ -257,4 +277,21 @@ func (s *Service) slackNotificationSender(webhookURL string) notify.Sender {
 		return s.slackSender
 	}
 	return notify.NewSlackSender(webhookURL)
+}
+
+func (s *Service) xiaoduNotificationSender(xiaoduCfg config.XiaoduChannelConfig) notify.Sender {
+	if s.xiaoduSender != nil {
+		return s.xiaoduSender
+	}
+	return notify.NewXiaoduSenderWithOAuth(
+		xiaoduCfg.APIBaseURL,
+		xiaoduCfg.AccessToken,
+		xiaoduCfg.RefreshToken,
+		xiaoduCfg.ClientID,
+		xiaoduCfg.ClientSecret,
+		xiaoduCfg.ExpiresAt,
+		xiaoduCfg.DeviceID,
+		xiaoduCfg.CUID,
+		nil,
+	)
 }

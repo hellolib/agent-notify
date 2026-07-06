@@ -51,6 +51,7 @@ type ChannelsConfig struct {
 	Bark       BarkChannelConfig       `yaml:"bark"`        // Bark 通知配置
 	Ntfy       NtfyChannelConfig       `yaml:"ntfy"`        // Ntfy 通知配置
 	Slack      SlackChannelConfig      `yaml:"slack"`       // Slack 通知配置
+	Xiaodu     XiaoduChannelConfig     `yaml:"xiaodu"`      // 小度智能音箱通知配置
 }
 
 // ChannelConfig holds configuration for a single notification channel.
@@ -92,6 +93,19 @@ type NtfyChannelConfig struct {
 type SlackChannelConfig struct {
 	Enabled    bool   `yaml:"enabled"`     // 是否启用 Slack 通知
 	WebhookURL string `yaml:"webhook_url"` // Slack Incoming Webhook URL
+}
+
+// XiaoduChannelConfig holds configuration for Xiaodu smart speaker notifications.
+type XiaoduChannelConfig struct {
+	Enabled      bool   `yaml:"enabled"`       // 是否启用小度智能音箱通知
+	AccessToken  string `yaml:"access_token"`  // 小度访问令牌
+	RefreshToken string `yaml:"refresh_token"` // 小度刷新令牌（预留）
+	ClientID     string `yaml:"client_id"`     // 百度 OAuth Client ID / API Key
+	ClientSecret string `yaml:"client_secret"` // 百度 OAuth Client Secret / Secret Key
+	ExpiresAt    int64  `yaml:"expires_at"`    // Access Token 过期时间（Unix 秒）
+	DeviceID     string `yaml:"device_id"`     // 小度设备 client_id；为空时自动选择第一个在线设备
+	CUID         string `yaml:"cuid"`          // 小度设备 CUID
+	APIBaseURL   string `yaml:"api_base_url"`  // 小度 MCP/JSON-RPC API 地址
 }
 
 // BehaviorConfig holds behavior configuration.
@@ -136,6 +150,7 @@ func Default() Config {
 					Bark:       BarkChannelConfig{Enabled: false, WebhookURL: ""},
 					Ntfy:       NtfyChannelConfig{Enabled: false, TopicURL: ""},
 					Slack:      SlackChannelConfig{Enabled: false, WebhookURL: ""},
+					Xiaodu:     XiaoduChannelConfig{Enabled: false, AccessToken: "", RefreshToken: "", ClientID: "", ClientSecret: "", ExpiresAt: 0, DeviceID: "", CUID: "", APIBaseURL: ""},
 				},
 			},
 			Codex: AgentNotifyConfig{
@@ -148,6 +163,7 @@ func Default() Config {
 					Bark:       BarkChannelConfig{Enabled: false, WebhookURL: ""},
 					Ntfy:       NtfyChannelConfig{Enabled: false, TopicURL: ""},
 					Slack:      SlackChannelConfig{Enabled: false, WebhookURL: ""},
+					Xiaodu:     XiaoduChannelConfig{Enabled: false, AccessToken: "", RefreshToken: "", ClientID: "", ClientSecret: "", ExpiresAt: 0, DeviceID: "", CUID: "", APIBaseURL: ""},
 				},
 			},
 			ZCode: AgentNotifyConfig{
@@ -160,6 +176,7 @@ func Default() Config {
 					Bark:       BarkChannelConfig{Enabled: false, WebhookURL: ""},
 					Ntfy:       NtfyChannelConfig{Enabled: false, TopicURL: ""},
 					Slack:      SlackChannelConfig{Enabled: false, WebhookURL: ""},
+					Xiaodu:     XiaoduChannelConfig{Enabled: false, AccessToken: "", RefreshToken: "", ClientID: "", ClientSecret: "", ExpiresAt: 0, DeviceID: "", CUID: "", APIBaseURL: ""},
 				},
 			},
 		},

@@ -3,6 +3,7 @@ package agenthooks
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/hellolib/agent-notify/internal/config"
@@ -15,7 +16,7 @@ func Dispatch(ctx context.Context, cfg config.Config, statePath, logPath string,
 	msg.SourceApp = notify.DetectSourceApp()
 
 	store := state.NewStore(statePath)
-	senders := buildSenders(cfg, msg)
+	senders := buildSenders(cfg, msg, statePath)
 	if len(senders) == 0 {
 		return state.AppendLog(logPath, fmt.Sprintf("no sender enabled for event=%s", msg.Event))
 	}
@@ -32,7 +33,7 @@ func Dispatch(ctx context.Context, cfg config.Config, statePath, logPath string,
 	return nil
 }
 
-func buildSenders(cfg config.Config, msg notify.Message) []notify.Sender {
+func buildSenders(cfg config.Config, msg notify.Message, statePaths ...string) []notify.Sender {
 	var senders []notify.Sender
 
 	notifyCfg := cfg.Notify.ClaudeCode
@@ -67,8 +68,79 @@ func buildSenders(cfg config.Config, msg notify.Message) []notify.Sender {
 	if notifyCfg.Channels.Slack.Enabled && notifyCfg.Channels.Slack.WebhookURL != "" {
 		senders = append(senders, notify.NewSlackSender(notifyCfg.Channels.Slack.WebhookURL))
 	}
+	if notifyCfg.Channels.Xiaodu.Enabled && notifyCfg.Channels.Xiaodu.AccessToken != "" && notifyCfg.Channels.Xiaodu.APIBaseURL != "" {
+		statePath := ""
+		if len(statePaths) > 0 {
+			statePath = statePaths[0]
+		}
+		senders = append(senders, notify.NewXiaoduSenderWithOAuth(
+			notifyCfg.Channels.Xiaodu.APIBaseURL,
+			notifyCfg.Channels.Xiaodu.AccessToken,
+			notifyCfg.Channels.Xiaodu.RefreshToken,
+			notifyCfg.Channels.Xiaodu.ClientID,
+			notifyCfg.Channels.Xiaodu.ClientSecret,
+			notifyCfg.Channels.Xiaodu.ExpiresAt,
+			notifyCfg.Channels.Xiaodu.DeviceID,
+			notifyCfg.Channels.Xiaodu.CUID,
+			xiaoduRefreshSaver(msg.Agent, statePath, notifyCfg.Channels.Xiaodu.RefreshToken),
+		))
+	}
 
 	return senders
+}
+
+func xiaoduRefreshSaver(agent, statePath, previousRefreshToken string) func(notify.XiaoduTokenState) error {
+	return func(token notify.XiaoduTokenState) error {
+		configPath, err := xiaoduConfigPath(statePath)
+		if err != nil {
+			return err
+		}
+		cfg, err := config.Load(configPath)
+		if err != nil {
+			return err
+		}
+
+		updateSharedXiaoduToken(&cfg, agent, previousRefreshToken, token)
+
+		return config.Save(configPath, cfg)
+	}
+}
+
+func updateSharedXiaoduToken(cfg *config.Config, agent, previousRefreshToken string, token notify.XiaoduTokenState) {
+	update := func(channel *config.XiaoduChannelConfig) {
+		channel.AccessToken = token.AccessToken
+		channel.RefreshToken = token.RefreshToken
+		channel.ExpiresAt = token.ExpiresAt
+	}
+
+	switch agent {
+	case "codex":
+		update(&cfg.Notify.Codex.Channels.Xiaodu)
+	case "zcode":
+		update(&cfg.Notify.ZCode.Channels.Xiaodu)
+	default:
+		update(&cfg.Notify.ClaudeCode.Channels.Xiaodu)
+	}
+
+	if previousRefreshToken == "" {
+		return
+	}
+	for _, channel := range []*config.XiaoduChannelConfig{
+		&cfg.Notify.ClaudeCode.Channels.Xiaodu,
+		&cfg.Notify.Codex.Channels.Xiaodu,
+		&cfg.Notify.ZCode.Channels.Xiaodu,
+	} {
+		if channel.Enabled && channel.RefreshToken == previousRefreshToken {
+			update(channel)
+		}
+	}
+}
+
+func xiaoduConfigPath(statePath string) (string, error) {
+	if statePath != "" {
+		return filepath.Join(filepath.Dir(statePath), "config.yaml"), nil
+	}
+	return config.DefaultPath()
 }
 
 func contains(items []string, want string) bool {

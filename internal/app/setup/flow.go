@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 
 	"github.com/hellolib/agent-notify/internal/common"
 	"github.com/hellolib/agent-notify/internal/config"
@@ -22,6 +23,7 @@ const (
 	channelBark     = "bark"
 	channelNtfy     = "ntfy"
 	channelSlack    = "slack"
+	channelXiaodu   = "xiaodu"
 	installScopeUsr = "user"
 	installScopePrj = "project"
 )
@@ -35,6 +37,7 @@ func channelOptions() []PromptOption {
 		{Label: i18n.T("channel.bark"), Value: channelBark},
 		{Label: i18n.T("channel.ntfy"), Value: channelNtfy},
 		{Label: i18n.T("channel.slack"), Value: channelSlack},
+		{Label: i18n.T("channel.xiaodu"), Value: channelXiaodu},
 	}
 }
 
@@ -46,10 +49,11 @@ type channelSelection struct {
 	Bark       bool
 	Ntfy       bool
 	Slack      bool
+	Xiaodu     bool
 }
 
 func (c channelSelection) hasAny() bool {
-	return c.System || c.Feishu || c.WechatWork || c.DingTalk || c.Bark || c.Ntfy || c.Slack
+	return c.System || c.Feishu || c.WechatWork || c.DingTalk || c.Bark || c.Ntfy || c.Slack || c.Xiaodu
 }
 
 type configureAgentRequest struct {
@@ -135,6 +139,9 @@ func currentChannelValues(channels config.ChannelsConfig) []string {
 	if channels.Slack.Enabled {
 		values = append(values, channelSlack)
 	}
+	if channels.Xiaodu.Enabled {
+		values = append(values, channelXiaodu)
+	}
 	return values
 }
 
@@ -147,6 +154,7 @@ func channelSelectionFromChoices(choices []string) channelSelection {
 		Bark:       slices.Contains(choices, channelBark),
 		Ntfy:       slices.Contains(choices, channelNtfy),
 		Slack:      slices.Contains(choices, channelSlack),
+		Xiaodu:     slices.Contains(choices, channelXiaodu),
 	}
 }
 
@@ -297,6 +305,7 @@ func applyChannelSelection(channels config.ChannelsConfig, selection channelSele
 	next.Bark.Enabled = selection.Bark
 	next.Ntfy.Enabled = selection.Ntfy
 	next.Slack.Enabled = selection.Slack
+	next.Xiaodu.Enabled = selection.Xiaodu
 	return next
 }
 
@@ -350,6 +359,59 @@ func promptWebhookURLs(
 			return config.ChannelsConfig{}, err
 		}
 		next.Slack.WebhookURL = webhookURL
+	}
+	if selection.Xiaodu {
+		apiBaseURL, err := prompter.Input(i18n.T("prompt.xiaodu_api_base_url"), next.Xiaodu.APIBaseURL)
+		if err != nil {
+			return config.ChannelsConfig{}, err
+		}
+		accessToken, err := prompter.Input(i18n.T("prompt.xiaodu_access_token"), next.Xiaodu.AccessToken)
+		if err != nil {
+			return config.ChannelsConfig{}, err
+		}
+		refreshToken, err := prompter.Input(i18n.T("prompt.xiaodu_refresh_token"), next.Xiaodu.RefreshToken)
+		if err != nil {
+			return config.ChannelsConfig{}, err
+		}
+		clientID, err := prompter.Input(i18n.T("prompt.xiaodu_client_id"), next.Xiaodu.ClientID)
+		if err != nil {
+			return config.ChannelsConfig{}, err
+		}
+		clientSecret, err := prompter.Input(i18n.T("prompt.xiaodu_client_secret"), next.Xiaodu.ClientSecret)
+		if err != nil {
+			return config.ChannelsConfig{}, err
+		}
+		expiresAtRaw := ""
+		if next.Xiaodu.ExpiresAt > 0 {
+			expiresAtRaw = strconv.FormatInt(next.Xiaodu.ExpiresAt, 10)
+		}
+		expiresAtInput, err := prompter.Input(i18n.T("prompt.xiaodu_expires_at"), expiresAtRaw)
+		if err != nil {
+			return config.ChannelsConfig{}, err
+		}
+		expiresAt := int64(0)
+		if expiresAtInput != "" {
+			expiresAt, err = strconv.ParseInt(expiresAtInput, 10, 64)
+			if err != nil {
+				return config.ChannelsConfig{}, fmt.Errorf("invalid xiaodu expires_at: %w", err)
+			}
+		}
+		deviceID, err := prompter.Input(i18n.T("prompt.xiaodu_device_id"), next.Xiaodu.DeviceID)
+		if err != nil {
+			return config.ChannelsConfig{}, err
+		}
+		cuid, err := prompter.Input(i18n.T("prompt.xiaodu_cuid"), next.Xiaodu.CUID)
+		if err != nil {
+			return config.ChannelsConfig{}, err
+		}
+		next.Xiaodu.APIBaseURL = apiBaseURL
+		next.Xiaodu.AccessToken = accessToken
+		next.Xiaodu.RefreshToken = refreshToken
+		next.Xiaodu.ClientID = clientID
+		next.Xiaodu.ClientSecret = clientSecret
+		next.Xiaodu.ExpiresAt = expiresAt
+		next.Xiaodu.DeviceID = deviceID
+		next.Xiaodu.CUID = cuid
 	}
 	return next, nil
 }

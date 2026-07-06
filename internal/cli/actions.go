@@ -255,7 +255,8 @@ func printCurrentNotifyConfig(streams Streams) error {
 		statusIcon(cfg.Notify.ClaudeCode.Channels.DingTalk.Enabled),
 		statusIcon(cfg.Notify.ClaudeCode.Channels.Bark.Enabled),
 		statusIcon(cfg.Notify.ClaudeCode.Channels.Ntfy.Enabled),
-		statusIcon(cfg.Notify.ClaudeCode.Channels.Slack.Enabled))
+		statusIcon(cfg.Notify.ClaudeCode.Channels.Slack.Enabled),
+		statusIcon(cfg.Notify.ClaudeCode.Channels.Xiaodu.Enabled))
 	fmt.Fprintf(streams.Stdout, i18n.T("view.row_format")+"\n", "Codex",
 		statusIcon(cfg.Notify.Codex.Channels.Feishu.Enabled),
 		statusIcon(cfg.Notify.Codex.Channels.System.Enabled),
@@ -263,7 +264,8 @@ func printCurrentNotifyConfig(streams Streams) error {
 		statusIcon(cfg.Notify.Codex.Channels.DingTalk.Enabled),
 		statusIcon(cfg.Notify.Codex.Channels.Bark.Enabled),
 		statusIcon(cfg.Notify.Codex.Channels.Ntfy.Enabled),
-		statusIcon(cfg.Notify.Codex.Channels.Slack.Enabled))
+		statusIcon(cfg.Notify.Codex.Channels.Slack.Enabled),
+		statusIcon(cfg.Notify.Codex.Channels.Xiaodu.Enabled))
 	fmt.Fprintf(streams.Stdout, i18n.T("view.row_format")+"\n", "ZCode",
 		statusIcon(cfg.Notify.ZCode.Channels.Feishu.Enabled),
 		statusIcon(cfg.Notify.ZCode.Channels.System.Enabled),
@@ -271,7 +273,8 @@ func printCurrentNotifyConfig(streams Streams) error {
 		statusIcon(cfg.Notify.ZCode.Channels.DingTalk.Enabled),
 		statusIcon(cfg.Notify.ZCode.Channels.Bark.Enabled),
 		statusIcon(cfg.Notify.ZCode.Channels.Ntfy.Enabled),
-		statusIcon(cfg.Notify.ZCode.Channels.Slack.Enabled))
+		statusIcon(cfg.Notify.ZCode.Channels.Slack.Enabled),
+		statusIcon(cfg.Notify.ZCode.Channels.Xiaodu.Enabled))
 	fmt.Fprintln(streams.Stdout, i18n.T("view.separator"))
 
 	return nil

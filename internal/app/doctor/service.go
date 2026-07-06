@@ -88,6 +88,7 @@ type DiagnosticsResult struct {
 	ClaudeBarkEnabled         bool
 	ClaudeNtfyEnabled         bool
 	ClaudeSlackEnabled        bool
+	ClaudeXiaoduEnabled       bool
 	CodexFeishuEnabled        bool
 	CodexSystemEnabled        bool
 	CodexWechatWorkEnabled    bool
@@ -95,6 +96,7 @@ type DiagnosticsResult struct {
 	CodexBarkEnabled          bool
 	CodexNtfyEnabled          bool
 	CodexSlackEnabled         bool
+	CodexXiaoduEnabled        bool
 	ZcodeInstalled            bool
 	ZcodeHookInstalled        bool
 	ZcodeFeishuEnabled        bool
@@ -104,6 +106,7 @@ type DiagnosticsResult struct {
 	ZcodeBarkEnabled          bool
 	ZcodeNtfyEnabled          bool
 	ZcodeSlackEnabled         bool
+	ZcodeXiaoduEnabled        bool
 	ClaudeIntegrationStatus   DiagnosticStatus
 	CodexIntegrationStatus    DiagnosticStatus
 	ZcodeIntegrationStatus    DiagnosticStatus
@@ -160,6 +163,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.ClaudeBarkEnabled = cfgLoadErr == nil && cfg.Notify.ClaudeCode.Channels.Bark.Enabled
 	result.ClaudeNtfyEnabled = cfgLoadErr == nil && cfg.Notify.ClaudeCode.Channels.Ntfy.Enabled
 	result.ClaudeSlackEnabled = cfgLoadErr == nil && cfg.Notify.ClaudeCode.Channels.Slack.Enabled
+	result.ClaudeXiaoduEnabled = cfgLoadErr == nil && cfg.Notify.ClaudeCode.Channels.Xiaodu.Enabled
 	result.CodexFeishuEnabled = cfgLoadErr == nil && cfg.Notify.Codex.Channels.Feishu.Enabled
 	result.CodexSystemEnabled = cfgLoadErr == nil && cfg.Notify.Codex.Channels.System.Enabled
 	result.CodexWechatWorkEnabled = cfgLoadErr == nil && cfg.Notify.Codex.Channels.WechatWork.Enabled
@@ -167,6 +171,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.CodexBarkEnabled = cfgLoadErr == nil && cfg.Notify.Codex.Channels.Bark.Enabled
 	result.CodexNtfyEnabled = cfgLoadErr == nil && cfg.Notify.Codex.Channels.Ntfy.Enabled
 	result.CodexSlackEnabled = cfgLoadErr == nil && cfg.Notify.Codex.Channels.Slack.Enabled
+	result.CodexXiaoduEnabled = cfgLoadErr == nil && cfg.Notify.Codex.Channels.Xiaodu.Enabled
 	result.ZcodeFeishuEnabled = cfgLoadErr == nil && cfg.Notify.ZCode.Channels.Feishu.Enabled
 	result.ZcodeSystemEnabled = cfgLoadErr == nil && cfg.Notify.ZCode.Channels.System.Enabled
 	result.ZcodeWechatWorkEnabled = cfgLoadErr == nil && cfg.Notify.ZCode.Channels.WechatWork.Enabled
@@ -174,6 +179,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.ZcodeBarkEnabled = cfgLoadErr == nil && cfg.Notify.ZCode.Channels.Bark.Enabled
 	result.ZcodeNtfyEnabled = cfgLoadErr == nil && cfg.Notify.ZCode.Channels.Ntfy.Enabled
 	result.ZcodeSlackEnabled = cfgLoadErr == nil && cfg.Notify.ZCode.Channels.Slack.Enabled
+	result.ZcodeXiaoduEnabled = cfgLoadErr == nil && cfg.Notify.ZCode.Channels.Xiaodu.Enabled
 
 	result.ClaudeIntegrationStatus = integrationStatus(result.ConfigExists, result.ClaudeInstalled, result.ClaudeHookInstalled)
 	result.CodexIntegrationStatus = integrationStatus(result.ConfigExists, result.CodexInstalled, result.CodexHookInstalled)
@@ -239,7 +245,7 @@ func (s *Service) Print(output OutputWriter, result *DiagnosticsResult) {
 	output.Writef(i18n.T("doctor.channel_sep") + "\n")
 	output.Writef(i18n.T("doctor.channel_header") + "\n")
 	output.Writef(i18n.T("doctor.channel_sep") + "\n")
-	output.Writef("| %-12s |  %s  |  %s  |    %s    |  %s  |  %s  |  %s  |  %s  |\n", "Claude Code",
+	output.Writef("| %-12s |  %s  |  %s  |    %s    |  %s  |  %s  |  %s  |  %s  |  %s  |\n", "Claude Code",
 		boolIcon(result.ClaudeFeishuEnabled),
 		boolIcon(result.ClaudeSystemEnabled),
 		boolIcon(result.ClaudeWechatWorkEnabled),
@@ -247,8 +253,9 @@ func (s *Service) Print(output OutputWriter, result *DiagnosticsResult) {
 		boolIcon(result.ClaudeBarkEnabled),
 		boolIcon(result.ClaudeNtfyEnabled),
 		boolIcon(result.ClaudeSlackEnabled),
+		boolIcon(result.ClaudeXiaoduEnabled),
 	)
-	output.Writef("| %-12s |  %s  |  %s  |    %s    |  %s  |  %s  |  %s  |  %s  |\n", "Codex",
+	output.Writef("| %-12s |  %s  |  %s  |    %s    |  %s  |  %s  |  %s  |  %s  |  %s  |\n", "Codex",
 		boolIcon(result.CodexFeishuEnabled),
 		boolIcon(result.CodexSystemEnabled),
 		boolIcon(result.CodexWechatWorkEnabled),
@@ -256,8 +263,9 @@ func (s *Service) Print(output OutputWriter, result *DiagnosticsResult) {
 		boolIcon(result.CodexBarkEnabled),
 		boolIcon(result.CodexNtfyEnabled),
 		boolIcon(result.CodexSlackEnabled),
+		boolIcon(result.CodexXiaoduEnabled),
 	)
-	output.Writef("| %-12s |  %s  |  %s  |    %s    |  %s  |  %s  |  %s  |  %s  |\n", "ZCode",
+	output.Writef("| %-12s |  %s  |  %s  |    %s    |  %s  |  %s  |  %s  |  %s  |  %s  |\n", "ZCode",
 		boolIcon(result.ZcodeFeishuEnabled),
 		boolIcon(result.ZcodeSystemEnabled),
 		boolIcon(result.ZcodeWechatWorkEnabled),
@@ -265,6 +273,7 @@ func (s *Service) Print(output OutputWriter, result *DiagnosticsResult) {
 		boolIcon(result.ZcodeBarkEnabled),
 		boolIcon(result.ZcodeNtfyEnabled),
 		boolIcon(result.ZcodeSlackEnabled),
+		boolIcon(result.ZcodeXiaoduEnabled),
 	)
 	output.Writef(i18n.T("doctor.channel_sep") + "\n")
 	output.Writef("\n")
