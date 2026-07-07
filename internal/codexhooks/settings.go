@@ -15,11 +15,11 @@ import (
 const hookCommandMarker = "handle-codex-hook"
 
 // managedEvents 是本插件托管的 Codex 事件列表。
-// Codex 当前可靠支持的事件只有 PermissionRequest 与 Stop，
-// 分别对应项目里的 permission_required / run_completed。
+// PostToolUse 仅用于取消小度权限提醒，不产生用户通知。
 var managedEvents = []string{
 	"PermissionRequest",
 	"Stop",
+	"PostToolUse",
 }
 
 // BuildHookSettings 生成 Codex hooks.json 所需的 settings 结构。
@@ -64,10 +64,7 @@ func Install(path string, binaryPath string) error {
 	}
 
 	for _, event := range managedEvents {
-		if eventHasManagedHook(hooks, event) {
-			continue
-		}
-		entries := toAnySlice(hooks[event])
+		entries := removeManagedHooks(toAnySlice(hooks[event]))
 		entries = append(entries, map[string]any{
 			"hooks": []any{
 				map[string]any{
@@ -227,6 +224,30 @@ func eventHasManagedHook(hooks map[string]any, event string) bool {
 		}
 	}
 	return false
+}
+
+func removeManagedHooks(entries []any) []any {
+	cleaned := entries[:0]
+	for _, entry := range entries {
+		entryMap, ok := entry.(map[string]any)
+		if !ok {
+			cleaned = append(cleaned, entry)
+			continue
+		}
+		inner := toAnySlice(entryMap["hooks"])
+		keptInner := inner[:0]
+		for _, h := range inner {
+			if !isManagedHook(h) {
+				keptInner = append(keptInner, h)
+			}
+		}
+		if len(keptInner) == 0 {
+			continue
+		}
+		entryMap["hooks"] = keptInner
+		cleaned = append(cleaned, entryMap)
+	}
+	return cleaned
 }
 
 func isManagedHook(hook any) bool {

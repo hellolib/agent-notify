@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"os/exec"
 	"strings"
 	"time"
 )
@@ -40,15 +42,42 @@ type XiaoduSender struct {
 	cuid         string
 	httpClient   *http.Client
 	onRefresh    func(XiaoduTokenState) error
+
+	speakCompleted    bool
+	repeatCount       int
+	repeatInterval    time.Duration
+	reminderStorePath string
+	binaryPath        string
+	scheduleRepeats   bool
+}
+
+type XiaoduSenderOptions struct {
+	APIBaseURL        string
+	AccessToken       string
+	RefreshToken      string
+	ClientID          string
+	ClientSecret      string
+	ExpiresAt         int64
+	DeviceID          string
+	CUID              string
+	SpeakCompleted    *bool
+	RepeatCount       int
+	RepeatInterval    time.Duration
+	ReminderStorePath string
+	BinaryPath        string
+	ScheduleRepeats   bool
+	OnRefresh         func(XiaoduTokenState) error
 }
 
 // NewXiaoduSender creates a XiaoduSender with the provided native Xiaodu endpoint settings.
 func NewXiaoduSender(apiBaseURL, accessToken, deviceID string) *XiaoduSender {
 	return &XiaoduSender{
-		apiBaseURL:  strings.TrimSpace(apiBaseURL),
-		accessToken: strings.TrimSpace(accessToken),
-		deviceID:    strings.TrimSpace(deviceID),
-		httpClient:  &http.Client{Timeout: xiaoduHTTPTimeout},
+		apiBaseURL:     strings.TrimSpace(apiBaseURL),
+		accessToken:    strings.TrimSpace(accessToken),
+		deviceID:       strings.TrimSpace(deviceID),
+		httpClient:     &http.Client{Timeout: xiaoduHTTPTimeout},
+		speakCompleted: true,
+		repeatCount:    1,
 	}
 }
 
@@ -74,9 +103,57 @@ func NewXiaoduSenderWithOAuth(
 	return s
 }
 
+func NewXiaoduSenderWithOptions(opts XiaoduSenderOptions) *XiaoduSender {
+	s := NewXiaoduSenderWithOAuth(
+		opts.APIBaseURL,
+		opts.AccessToken,
+		opts.RefreshToken,
+		opts.ClientID,
+		opts.ClientSecret,
+		opts.ExpiresAt,
+		opts.DeviceID,
+		opts.CUID,
+		opts.OnRefresh,
+	)
+	if opts.SpeakCompleted != nil {
+		s.speakCompleted = *opts.SpeakCompleted
+	}
+	if opts.RepeatCount > 0 {
+		s.repeatCount = opts.RepeatCount
+	}
+	s.repeatInterval = opts.RepeatInterval
+	s.reminderStorePath = opts.ReminderStorePath
+	s.binaryPath = strings.TrimSpace(opts.BinaryPath)
+	s.scheduleRepeats = opts.ScheduleRepeats
+	return s
+}
+
 func (s *XiaoduSender) Name() string { return "xiaodu" }
 
 func (s *XiaoduSender) Send(ctx context.Context, msg Message) error {
+	if !s.shouldSpeak(msg) {
+		return nil
+	}
+	text := xiaoduSpeechText(msg)
+	if err := s.sendText(ctx, msg, text); err != nil {
+		return err
+	}
+	if s.shouldRepeat(msg) {
+		return s.scheduleReminder(ctx, msg, text)
+	}
+	return nil
+}
+
+func (s *XiaoduSender) SendReminderText(ctx context.Context, reminder XiaoduReminder) error {
+	return s.sendText(ctx, Message{
+		Agent:     reminder.Agent,
+		Event:     reminder.Event,
+		SessionID: reminder.SessionID,
+		ToolName:  reminder.ToolName,
+	}, reminder.Text)
+}
+
+func (s *XiaoduSender) sendText(ctx context.Context, msg Message, text string) error {
 	if err := s.validate(); err != nil {
 		return err
 	}
@@ -92,12 +169,68 @@ func (s *XiaoduSender) Send(ctx context.Context, msg Message) error {
 	args := map[string]any{
 		"client_id": device.ClientID,
 		"cuid":      device.CUID,
-		"text":      xiaoduSpeechText(msg),
+		"text":      text,
 	}
 	if _, err := s.callTool(ctx, "xiaodu_speak", args); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (s *XiaoduSender) shouldSpeak(msg Message) bool {
+	return msg.Event != "run_completed" || s.speakCompleted
+}
+
+func (s *XiaoduSender) shouldRepeat(msg Message) bool {
+	if s.repeatCount <= 1 || s.reminderStorePath == "" {
+		return false
+	}
+	switch msg.Event {
+	case "permission_required", "input_required", "run_failed":
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *XiaoduSender) scheduleReminder(ctx context.Context, msg Message, text string) error {
+	reminder := XiaoduReminder{
+		Key:                   XiaoduReminderKey(msg.Agent, msg.SessionID, msg.Event, msg.ToolName),
+		Agent:                 msg.Agent,
+		SessionID:             msg.SessionID,
+		Event:                 msg.Event,
+		ToolName:              msg.ToolName,
+		Text:                  text,
+		Remaining:             s.repeatCount - 1,
+		RepeatIntervalSeconds: int(s.repeatInterval.Seconds()),
+	}
+	if reminder.RepeatIntervalSeconds <= 0 {
+		reminder.RepeatIntervalSeconds = 25
+	}
+	store := NewXiaoduReminderStore(s.reminderStorePath)
+	if err := store.Save(reminder); err != nil {
+		return err
+	}
+	if !s.scheduleRepeats {
+		return nil
+	}
+	return s.startReminderWorker(reminder.Key)
+}
+
+func (s *XiaoduSender) startReminderWorker(key string) error {
+	binaryPath := s.binaryPath
+	if binaryPath == "" {
+		exe, err := os.Executable()
+		if err != nil {
+			return fmt.Errorf("xiaodu: resolve executable for reminder worker: %w", err)
+		}
+		binaryPath = exe
+	}
+	cmd := exec.Command(binaryPath, "xiaodu-reminder", "--key", key)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	return cmd.Process.Release()
 }
 
 func (s *XiaoduSender) resolveDevice(ctx context.Context) (xiaoduDevice, error) {
@@ -127,11 +260,15 @@ func (s *XiaoduSender) resolveAccessToken(ctx context.Context) error {
 	if s.expiresAt == 0 {
 		return nil
 	}
-	if time.Until(time.Unix(s.expiresAt, 0)) > xiaoduRefreshSkew {
+	untilExpiry := time.Until(time.Unix(s.expiresAt, 0))
+	if untilExpiry > xiaoduRefreshSkew {
 		return nil
 	}
 	if s.refreshToken == "" || s.clientID == "" || s.clientSecret == "" {
-		return fmt.Errorf("xiaodu: token is near expiry but refresh setup is incomplete")
+		if untilExpiry > 0 {
+			return nil
+		}
+		return fmt.Errorf("xiaodu: token expired and refresh setup is incomplete")
 	}
 
 	token, err := s.refreshAccessToken(ctx)
@@ -150,21 +287,17 @@ func (s *XiaoduSender) resolveAccessToken(ctx context.Context) error {
 }
 
 func (s *XiaoduSender) refreshAccessToken(ctx context.Context) (XiaoduTokenState, error) {
-	u, err := url.Parse(xiaoduTokenURL)
-	if err != nil {
-		return XiaoduTokenState{}, fmt.Errorf("xiaodu: parse token url: %w", err)
-	}
-	q := u.Query()
-	q.Set("grant_type", "refresh_token")
-	q.Set("refresh_token", s.refreshToken)
-	q.Set("client_id", s.clientID)
-	q.Set("client_secret", s.clientSecret)
-	u.RawQuery = q.Encode()
+	form := url.Values{}
+	form.Set("grant_type", "refresh_token")
+	form.Set("refresh_token", s.refreshToken)
+	form.Set("client_id", s.clientID)
+	form.Set("client_secret", s.clientSecret)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, xiaoduTokenURL, strings.NewReader(form.Encode()))
 	if err != nil {
 		return XiaoduTokenState{}, fmt.Errorf("xiaodu: create token refresh request: %w", err)
 	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json, text/event-stream")
 
 	resp, err := s.httpClient.Do(req)
@@ -312,7 +445,7 @@ func decodeXiaoduRPCResponse(body []byte, target *xiaoduRPCResponse) error {
 	if len(trimmed) == 0 {
 		return fmt.Errorf("empty response")
 	}
-	if bytes.HasPrefix(trimmed, []byte("event:")) || bytes.Contains(trimmed, []byte("\ndata:")) {
+	if bytes.HasPrefix(trimmed, []byte("event:")) || bytes.HasPrefix(trimmed, []byte("data:")) || bytes.Contains(trimmed, []byte("\ndata:")) {
 		return decodeXiaoduSSEResponse(trimmed, target)
 	}
 	return json.Unmarshal(trimmed, target)
@@ -454,28 +587,37 @@ func firstBool(item map[string]any, keys ...string) bool {
 }
 
 func xiaoduSpeechText(msg Message) string {
-	agent := displayAgentName(msg.Agent)
+	subject := xiaoduSpeechSubject(msg)
 	title := trimSpeechText(msg.Title)
 	switch msg.Event {
 	case "permission_required":
-		return fmt.Sprintf("%s 需要权限确认", agent)
+		return fmt.Sprintf("%s 需要权限确认", subject)
 	case "input_required":
-		return fmt.Sprintf("%s 正在等待你的输入", agent)
+		return fmt.Sprintf("%s 正在等待你的输入", subject)
 	case "run_completed":
 		if title == "" {
-			return fmt.Sprintf("%s 任务已完成", agent)
+			return fmt.Sprintf("%s 任务已完成", subject)
 		}
-		return fmt.Sprintf("%s 任务已完成：%s", agent, title)
+		return fmt.Sprintf("%s 任务已完成：%s", subject, title)
 	case "run_failed":
-		return fmt.Sprintf("%s 任务失败，需要处理", agent)
+		return fmt.Sprintf("%s 任务失败，需要处理", subject)
 	case "session_start":
-		return fmt.Sprintf("%s 会话已开始", agent)
+		return fmt.Sprintf("%s 会话已开始", subject)
 	default:
 		if title == "" {
-			return fmt.Sprintf("%s 有新的通知", agent)
+			return fmt.Sprintf("%s 有新的通知", subject)
 		}
-		return fmt.Sprintf("%s：%s", agent, title)
+		return fmt.Sprintf("%s：%s", subject, title)
 	}
+}
+
+func xiaoduSpeechSubject(msg Message) string {
+	agent := displayAgentName(msg.Agent)
+	project := trimSpeechText(shortenWorkspace(msg.Workspace))
+	if project == "" {
+		return agent
+	}
+	return fmt.Sprintf("%s 在 %s", agent, project)
 }
 
 func displayAgentName(agent string) string {

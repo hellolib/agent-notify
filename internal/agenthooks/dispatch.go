@@ -15,6 +15,13 @@ func Dispatch(ctx context.Context, cfg config.Config, statePath, logPath string,
 	// hook 进程由终端 / IDE 启动，此处能从继承的环境变量识别宿主应用
 	msg.SourceApp = notify.DetectSourceApp()
 
+	if err := handleXiaoduReminderLifecycle(statePath, msg); err != nil {
+		return state.AppendLog(logPath, fmt.Sprintf("xiaodu reminder lifecycle error event=%s session=%s err=%v", msg.Event, msg.SessionID, err))
+	}
+	if isCancellationOnlyEvent(msg.Event) {
+		return nil
+	}
+
 	store := state.NewStore(statePath)
 	senders := buildSenders(cfg, msg, statePath)
 	if len(senders) == 0 {
@@ -73,23 +80,59 @@ func buildSenders(cfg config.Config, msg notify.Message, statePaths ...string) [
 		if len(statePaths) > 0 {
 			statePath = statePaths[0]
 		}
-		senders = append(senders, notify.NewXiaoduSenderWithOAuth(
-			notifyCfg.Channels.Xiaodu.APIBaseURL,
-			notifyCfg.Channels.Xiaodu.AccessToken,
-			notifyCfg.Channels.Xiaodu.RefreshToken,
-			notifyCfg.Channels.Xiaodu.ClientID,
-			notifyCfg.Channels.Xiaodu.ClientSecret,
-			notifyCfg.Channels.Xiaodu.ExpiresAt,
-			notifyCfg.Channels.Xiaodu.DeviceID,
-			notifyCfg.Channels.Xiaodu.CUID,
-			xiaoduRefreshSaver(msg.Agent, statePath, notifyCfg.Channels.Xiaodu.RefreshToken),
-		))
+		xiaoduCfg := notifyCfg.Channels.Xiaodu
+		senders = append(senders, notify.NewXiaoduSenderWithOptions(notify.XiaoduSenderOptions{
+			APIBaseURL:        xiaoduCfg.APIBaseURL,
+			AccessToken:       xiaoduCfg.AccessToken,
+			RefreshToken:      xiaoduCfg.RefreshToken,
+			ClientID:          xiaoduCfg.ClientID,
+			ClientSecret:      xiaoduCfg.ClientSecret,
+			ExpiresAt:         xiaoduCfg.ExpiresAt,
+			DeviceID:          xiaoduCfg.DeviceID,
+			CUID:              xiaoduCfg.CUID,
+			SpeakCompleted:    xiaoduCfg.SpeakCompleted,
+			RepeatCount:       xiaoduCfg.EffectiveRepeatCount(),
+			RepeatInterval:    time.Duration(xiaoduCfg.EffectiveRepeatIntervalSeconds()) * time.Second,
+			ReminderStorePath: xiaoduReminderPathFromStatePath(statePath),
+			ScheduleRepeats:   true,
+			OnRefresh:         XiaoduRefreshSaver(msg.Agent, statePath, xiaoduCfg.RefreshToken),
+		}))
 	}
 
 	return senders
 }
 
-func xiaoduRefreshSaver(agent, statePath, previousRefreshToken string) func(notify.XiaoduTokenState) error {
+func handleXiaoduReminderLifecycle(statePath string, msg notify.Message) error {
+	store := notify.NewXiaoduReminderStore(xiaoduReminderPathFromStatePath(statePath))
+	switch msg.Event {
+	case notify.EventToolCompleted:
+		return store.CancelPermission(msg.Agent, msg.SessionID, msg.ToolName)
+	case notify.EventInputSubmitted:
+		return store.CancelInput(msg.Agent, msg.SessionID)
+	case "run_completed", "run_failed":
+		return store.CancelSession(msg.Agent, msg.SessionID)
+	default:
+		return nil
+	}
+}
+
+func isCancellationOnlyEvent(event string) bool {
+	return event == notify.EventToolCompleted || event == notify.EventInputSubmitted
+}
+
+func xiaoduReminderPathFromStatePath(statePath string) string {
+	if statePath != "" {
+		return filepath.Join(filepath.Dir(statePath), "xiaodu-reminders.json")
+	}
+	path, err := config.XiaoduReminderPath()
+	if err != nil {
+		return ""
+	}
+	return path
+}
+
+// XiaoduRefreshSaver persists refreshed Xiaodu OAuth tokens for an agent channel.
+func XiaoduRefreshSaver(agent, statePath, previousRefreshToken string) func(notify.XiaoduTokenState) error {
 	return func(token notify.XiaoduTokenState) error {
 		configPath, err := xiaoduConfigPath(statePath)
 		if err != nil {

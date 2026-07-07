@@ -13,20 +13,20 @@ import (
 // 两套字段名（hookEventName / hook_event_name），这里两者都解析。
 // 未使用的字段也保留以便排查。
 type payload struct {
-	HookEventName string `json:"hook_event_name"` // 下划线风格（优先）
-	HookEventNameCamel string `json:"hookEventName"` // 驼峰风格（兜底）
-	SessionID         string         `json:"session_id"`
-	SessionIDCamel    string         `json:"sessionId"`
-	CWD               string         `json:"cwd"`
-	Mode              string         `json:"mode"`     // 例如 yolo / plan
-	Source            string         `json:"source"`   // 例如 resume / new
-	Model             string         `json:"model"`
-	PermissionMode    string         `json:"permission_mode"`
-	TurnID            string         `json:"turn_id"`
-	ToolName          string         `json:"tool_name"`
-	ToolInput         map[string]any `json:"tool_input"`
-	StopHookActive    bool           `json:"stop_hook_active"`
-	Message           string         `json:"message"` // Notification 原因（ZCode 当前无此事件，保留）
+	HookEventName      string         `json:"hook_event_name"` // 下划线风格（优先）
+	HookEventNameCamel string         `json:"hookEventName"`   // 驼峰风格（兜底）
+	SessionID          string         `json:"session_id"`
+	SessionIDCamel     string         `json:"sessionId"`
+	CWD                string         `json:"cwd"`
+	Mode               string         `json:"mode"`   // 例如 yolo / plan
+	Source             string         `json:"source"` // 例如 resume / new
+	Model              string         `json:"model"`
+	PermissionMode     string         `json:"permission_mode"`
+	TurnID             string         `json:"turn_id"`
+	ToolName           string         `json:"tool_name"`
+	ToolInput          map[string]any `json:"tool_input"`
+	StopHookActive     bool           `json:"stop_hook_active"`
+	Message            string         `json:"message"` // Notification 原因（ZCode 当前无此事件，保留）
 }
 
 // eventOf 兼容下划线与驼峰两套字段名。
@@ -68,8 +68,17 @@ func ParseMessage(data []byte) (notify.Message, error) {
 			Event:     "permission_required",
 			SessionID: p.sessionOf(),
 			Workspace: p.CWD,
+			ToolName:  p.ToolName,
 			Title:     notify.FormatTitle("zcode", "permission_required"),
 			Body:      fmt.Sprintf("工具: %s\n操作需要您的授权许可", fallbackToolName(p.ToolName)),
+		}, nil
+	case "PostToolUse":
+		return notify.Message{
+			Agent:     "zcode",
+			Event:     notify.EventToolCompleted,
+			SessionID: p.sessionOf(),
+			Workspace: p.CWD,
+			ToolName:  p.ToolName,
 		}, nil
 	case "PostToolUseFailure":
 		tool := fallbackToolName(p.ToolName)
@@ -78,6 +87,7 @@ func ParseMessage(data []byte) (notify.Message, error) {
 			Event:     "run_failed",
 			SessionID: p.sessionOf(),
 			Workspace: p.CWD,
+			ToolName:  p.ToolName,
 			Title:     notify.FormatTitle("zcode", "run_failed"),
 			Body:      fmt.Sprintf("工具 %s 执行失败", tool),
 		}, nil

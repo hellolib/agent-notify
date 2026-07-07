@@ -22,6 +22,9 @@ func TestParsePermissionRequest(t *testing.T) {
 	if msg.Agent != "claude_code" {
 		t.Fatalf("Agent = %q, want claude_code", msg.Agent)
 	}
+	if msg.ToolName != "Bash" {
+		t.Fatalf("ToolName = %q, want Bash", msg.ToolName)
+	}
 }
 
 func TestParseNotificationWaitingInput(t *testing.T) {
@@ -60,5 +63,38 @@ func TestParseNotificationNeedsInputVariant(t *testing.T) {
 	}
 	if msg.Body != "提示: please confirm" {
 		t.Fatalf("Body = %q, want %q", msg.Body, "提示: please confirm")
+	}
+}
+
+func TestParsePostToolUseCancellation(t *testing.T) {
+	raw := []byte(`{"hook_event_name":"PostToolUse","session_id":"s1","cwd":"/tmp/demo","tool_name":"Bash"}`)
+
+	msg, err := ParseMessage(raw)
+	if err != nil {
+		t.Fatalf("ParseMessage() error = %v", err)
+	}
+	if msg.Event != "tool_completed" {
+		t.Fatalf("Event = %q, want tool_completed", msg.Event)
+	}
+	if msg.ToolName != "Bash" {
+		t.Fatalf("ToolName = %q, want Bash", msg.ToolName)
+	}
+	if msg.Agent != "claude_code" {
+		t.Fatalf("Agent = %q, want claude_code", msg.Agent)
+	}
+}
+
+func TestParseUserPromptSubmitCancellation(t *testing.T) {
+	raw := []byte(`{"hook_event_name":"UserPromptSubmit","session_id":"s1","cwd":"/tmp/demo"}`)
+
+	msg, err := ParseMessage(raw)
+	if err != nil {
+		t.Fatalf("ParseMessage() error = %v", err)
+	}
+	if msg.Event != "input_submitted" {
+		t.Fatalf("Event = %q, want input_submitted", msg.Event)
+	}
+	if msg.Agent != "claude_code" {
+		t.Fatalf("Agent = %q, want claude_code", msg.Agent)
 	}
 }

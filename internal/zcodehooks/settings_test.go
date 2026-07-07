@@ -38,6 +38,9 @@ func TestBuildHookSettingsStructure(t *testing.T) {
 			t.Fatalf("%s command = %v, want /tmp/agent-notify handle-zcode-hook", event, entryHooks[0]["command"])
 		}
 	}
+	if _, exists := events["Notification"]; exists {
+		t.Fatal("ZCode hooks must not register unsupported Notification event")
+	}
 }
 
 // TestInstallMergesExistingSettings 验证安装时不破坏 config.json 里的其它顶层键（如 mcp）。
@@ -144,6 +147,39 @@ func TestInstallIdempotent(t *testing.T) {
 		if marked != 1 {
 			t.Fatalf("%s has %d agent-notify hooks after re-install, want 1", event, marked)
 		}
+	}
+}
+
+func TestInstallUpdatesManagedHookCommand(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	existing := `{
+  "hooks": {
+    "enabled": true,
+    "events": {
+      "PermissionRequest": [
+        {"hooks": [{"type": "command", "command": "/tmp/old-agent-notify handle-zcode-hook"}]}
+      ]
+    }
+  }
+}`
+	if err := os.WriteFile(path, []byte(existing), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Install(path, "/tmp/new-agent-notify"); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+
+	got := readSettingsForTest(t, path)
+	hooks := got["hooks"].(map[string]any)
+	events := eventsMap(hooks)
+	commands := collectCommandsForTest(events["PermissionRequest"].([]any))
+	if containsString(commands, "/tmp/old-agent-notify handle-zcode-hook") {
+		t.Fatalf("old managed hook command still present: %v", commands)
+	}
+	if !containsString(commands, "/tmp/new-agent-notify handle-zcode-hook") {
+		t.Fatalf("new managed hook command missing: %v", commands)
 	}
 }
 

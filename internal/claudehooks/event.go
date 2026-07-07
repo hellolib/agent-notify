@@ -31,6 +31,7 @@ func ParseMessage(data []byte) (notify.Message, error) {
 			Event:     "permission_required",
 			SessionID: p.SessionID,
 			Workspace: p.CWD,
+			ToolName:  p.ToolName,
 			Title:     notify.FormatTitle("claude_code", "permission_required"),
 			Body:      fmt.Sprintf("工具: %s\n操作需要您的授权许可", p.ToolName),
 		}, nil
@@ -48,6 +49,21 @@ func ParseMessage(data []byte) (notify.Message, error) {
 			}, nil
 		}
 		return notify.Message{}, fmt.Errorf("unsupported notification message: %s", p.Message)
+	case "PostToolUse":
+		return notify.Message{
+			Agent:     "claude_code",
+			Event:     notify.EventToolCompleted,
+			SessionID: p.SessionID,
+			Workspace: p.CWD,
+			ToolName:  p.ToolName,
+		}, nil
+	case "UserPromptSubmit":
+		return notify.Message{
+			Agent:     "claude_code",
+			Event:     notify.EventInputSubmitted,
+			SessionID: p.SessionID,
+			Workspace: p.CWD,
+		}, nil
 	case "Stop":
 		return notify.Message{
 			Agent:     "claude_code",
@@ -64,6 +80,7 @@ func ParseMessage(data []byte) (notify.Message, error) {
 			Event:     "run_failed",
 			SessionID: p.SessionID,
 			Workspace: p.CWD,
+			ToolName:  p.ToolName,
 			Title:     notify.FormatTitle("claude_code", "run_failed"),
 			Body:      fmt.Sprintf("工具: %s\n错误: %s", p.ToolName, errMsg),
 		}, nil

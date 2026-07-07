@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/hellolib/agent-notify/internal/app/tester"
 	"github.com/hellolib/agent-notify/internal/config"
@@ -80,17 +81,40 @@ func runInitXiaodu(streams Streams, prompter Prompter) error {
 	if err != nil {
 		return err
 	}
+	speakCompleted, err := prompter.Confirm(i18n.T("prompt.xiaodu_speak_completed"), current.ShouldSpeakCompleted())
+	if err != nil {
+		return err
+	}
+	repeatCountInput, err := prompter.Input(i18n.T("prompt.xiaodu_repeat_count"), strconv.Itoa(current.EffectiveRepeatCount()))
+	if err != nil {
+		return err
+	}
+	repeatCount, err := parseOptionalPositiveInt("xiaodu repeat_count", repeatCountInput)
+	if err != nil {
+		return err
+	}
+	repeatIntervalInput, err := prompter.Input(i18n.T("prompt.xiaodu_repeat_interval_seconds"), strconv.Itoa(current.EffectiveRepeatIntervalSeconds()))
+	if err != nil {
+		return err
+	}
+	repeatIntervalSeconds, err := parseOptionalPositiveInt("xiaodu repeat_interval_seconds", repeatIntervalInput)
+	if err != nil {
+		return err
+	}
 
 	next := config.XiaoduChannelConfig{
-		Enabled:      true,
-		APIBaseURL:   apiBaseURL,
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		ExpiresAt:    expiresAt,
-		DeviceID:     deviceID,
-		CUID:         cuid,
+		Enabled:               true,
+		APIBaseURL:            apiBaseURL,
+		AccessToken:           accessToken,
+		RefreshToken:          refreshToken,
+		ClientID:              clientID,
+		ClientSecret:          clientSecret,
+		ExpiresAt:             expiresAt,
+		DeviceID:              deviceID,
+		CUID:                  cuid,
+		SpeakCompleted:        &speakCompleted,
+		RepeatCount:           repeatCount,
+		RepeatIntervalSeconds: repeatIntervalSeconds,
 	}
 	cfg.Notify.ClaudeCode.Channels.Xiaodu = next
 	cfg.Notify.Codex.Channels.Xiaodu = next
@@ -103,6 +127,21 @@ func runInitXiaodu(streams Streams, prompter Prompter) error {
 	fmt.Fprintln(streams.Stdout, i18n.T("xiaodu.init_done"))
 	fmt.Fprintf(streams.Stdout, i18n.T("msg.config_file")+"\n", path)
 	return nil
+}
+
+func parseOptionalPositiveInt(name, input string) (int, error) {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return 0, nil
+	}
+	value, err := strconv.Atoi(input)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s: %w", name, err)
+	}
+	if value < 0 {
+		return 0, fmt.Errorf("invalid %s: must be >= 0", name)
+	}
+	return value, nil
 }
 
 func xiaoduConfigFromConfig(cfg config.Config) config.XiaoduChannelConfig {

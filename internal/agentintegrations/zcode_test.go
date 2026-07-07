@@ -104,7 +104,7 @@ func TestZcodeIntegration_Install(t *testing.T) {
 		content := string(data)
 
 		// ZCode 支持的事件
-		for _, supported := range []string{`"SessionStart"`, `"PermissionRequest"`, `"PostToolUseFailure"`, `"Stop"`} {
+		for _, supported := range []string{`"SessionStart"`, `"PermissionRequest"`, `"PostToolUse"`, `"PostToolUseFailure"`, `"Stop"`} {
 			if !containsAll(content, supported) {
 				t.Errorf("config.json should register %s for ZCode, got:\n%s", supported, content)
 			}

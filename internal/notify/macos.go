@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -151,22 +150,4 @@ func (s *MacOSSender) formatBody(msg Message) string {
 		return fmt.Sprintf("📁 %s\n%s", shortenWorkspace(msg.Workspace), msg.Body)
 	}
 	return msg.Body
-}
-
-// shortenWorkspace 将长路径缩短为末尾项目名，避免通知正文因路径过长而换行。
-// 例如 /Users/foo/workspace/github/hellolib/agent-notify → hellolib/agent-notify
-func shortenWorkspace(ws string) string {
-	parts := strings.Split(filepath.ToSlash(ws), "/")
-	// 过滤空段（首尾斜杠）
-	var segs []string
-	for _, p := range parts {
-		if p != "" {
-			segs = append(segs, p)
-		}
-	}
-	if len(segs) <= 2 {
-		return ws
-	}
-	// 取末尾两段，保留父级以增强可辨识度
-	return strings.Join(segs[len(segs)-2:], "/")
 }

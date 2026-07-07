@@ -20,6 +20,8 @@ var managedEvents = []string{
 	"Notification",
 	"Stop",
 	"PostToolUseFailure",
+	"PostToolUse",
+	"UserPromptSubmit",
 }
 
 func BuildHookSettings(binaryPath string) map[string]any {
@@ -63,10 +65,7 @@ func Install(path string, binaryPath string) error {
 	}
 
 	for _, event := range managedEvents {
-		if eventHasManagedHook(hooks, event) {
-			continue
-		}
-		entries := toAnySlice(hooks[event])
+		entries := removeManagedHooks(toAnySlice(hooks[event]))
 		entries = append(entries, map[string]any{
 			"hooks": []any{
 				map[string]any{
@@ -216,6 +215,30 @@ func eventHasManagedHook(hooks map[string]any, event string) bool {
 		}
 	}
 	return false
+}
+
+func removeManagedHooks(entries []any) []any {
+	cleaned := entries[:0]
+	for _, entry := range entries {
+		entryMap, ok := entry.(map[string]any)
+		if !ok {
+			cleaned = append(cleaned, entry)
+			continue
+		}
+		inner := toAnySlice(entryMap["hooks"])
+		keptInner := inner[:0]
+		for _, h := range inner {
+			if !isManagedHook(h) {
+				keptInner = append(keptInner, h)
+			}
+		}
+		if len(keptInner) == 0 {
+			continue
+		}
+		entryMap["hooks"] = keptInner
+		cleaned = append(cleaned, entryMap)
+	}
+	return cleaned
 }
 
 func isManagedHook(hook any) bool {

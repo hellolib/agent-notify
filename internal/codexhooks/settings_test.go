@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestBuildHookSettings_RegistersTwoEvents(t *testing.T) {
+func TestBuildHookSettings_RegistersManagedEvents(t *testing.T) {
 	got := BuildHookSettings("/tmp/agent-notify")
 
 	hooks, ok := got["hooks"].(map[string]any)
@@ -15,7 +15,7 @@ func TestBuildHookSettings_RegistersTwoEvents(t *testing.T) {
 		t.Fatalf("hooks type = %T, want map[string]any", got["hooks"])
 	}
 
-	for _, event := range []string{"PermissionRequest", "Stop"} {
+	for _, event := range []string{"PermissionRequest", "Stop", "PostToolUse"} {
 		items, ok := hooks[event].([]map[string]any)
 		if !ok || len(items) != 1 {
 			t.Fatalf("%s entries missing or invalid: %v", event, hooks[event])
@@ -33,7 +33,7 @@ func TestBuildHookSettings_RegistersTwoEvents(t *testing.T) {
 	}
 
 	// 不应注册 Codex 不支持的事件
-	for _, unsupported := range []string{"Notification", "PostToolUseFailure", "UserPromptSubmit", "PreToolUse", "PostToolUse", "SessionStart"} {
+	for _, unsupported := range []string{"Notification", "PostToolUseFailure", "UserPromptSubmit", "PreToolUse", "SessionStart"} {
 		if _, exists := hooks[unsupported]; exists {
 			t.Fatalf("hooks should not contain %s for Codex", unsupported)
 		}
@@ -65,7 +65,7 @@ func TestInstall_MergesExistingHooks(t *testing.T) {
 	if !ok {
 		t.Fatal("hooks key missing or wrong type")
 	}
-	for _, key := range []string{"SessionStart", "PermissionRequest", "Stop"} {
+	for _, key := range []string{"SessionStart", "PermissionRequest", "Stop", "PostToolUse"} {
 		if _, exists := hooks[key]; !exists {
 			t.Fatalf("hooks missing key %q after install", key)
 		}
@@ -149,6 +149,35 @@ func TestInstall_Idempotent(t *testing.T) {
 		if marked != 1 {
 			t.Fatalf("%s has %d agent-notify hooks after re-install, want 1", event, marked)
 		}
+	}
+}
+
+func TestInstall_UpdatesManagedHookCommand(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hooks.json")
+	existing := `{
+  "hooks": {
+    "PermissionRequest": [
+      {"hooks": [{"type": "command", "command": "/tmp/old-agent-notify handle-codex-hook"}]}
+    ]
+  }
+}`
+	if err := os.WriteFile(path, []byte(existing), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Install(path, "/tmp/new-agent-notify"); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+
+	got := readSettingsForTest(t, path)
+	hooks := got["hooks"].(map[string]any)
+	commands := collectCommandsForTest(hooks["PermissionRequest"].([]any))
+	if containsString(commands, "/tmp/old-agent-notify handle-codex-hook") {
+		t.Fatalf("old managed hook command still present: %v", commands)
+	}
+	if !containsString(commands, "/tmp/new-agent-notify handle-codex-hook") {
+		t.Fatalf("new managed hook command missing: %v", commands)
 	}
 }
 

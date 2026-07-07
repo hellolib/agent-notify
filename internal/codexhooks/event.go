@@ -36,8 +36,17 @@ func ParseMessage(data []byte) (notify.Message, error) {
 			Event:     "permission_required",
 			SessionID: p.SessionID,
 			Workspace: p.CWD,
+			ToolName:  p.ToolName,
 			Title:     notify.FormatTitle("codex", "permission_required"),
 			Body:      fmt.Sprintf("工具: %s\n操作需要您的授权许可", fallbackToolName(p.ToolName)),
+		}, nil
+	case "PostToolUse":
+		return notify.Message{
+			Agent:     "codex",
+			Event:     notify.EventToolCompleted,
+			SessionID: p.SessionID,
+			Workspace: p.CWD,
+			ToolName:  p.ToolName,
 		}, nil
 	case "Stop":
 		body := notify.DefaultBody("run_completed")

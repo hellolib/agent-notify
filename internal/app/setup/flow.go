@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/hellolib/agent-notify/internal/common"
 	"github.com/hellolib/agent-notify/internal/config"
@@ -404,6 +405,26 @@ func promptWebhookURLs(
 		if err != nil {
 			return config.ChannelsConfig{}, err
 		}
+		speakCompleted, err := prompter.Confirm(i18n.T("prompt.xiaodu_speak_completed"), next.Xiaodu.ShouldSpeakCompleted())
+		if err != nil {
+			return config.ChannelsConfig{}, err
+		}
+		repeatCountInput, err := prompter.Input(i18n.T("prompt.xiaodu_repeat_count"), strconv.Itoa(next.Xiaodu.EffectiveRepeatCount()))
+		if err != nil {
+			return config.ChannelsConfig{}, err
+		}
+		repeatCount, err := parseOptionalPositiveInt("xiaodu repeat_count", repeatCountInput)
+		if err != nil {
+			return config.ChannelsConfig{}, err
+		}
+		repeatIntervalInput, err := prompter.Input(i18n.T("prompt.xiaodu_repeat_interval_seconds"), strconv.Itoa(next.Xiaodu.EffectiveRepeatIntervalSeconds()))
+		if err != nil {
+			return config.ChannelsConfig{}, err
+		}
+		repeatIntervalSeconds, err := parseOptionalPositiveInt("xiaodu repeat_interval_seconds", repeatIntervalInput)
+		if err != nil {
+			return config.ChannelsConfig{}, err
+		}
 		next.Xiaodu.APIBaseURL = apiBaseURL
 		next.Xiaodu.AccessToken = accessToken
 		next.Xiaodu.RefreshToken = refreshToken
@@ -412,8 +433,26 @@ func promptWebhookURLs(
 		next.Xiaodu.ExpiresAt = expiresAt
 		next.Xiaodu.DeviceID = deviceID
 		next.Xiaodu.CUID = cuid
+		next.Xiaodu.SpeakCompleted = &speakCompleted
+		next.Xiaodu.RepeatCount = repeatCount
+		next.Xiaodu.RepeatIntervalSeconds = repeatIntervalSeconds
 	}
 	return next, nil
+}
+
+func parseOptionalPositiveInt(name, input string) (int, error) {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return 0, nil
+	}
+	value, err := strconv.Atoi(input)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s: %w", name, err)
+	}
+	if value < 0 {
+		return 0, fmt.Errorf("invalid %s: must be >= 0", name)
+	}
+	return value, nil
 }
 
 func normalizedInstallScope(scope string) string {

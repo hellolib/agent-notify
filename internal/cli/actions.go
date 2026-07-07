@@ -12,6 +12,7 @@ import (
 	"github.com/hellolib/agent-notify/internal/app/setup"
 	"github.com/hellolib/agent-notify/internal/app/tester"
 	"github.com/hellolib/agent-notify/internal/claudehooks"
+	"github.com/hellolib/agent-notify/internal/codexhooks"
 	"github.com/hellolib/agent-notify/internal/common"
 	"github.com/hellolib/agent-notify/internal/config"
 	"github.com/hellolib/agent-notify/internal/i18n"
@@ -63,6 +64,8 @@ func (f *feishuPreparerAdapter) EnsureReady(ctx context.Context) error {
 	return prepareFeishuCLI(ctx)
 }
 
+var newTesterService = tester.NewService
+
 func runInitFlow(ctx context.Context, streams Streams, prompter Prompter, configPath, settingsPath, binaryPath string) error {
 	_ = settingsPath // kept for backward compatibility
 
@@ -98,6 +101,24 @@ func runInstallClaudeHooks(scope, binaryPath string) error {
 	return claudehooks.Install(path, common.ResolveBinaryPath(binaryPath))
 }
 
+func runPrintCodexHooks(streams Streams, binaryPath string) error {
+	settings := codexhooks.BuildHookSettings(common.ResolveBinaryPath(binaryPath))
+	data, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(streams.Stdout, string(data))
+	return err
+}
+
+func runInstallCodexHooks(scope, binaryPath string) error {
+	path, err := settingsPathForAgent("codex", scope)
+	if err != nil {
+		return err
+	}
+	return codexhooks.Install(path, common.ResolveBinaryPath(binaryPath))
+}
+
 func runPrintZcodeHooks(streams Streams, binaryPath string) error {
 	settings := zcodehooks.BuildHookSettings(common.ResolveBinaryPath(binaryPath))
 	data, err := json.MarshalIndent(settings, "", "  ")
@@ -117,7 +138,7 @@ func runInstallZcodeHooks(scope, binaryPath string) error {
 }
 
 func runTestFeishu(ctx context.Context, streams Streams) error {
-	svc := tester.NewService(
+	svc := newTesterService(
 		tester.WithFeishuPreparer(&feishuPreparerAdapter{}),
 	)
 	result, err := svc.TestFeishu(ctx)
@@ -281,8 +302,7 @@ func printCurrentNotifyConfig(streams Streams) error {
 }
 
 // settingsPathForAgent returns the settings path for the given agent and scope.
-// Currently only Claude has manual install-hooks subcommands; the Codex path is
-// handled exclusively through the init flow + CodexIntegration.
+// settingsPathForAgent returns the settings path for manual hook commands.
 func settingsPathForAgent(agent, scope string) (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -296,6 +316,15 @@ func settingsPathForAgent(agent, scope string) (string, error) {
 			return filepath.Join(home, ".claude", "settings.json"), nil
 		case "project":
 			return filepath.Join(".claude", "settings.json"), nil
+		default:
+			return "", fmt.Errorf("unsupported scope: %s", scope)
+		}
+	case "codex":
+		switch scope {
+		case "user":
+			return filepath.Join(home, ".codex", "hooks.json"), nil
+		case "project":
+			return filepath.Join(".codex", "hooks.json"), nil
 		default:
 			return "", fmt.Errorf("unsupported scope: %s", scope)
 		}
