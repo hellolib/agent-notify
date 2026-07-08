@@ -3,6 +3,7 @@ package agenthooks
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/hellolib/agent-notify/internal/config"
@@ -14,8 +15,15 @@ func Dispatch(ctx context.Context, cfg config.Config, statePath, logPath string,
 	// hook 进程由终端 / IDE 启动，此处能从继承的环境变量识别宿主应用
 	msg.SourceApp = notify.DetectSourceApp()
 
+	if err := handleXiaoduReminderLifecycle(statePath, msg); err != nil {
+		return state.AppendLog(logPath, fmt.Sprintf("xiaodu reminder lifecycle error event=%s session=%s err=%v", msg.Event, msg.SessionID, err))
+	}
+	if isCancellationOnlyEvent(msg.Event) {
+		return nil
+	}
+
 	store := state.NewStore(statePath)
-	senders := buildSenders(cfg, msg)
+	senders := buildSenders(cfg, msg, statePath)
 	if len(senders) == 0 {
 		return state.AppendLog(logPath, fmt.Sprintf("no sender enabled for event=%s", msg.Event))
 	}
@@ -32,7 +40,7 @@ func Dispatch(ctx context.Context, cfg config.Config, statePath, logPath string,
 	return nil
 }
 
-func buildSenders(cfg config.Config, msg notify.Message) []notify.Sender {
+func buildSenders(cfg config.Config, msg notify.Message, statePaths ...string) []notify.Sender {
 	var senders []notify.Sender
 
 	notifyCfg := cfg.Notify.ClaudeCode
@@ -67,8 +75,115 @@ func buildSenders(cfg config.Config, msg notify.Message) []notify.Sender {
 	if notifyCfg.Channels.Slack.Enabled && notifyCfg.Channels.Slack.WebhookURL != "" {
 		senders = append(senders, notify.NewSlackSender(notifyCfg.Channels.Slack.WebhookURL))
 	}
+	if notifyCfg.Channels.Xiaodu.Enabled && notifyCfg.Channels.Xiaodu.AccessToken != "" && notifyCfg.Channels.Xiaodu.APIBaseURL != "" {
+		statePath := ""
+		if len(statePaths) > 0 {
+			statePath = statePaths[0]
+		}
+		xiaoduCfg := notifyCfg.Channels.Xiaodu
+		senders = append(senders, notify.NewXiaoduSenderWithOptions(notify.XiaoduSenderOptions{
+			APIBaseURL:        xiaoduCfg.APIBaseURL,
+			AccessToken:       xiaoduCfg.AccessToken,
+			RefreshToken:      xiaoduCfg.RefreshToken,
+			ClientID:          xiaoduCfg.ClientID,
+			ClientSecret:      xiaoduCfg.ClientSecret,
+			ExpiresAt:         xiaoduCfg.ExpiresAt,
+			DeviceID:          xiaoduCfg.DeviceID,
+			CUID:              xiaoduCfg.CUID,
+			SpeakCompleted:    xiaoduCfg.SpeakCompleted,
+			RepeatCount:       xiaoduCfg.EffectiveRepeatCount(),
+			RepeatInterval:    time.Duration(xiaoduCfg.EffectiveRepeatIntervalSeconds()) * time.Second,
+			ReminderStorePath: xiaoduReminderPathFromStatePath(statePath),
+			ScheduleRepeats:   true,
+			OnRefresh:         XiaoduRefreshSaver(msg.Agent, statePath, xiaoduCfg.RefreshToken),
+		}))
+	}
 
 	return senders
+}
+
+func handleXiaoduReminderLifecycle(statePath string, msg notify.Message) error {
+	store := notify.NewXiaoduReminderStore(xiaoduReminderPathFromStatePath(statePath))
+	switch msg.Event {
+	case notify.EventToolCompleted:
+		return store.CancelPermission(msg.Agent, msg.SessionID, msg.ToolName)
+	case notify.EventInputSubmitted:
+		return store.CancelInput(msg.Agent, msg.SessionID)
+	case "run_completed", "run_failed":
+		return store.CancelSession(msg.Agent, msg.SessionID)
+	default:
+		return nil
+	}
+}
+
+func isCancellationOnlyEvent(event string) bool {
+	return event == notify.EventToolCompleted || event == notify.EventInputSubmitted
+}
+
+func xiaoduReminderPathFromStatePath(statePath string) string {
+	if statePath != "" {
+		return filepath.Join(filepath.Dir(statePath), "xiaodu-reminders.json")
+	}
+	path, err := config.XiaoduReminderPath()
+	if err != nil {
+		return ""
+	}
+	return path
+}
+
+// XiaoduRefreshSaver persists refreshed Xiaodu OAuth tokens for an agent channel.
+func XiaoduRefreshSaver(agent, statePath, previousRefreshToken string) func(notify.XiaoduTokenState) error {
+	return func(token notify.XiaoduTokenState) error {
+		configPath, err := xiaoduConfigPath(statePath)
+		if err != nil {
+			return err
+		}
+		cfg, err := config.Load(configPath)
+		if err != nil {
+			return err
+		}
+
+		updateSharedXiaoduToken(&cfg, agent, previousRefreshToken, token)
+
+		return config.Save(configPath, cfg)
+	}
+}
+
+func updateSharedXiaoduToken(cfg *config.Config, agent, previousRefreshToken string, token notify.XiaoduTokenState) {
+	update := func(channel *config.XiaoduChannelConfig) {
+		channel.AccessToken = token.AccessToken
+		channel.RefreshToken = token.RefreshToken
+		channel.ExpiresAt = token.ExpiresAt
+	}
+
+	switch agent {
+	case "codex":
+		update(&cfg.Notify.Codex.Channels.Xiaodu)
+	case "zcode":
+		update(&cfg.Notify.ZCode.Channels.Xiaodu)
+	default:
+		update(&cfg.Notify.ClaudeCode.Channels.Xiaodu)
+	}
+
+	if previousRefreshToken == "" {
+		return
+	}
+	for _, channel := range []*config.XiaoduChannelConfig{
+		&cfg.Notify.ClaudeCode.Channels.Xiaodu,
+		&cfg.Notify.Codex.Channels.Xiaodu,
+		&cfg.Notify.ZCode.Channels.Xiaodu,
+	} {
+		if channel.Enabled && channel.RefreshToken == previousRefreshToken {
+			update(channel)
+		}
+	}
+}
+
+func xiaoduConfigPath(statePath string) (string, error) {
+	if statePath != "" {
+		return filepath.Join(filepath.Dir(statePath), "config.yaml"), nil
+	}
+	return config.DefaultPath()
 }
 
 func contains(items []string, want string) bool {

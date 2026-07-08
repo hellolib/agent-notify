@@ -89,3 +89,20 @@ func TestBuildSendersAddsBarkForCodex(t *testing.T) {
 		t.Fatalf("senders[0] = %q, want bark", senders[0].Name())
 	}
 }
+
+func TestBuildSendersAddsXiaoduForCodex(t *testing.T) {
+	cfg := config.Default()
+	cfg.Notify.Codex.Channels.Xiaodu.Enabled = true
+	cfg.Notify.Codex.Channels.Xiaodu.APIBaseURL = "https://example.com/rpc"
+	cfg.Notify.Codex.Channels.Xiaodu.AccessToken = "access-token"
+	cfg.Notify.Codex.Events = []string{"run_completed"}
+
+	senders := buildSenders(cfg, notify.Message{Agent: "codex", Event: "run_completed"})
+
+	if len(senders) != 1 {
+		t.Fatalf("len(senders) = %d, want 1", len(senders))
+	}
+	if senders[0].Name() != "xiaodu" {
+		t.Fatalf("senders[0] = %q, want xiaodu", senders[0].Name())
+	}
+}

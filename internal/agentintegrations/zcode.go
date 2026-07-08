@@ -52,7 +52,7 @@ func (z *ZcodeIntegration) SettingsPath(scope string) (string, error) {
 }
 
 // Install 写入 ZCode config.json，订阅 SessionStart / PermissionRequest /
-// PostToolUseFailure / Stop 事件。已存在 agent-notify hook 的事件会被跳过；
+// PostToolUse / PostToolUseFailure / Stop 事件。已存在 agent-notify hook 的事件会被跳过；
 // 用户挂载的其他 hook、以及 config.json 中的其它顶层键（如 mcp）原样保留。
 func (z *ZcodeIntegration) Install(settingsPath, binaryPath string) error {
 	return zcodehooks.Install(settingsPath, common.ResolveBinaryPath(binaryPath))

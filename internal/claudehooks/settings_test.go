@@ -15,7 +15,7 @@ func TestBuildHookSettings(t *testing.T) {
 		t.Fatalf("hooks type = %T, want map[string]any", got["hooks"])
 	}
 
-	events := []string{"PermissionRequest", "Notification", "Stop", "PostToolUseFailure"}
+	events := []string{"PermissionRequest", "Notification", "Stop", "PostToolUseFailure", "PostToolUse", "UserPromptSubmit"}
 	for _, event := range events {
 		items, ok := hooks[event].([]map[string]any)
 		if !ok || len(items) != 1 {
@@ -130,6 +130,35 @@ func TestInstallIdempotent(t *testing.T) {
 	}
 }
 
+func TestInstallUpdatesManagedHookCommand(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	existing := `{
+  "hooks": {
+    "PermissionRequest": [
+      {"hooks": [{"type": "command", "command": "/tmp/old-agent-notify handle-claude-hook"}]}
+    ]
+  }
+}`
+	if err := os.WriteFile(path, []byte(existing), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Install(path, "/tmp/new-agent-notify"); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+
+	got := readSettingsForTest(t, path)
+	hooks := got["hooks"].(map[string]any)
+	commands := collectCommandsForTest(hooks["PermissionRequest"].([]any))
+	if containsString(commands, "/tmp/old-agent-notify handle-claude-hook") {
+		t.Fatalf("old managed hook command still present: %v", commands)
+	}
+	if !containsString(commands, "/tmp/new-agent-notify handle-claude-hook") {
+		t.Fatalf("new managed hook command missing: %v", commands)
+	}
+}
+
 // TestUninstallRemovesOnlyManagedHooks 卸载应只删除 agent-notify 写入的 hook，
 // 用户自定义 hook 原样保留。
 func TestUninstallRemovesOnlyManagedHooks(t *testing.T) {
@@ -163,7 +192,7 @@ func TestUninstallRemovesOnlyManagedHooks(t *testing.T) {
 	if !ok {
 		t.Fatal("user Stop hook should remain — hooks map missing entirely")
 	}
-	for _, unmanagedEvent := range []string{"PermissionRequest", "Notification", "PostToolUseFailure"} {
+	for _, unmanagedEvent := range []string{"PermissionRequest", "Notification", "PostToolUseFailure", "PostToolUse", "UserPromptSubmit"} {
 		if _, exists := hooks[unmanagedEvent]; exists {
 			t.Fatalf("%s should be removed (no user hooks under it)", unmanagedEvent)
 		}

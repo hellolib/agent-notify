@@ -51,6 +51,7 @@ type ChannelsConfig struct {
 	Bark       BarkChannelConfig       `yaml:"bark"`        // Bark 通知配置
 	Ntfy       NtfyChannelConfig       `yaml:"ntfy"`        // Ntfy 通知配置
 	Slack      SlackChannelConfig      `yaml:"slack"`       // Slack 通知配置
+	Xiaodu     XiaoduChannelConfig     `yaml:"xiaodu"`      // 小度智能音箱通知配置
 }
 
 // ChannelConfig holds configuration for a single notification channel.
@@ -92,6 +93,45 @@ type NtfyChannelConfig struct {
 type SlackChannelConfig struct {
 	Enabled    bool   `yaml:"enabled"`     // 是否启用 Slack 通知
 	WebhookURL string `yaml:"webhook_url"` // Slack Incoming Webhook URL
+}
+
+// XiaoduChannelConfig holds configuration for Xiaodu smart speaker notifications.
+type XiaoduChannelConfig struct {
+	Enabled               bool   `yaml:"enabled"`                           // 是否启用小度智能音箱通知
+	AccessToken           string `yaml:"access_token"`                      // 小度访问令牌
+	RefreshToken          string `yaml:"refresh_token"`                     // 小度刷新令牌（预留）
+	ClientID              string `yaml:"client_id"`                         // 百度 OAuth Client ID / API Key
+	ClientSecret          string `yaml:"client_secret"`                     // 百度 OAuth Client Secret / Secret Key
+	ExpiresAt             int64  `yaml:"expires_at"`                        // Access Token 过期时间（Unix 秒）
+	DeviceID              string `yaml:"device_id"`                         // 小度设备 client_id；为空时自动选择第一个在线设备
+	CUID                  string `yaml:"cuid"`                              // 小度设备 CUID
+	APIBaseURL            string `yaml:"api_base_url"`                      // 小度 MCP/JSON-RPC API 地址
+	SpeakCompleted        *bool  `yaml:"speak_completed,omitempty"`         // 是否播报任务完成；未设置时默认 true
+	RepeatCount           int    `yaml:"repeat_count,omitempty"`            // 需要操作类事件总播报次数，包含首次播报
+	RepeatIntervalSeconds int    `yaml:"repeat_interval_seconds,omitempty"` // 重复播报间隔秒数
+}
+
+const (
+	DefaultXiaoduRepeatCount           = 2
+	DefaultXiaoduRepeatIntervalSeconds = 25
+)
+
+func (c XiaoduChannelConfig) ShouldSpeakCompleted() bool {
+	return c.SpeakCompleted == nil || *c.SpeakCompleted
+}
+
+func (c XiaoduChannelConfig) EffectiveRepeatCount() int {
+	if c.RepeatCount <= 0 {
+		return DefaultXiaoduRepeatCount
+	}
+	return c.RepeatCount
+}
+
+func (c XiaoduChannelConfig) EffectiveRepeatIntervalSeconds() int {
+	if c.RepeatIntervalSeconds <= 0 {
+		return DefaultXiaoduRepeatIntervalSeconds
+	}
+	return c.RepeatIntervalSeconds
 }
 
 // BehaviorConfig holds behavior configuration.
@@ -136,6 +176,7 @@ func Default() Config {
 					Bark:       BarkChannelConfig{Enabled: false, WebhookURL: ""},
 					Ntfy:       NtfyChannelConfig{Enabled: false, TopicURL: ""},
 					Slack:      SlackChannelConfig{Enabled: false, WebhookURL: ""},
+					Xiaodu:     XiaoduChannelConfig{Enabled: false, AccessToken: "", RefreshToken: "", ClientID: "", ClientSecret: "", ExpiresAt: 0, DeviceID: "", CUID: "", APIBaseURL: ""},
 				},
 			},
 			Codex: AgentNotifyConfig{
@@ -148,6 +189,7 @@ func Default() Config {
 					Bark:       BarkChannelConfig{Enabled: false, WebhookURL: ""},
 					Ntfy:       NtfyChannelConfig{Enabled: false, TopicURL: ""},
 					Slack:      SlackChannelConfig{Enabled: false, WebhookURL: ""},
+					Xiaodu:     XiaoduChannelConfig{Enabled: false, AccessToken: "", RefreshToken: "", ClientID: "", ClientSecret: "", ExpiresAt: 0, DeviceID: "", CUID: "", APIBaseURL: ""},
 				},
 			},
 			ZCode: AgentNotifyConfig{
@@ -160,6 +202,7 @@ func Default() Config {
 					Bark:       BarkChannelConfig{Enabled: false, WebhookURL: ""},
 					Ntfy:       NtfyChannelConfig{Enabled: false, TopicURL: ""},
 					Slack:      SlackChannelConfig{Enabled: false, WebhookURL: ""},
+					Xiaodu:     XiaoduChannelConfig{Enabled: false, AccessToken: "", RefreshToken: "", ClientID: "", ClientSecret: "", ExpiresAt: 0, DeviceID: "", CUID: "", APIBaseURL: ""},
 				},
 			},
 		},
@@ -193,6 +236,14 @@ func LogPath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(home, ".agent-notify", "agent-notify.log"), nil
+}
+
+func XiaoduReminderPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".agent-notify", "xiaodu-reminders.json"), nil
 }
 
 func Load(path string) (Config, error) {
@@ -237,8 +288,23 @@ func Load(path string) (Config, error) {
 }
 
 func Save(path string, cfg Config) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	dir := filepath.Dir(path)
+	dirMissing := false
+	if info, err := os.Stat(dir); errors.Is(err, os.ErrNotExist) {
+		dirMissing = true
+	} else if err != nil {
 		return err
+	} else if !info.IsDir() {
+		return errors.New("config path parent is not a directory")
+	}
+
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	if dirMissing {
+		if err := os.Chmod(dir, 0o700); err != nil {
+			return err
+		}
 	}
 
 	data, err := yaml.Marshal(cfg)
@@ -246,5 +312,8 @@ func Save(path string, cfg Config) error {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0o644)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o600)
 }

@@ -47,8 +47,29 @@ func TestParsePermissionRequest(t *testing.T) {
 	if !strings.Contains(msg.Body, "Bash") {
 		t.Fatalf("Body = %q, want tool name Bash", msg.Body)
 	}
+	if msg.ToolName != "Bash" {
+		t.Fatalf("ToolName = %q, want Bash", msg.ToolName)
+	}
 	if msg.Workspace != "C:\\Users\\demo\\project" {
 		t.Fatalf("Workspace = %q, want C:\\Users\\demo\\project", msg.Workspace)
+	}
+}
+
+func TestParsePostToolUseCancellation(t *testing.T) {
+	raw := []byte(`{"hookEventName":"PostToolUse","sessionId":"s1","cwd":"C:\\repo","tool_name":"Bash"}`)
+
+	msg, err := ParseMessage(raw)
+	if err != nil {
+		t.Fatalf("ParseMessage() error = %v", err)
+	}
+	if msg.Event != "tool_completed" {
+		t.Fatalf("Event = %q, want tool_completed", msg.Event)
+	}
+	if msg.ToolName != "Bash" {
+		t.Fatalf("ToolName = %q, want Bash", msg.ToolName)
+	}
+	if msg.Agent != "zcode" {
+		t.Fatalf("Agent = %q, want zcode", msg.Agent)
 	}
 }
 

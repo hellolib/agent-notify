@@ -19,6 +19,8 @@ func newTestCmd(ctx context.Context, streams Streams) *cobra.Command {
 		newTestBarkCmd(ctx, streams),
 		newTestDingTalkCmd(ctx, streams),
 		newTestNtfyCmd(ctx, streams),
+		newTestSlackCmd(ctx, streams),
+		newTestXiaoduCmd(ctx, streams),
 	)
 	return cmd
 }
@@ -75,6 +77,26 @@ func newTestNtfyCmd(ctx context.Context, streams Streams) *cobra.Command {
 		Short: "Send a Ntfy test notification",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runTestNtfy(ctx, streams)
+		},
+	}
+}
+
+func newTestSlackCmd(ctx context.Context, streams Streams) *cobra.Command {
+	return &cobra.Command{
+		Use:   "slack",
+		Short: "Send a Slack test notification",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runTestSlack(ctx, streams)
+		},
+	}
+}
+
+func newTestXiaoduCmd(ctx context.Context, streams Streams) *cobra.Command {
+	return &cobra.Command{
+		Use:   "xiaodu",
+		Short: "Send a Xiaodu smart speaker test notification",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runTestXiaodu(ctx, streams)
 		},
 	}
 }

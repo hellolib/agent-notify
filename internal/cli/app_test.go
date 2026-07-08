@@ -9,7 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hellolib/agent-notify/internal/app/tester"
 	"github.com/hellolib/agent-notify/internal/config"
+	"github.com/hellolib/agent-notify/internal/notify"
 )
 
 type fakePrompter struct {
@@ -72,6 +74,24 @@ func useFakePrompter(t *testing.T, prompter *fakePrompter) {
 	t.Cleanup(func() {
 		newPrompter = oldFactory
 	})
+}
+
+type cliFakeSender struct {
+	called bool
+	err    error
+}
+
+func (f *cliFakeSender) Name() string { return "fake" }
+
+func (f *cliFakeSender) Send(ctx context.Context, msg notify.Message) error {
+	f.called = true
+	return f.err
+}
+
+type cliNoopFeishuPreparer struct{}
+
+func (cliNoopFeishuPreparer) EnsureReady(ctx context.Context) error {
+	return nil
 }
 
 func TestRunRootHelp(t *testing.T) {
@@ -168,6 +188,7 @@ func TestRunVersionFlag(t *testing.T) {
 
 func TestRunInitWritesConfig(t *testing.T) {
 	dir := t.TempDir()
+	t.Setenv("HOME", dir)
 	configPath := filepath.Join(dir, "config.yaml")
 	settingsPath := filepath.Join(dir, "settings.json")
 	calledPrepare := false
@@ -230,13 +251,28 @@ func TestRunTestFeishuWithoutConfig(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 
+	sender := &cliFakeSender{}
+	oldFactory := newTesterService
+	newTesterService = func(opts ...tester.Option) *tester.Service {
+		return tester.NewService(
+			tester.WithFeishuPreparer(cliNoopFeishuPreparer{}),
+			tester.WithFeishuSender(sender),
+		)
+	}
+	t.Cleanup(func() {
+		newTesterService = oldFactory
+	})
+
 	var stdout bytes.Buffer
 	err := Run(context.Background(), []string{"test", "feishu"}, strings.NewReader(""), &stdout, &bytes.Buffer{})
-	if err == nil {
-		t.Fatal("Run() error = nil, want disabled feishu error")
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
 	}
-	if !strings.Contains(err.Error(), "feishu is disabled") {
-		t.Fatalf("err = %v, want feishu disabled error", err)
+	if !sender.called {
+		t.Fatal("expected injected Feishu sender to be called")
+	}
+	if stdout.Len() == 0 {
+		t.Fatal("expected success output")
 	}
 }
 
@@ -310,6 +346,7 @@ func TestRunDoctorDetectsCodexHookConfig(t *testing.T) {
 
 func TestRunInitCanDisableSystemNotification(t *testing.T) {
 	dir := t.TempDir()
+	t.Setenv("HOME", dir)
 	configPath := filepath.Join(dir, "config.yaml")
 	settingsPath := filepath.Join(dir, "settings.json")
 
@@ -348,6 +385,7 @@ func TestRunInitCanDisableSystemNotification(t *testing.T) {
 
 func TestRunInitPartialEventsSelection(t *testing.T) {
 	dir := t.TempDir()
+	t.Setenv("HOME", dir)
 	configPath := filepath.Join(dir, "config.yaml")
 	settingsPath := filepath.Join(dir, "settings.json")
 
@@ -416,7 +454,7 @@ func TestRunInitInstallsCodexHookConfig(t *testing.T) {
 		t.Fatalf("ReadFile() error = %v", err)
 	}
 	got := string(data)
-	for _, want := range []string{`"PermissionRequest"`, `"Stop"`, "handle-codex-hook"} {
+	for _, want := range []string{`"PermissionRequest"`, `"Stop"`, `"PostToolUse"`, "handle-codex-hook"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("hooks.json = %q, want substring %q", got, want)
 		}
@@ -436,6 +474,27 @@ func TestRunInitInstallsCodexHookConfig(t *testing.T) {
 	expectedEvents := []string{"permission_required", "run_completed"}
 	if !reflect.DeepEqual(cfg.Notify.Codex.Events, expectedEvents) {
 		t.Fatalf("Codex events = %#v, want %#v", cfg.Notify.Codex.Events, expectedEvents)
+	}
+}
+
+func TestRunCodexInstallHooksCommand(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	if err := Run(context.Background(), []string{"codex", "install-hooks", "--binary", "/tmp/agent-notify"}, strings.NewReader(""), &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	hooksPath := filepath.Join(dir, ".codex", "hooks.json")
+	data, err := os.ReadFile(hooksPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	got := string(data)
+	for _, want := range []string{`"PermissionRequest"`, `"Stop"`, `"PostToolUse"`, "/tmp/agent-notify handle-codex-hook"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("hooks.json = %q, want substring %q", got, want)
+		}
 	}
 }
 

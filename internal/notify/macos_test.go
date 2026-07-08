@@ -200,6 +200,7 @@ func TestShortenWorkspace(t *testing.T) {
 		{"agent-notify", "agent-notify"}, // 一段，原样
 		{"/a/b/c/d", "c/d"},              // 多段取末尾两段
 		{"/Users/foo/./x", "./x"},        // 四段取末两段
+		{`C:\Users\demo\project`, "demo/project"},
 	}
 	for _, c := range cases {
 		got := shortenWorkspace(c.in)

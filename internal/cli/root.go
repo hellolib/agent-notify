@@ -34,12 +34,14 @@ func NewRootCmd(ctx context.Context, streams Streams) *cobra.Command {
 	root.AddCommand(
 		newInitCmd(streams),
 		newClaudeCmd(streams),
+		newCodexCmd(streams),
 		newZcodeCmd(streams),
 		newTestCmd(ctx, streams),
 		newDoctorCmd(streams),
 		newHandleClaudeHookCmd(ctx, streams),
 		newHandleCodexHookCmd(ctx, streams),
 		newHandleZcodeHookCmd(ctx, streams),
+		newXiaoduReminderCmd(ctx, streams),
 		newLinuxNotifyWaitCmd(ctx),
 	)
 

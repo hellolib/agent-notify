@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -96,6 +97,34 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 	}
 }
 
+func TestSaveUsesPrivatePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not enforce POSIX permission bits")
+	}
+	dir := filepath.Join(t.TempDir(), "agent-notify")
+	path := filepath.Join(dir, "config.yaml")
+
+	if err := Save(path, Default()); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Stat(config) error = %v", err)
+	}
+	if got := fileInfo.Mode().Perm(); got != 0o600 {
+		t.Fatalf("config mode = %o, want 600", got)
+	}
+
+	dirInfo, err := os.Stat(dir)
+	if err != nil {
+		t.Fatalf("Stat(dir) error = %v", err)
+	}
+	if got := dirInfo.Mode().Perm(); got != 0o700 {
+		t.Fatalf("config dir mode = %o, want 700", got)
+	}
+}
+
 func TestLoadNewConfigStructure(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
@@ -161,5 +190,29 @@ func TestLoadMissingFileReturnsDefault(t *testing.T) {
 
 	if !reflect.DeepEqual(got, Default()) {
 		t.Fatalf("Load() mismatch\ngot  %#v\nwant %#v", got, Default())
+	}
+}
+
+func TestXiaoduBehaviorDefaults(t *testing.T) {
+	cfg := Default()
+	x := cfg.Notify.Codex.Channels.Xiaodu
+
+	if !x.ShouldSpeakCompleted() {
+		t.Fatal("ShouldSpeakCompleted() = false, want true by default")
+	}
+	if got := x.EffectiveRepeatCount(); got != 2 {
+		t.Fatalf("EffectiveRepeatCount() = %d, want 2", got)
+	}
+	if got := x.EffectiveRepeatIntervalSeconds(); got != 25 {
+		t.Fatalf("EffectiveRepeatIntervalSeconds() = %d, want 25", got)
+	}
+}
+
+func TestXiaoduSpeakCompletedCanBeDisabled(t *testing.T) {
+	disabled := false
+	x := XiaoduChannelConfig{SpeakCompleted: &disabled}
+
+	if x.ShouldSpeakCompleted() {
+		t.Fatal("ShouldSpeakCompleted() = true, want false when explicitly disabled")
 	}
 }

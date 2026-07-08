@@ -244,6 +244,7 @@ func (s *Service) disableAgentNotification(cfg config.Config, path, agent string
 		cfg.Notify.ClaudeCode.Channels.Ntfy.Enabled = false
 		cfg.Notify.ClaudeCode.Channels.Slack.Enabled = false
 		cfg.Notify.ClaudeCode.Channels.Slack.WebhookURL = ""
+		cfg.Notify.ClaudeCode.Channels.Xiaodu.Enabled = false
 		cfg.Notify.ClaudeCode.Events = nil
 		cfg.Agent.ClaudeCode.Enabled = false
 	case "codex":
@@ -255,6 +256,7 @@ func (s *Service) disableAgentNotification(cfg config.Config, path, agent string
 		cfg.Notify.Codex.Channels.Ntfy.Enabled = false
 		cfg.Notify.Codex.Channels.Slack.Enabled = false
 		cfg.Notify.Codex.Channels.Slack.WebhookURL = ""
+		cfg.Notify.Codex.Channels.Xiaodu.Enabled = false
 		cfg.Notify.Codex.Events = nil
 		cfg.Agent.Codex.Enabled = false
 	case "zcode":
@@ -266,6 +268,7 @@ func (s *Service) disableAgentNotification(cfg config.Config, path, agent string
 		cfg.Notify.ZCode.Channels.Ntfy.Enabled = false
 		cfg.Notify.ZCode.Channels.Slack.Enabled = false
 		cfg.Notify.ZCode.Channels.Slack.WebhookURL = ""
+		cfg.Notify.ZCode.Channels.Xiaodu.Enabled = false
 		cfg.Notify.ZCode.Events = nil
 		cfg.Agent.ZCode.Enabled = false
 	}

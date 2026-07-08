@@ -15,14 +15,17 @@ const hookCommandMarker = "handle-zcode-hook"
 
 // managedEvents 是本插件托管的 ZCode 事件列表。
 // ZCode 内置的 hook 事件枚举共 7 个：
-//   SessionStart / UserPromptSubmit / PreToolUse / PermissionRequest /
-//   PostToolUse / PostToolUseFailure / Stop
+//
+//	SessionStart / UserPromptSubmit / PreToolUse / PermissionRequest /
+//	PostToolUse / PostToolUseFailure / Stop
+//
 // 注意：ZCode 没有 Claude Code 的 Notification 事件，且其 schema 为 strict，
 // 任何未知事件名都会导致整个 hooks 配置加载失败，因此这里只能列合法事件。
-// 这里托管与通知最相关的 4 个；PostToolUse（成功）默认不托管，避免噪音。
+// PostToolUse 仅用于取消小度权限提醒，不产生用户通知。
 var managedEvents = []string{
 	"SessionStart",
 	"PermissionRequest",
+	"PostToolUse",
 	"PostToolUseFailure",
 	"Stop",
 }
@@ -92,10 +95,7 @@ func Install(path string, binaryPath string) error {
 	}
 
 	for _, event := range managedEvents {
-		if eventHasManagedHook(events, event) {
-			continue
-		}
-		entries := toAnySlice(events[event])
+		entries := removeManagedHooks(toAnySlice(events[event]))
 		entries = append(entries, map[string]any{
 			"hooks": []any{
 				map[string]any{
@@ -262,6 +262,30 @@ func eventHasManagedHook(events map[string]any, event string) bool {
 		}
 	}
 	return false
+}
+
+func removeManagedHooks(entries []any) []any {
+	cleaned := entries[:0]
+	for _, entry := range entries {
+		entryMap, ok := entry.(map[string]any)
+		if !ok {
+			cleaned = append(cleaned, entry)
+			continue
+		}
+		inner := toAnySlice(entryMap["hooks"])
+		keptInner := inner[:0]
+		for _, h := range inner {
+			if !isManagedHook(h) {
+				keptInner = append(keptInner, h)
+			}
+		}
+		if len(keptInner) == 0 {
+			continue
+		}
+		entryMap["hooks"] = keptInner
+		cleaned = append(cleaned, entryMap)
+	}
+	return cleaned
 }
 
 func isManagedHook(hook any) bool {

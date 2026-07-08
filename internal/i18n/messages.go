@@ -20,6 +20,7 @@ var catalog = map[string]map[Lang]string{
 	"test.bark":     {ZhCN: "Bark", EnUS: "Bark"},
 	"test.ntfy":     {ZhCN: "Ntfy", EnUS: "Ntfy"},
 	"test.slack":    {ZhCN: "Slack", EnUS: "Slack"},
+	"test.xiaodu":   {ZhCN: "小度音箱", EnUS: "Xiaodu"},
 	"test.back":     {ZhCN: "返回", EnUS: "Back"},
 
 	// ── Channel sub-menu ───────────────────────────────────────
@@ -30,6 +31,7 @@ var catalog = map[string]map[Lang]string{
 	"channel.bark":     {ZhCN: "Bark", EnUS: "Bark"},
 	"channel.ntfy":     {ZhCN: "Ntfy", EnUS: "Ntfy"},
 	"channel.slack":    {ZhCN: "Slack", EnUS: "Slack"},
+	"channel.xiaodu":   {ZhCN: "小度音箱", EnUS: "Xiaodu"},
 	"channel.back":     {ZhCN: "返回", EnUS: "Back"},
 
 	// ── Setup flow prompts ─────────────────────────────────────
@@ -48,11 +50,22 @@ var catalog = map[string]map[Lang]string{
 	"event.session_start":       {ZhCN: "会话开始 (session_start)", EnUS: "Session Start"},
 
 	// ── Webhook URL prompts ────────────────────────────────────
-	"prompt.wechat_webhook":   {ZhCN: "企业微信群机器人 Webhook URL", EnUS: "WeChat Work Bot Webhook URL"},
-	"prompt.dingtalk_webhook": {ZhCN: "钉钉群机器人 Webhook URL", EnUS: "DingTalk Bot Webhook URL"},
-	"prompt.bark_webhook":     {ZhCN: "Bark Webhook URL", EnUS: "Bark Webhook URL"},
-	"prompt.ntfy_topic_url":   {ZhCN: "Ntfy Topic URL", EnUS: "Ntfy Topic URL"},
-	"prompt.slack_webhook":    {ZhCN: "Slack Incoming Webhook URL", EnUS: "Slack Incoming Webhook URL"},
+	"prompt.wechat_webhook":                 {ZhCN: "企业微信群机器人 Webhook URL", EnUS: "WeChat Work Bot Webhook URL"},
+	"prompt.dingtalk_webhook":               {ZhCN: "钉钉群机器人 Webhook URL", EnUS: "DingTalk Bot Webhook URL"},
+	"prompt.bark_webhook":                   {ZhCN: "Bark Webhook URL", EnUS: "Bark Webhook URL"},
+	"prompt.ntfy_topic_url":                 {ZhCN: "Ntfy Topic URL", EnUS: "Ntfy Topic URL"},
+	"prompt.slack_webhook":                  {ZhCN: "Slack Incoming Webhook URL", EnUS: "Slack Incoming Webhook URL"},
+	"prompt.xiaodu_api_base_url":            {ZhCN: "小度 MCP/JSON-RPC API 地址", EnUS: "Xiaodu MCP/JSON-RPC API URL"},
+	"prompt.xiaodu_access_token":            {ZhCN: "小度 Access Token", EnUS: "Xiaodu Access Token"},
+	"prompt.xiaodu_refresh_token":           {ZhCN: "小度 Refresh Token（可留空）", EnUS: "Xiaodu Refresh Token (optional)"},
+	"prompt.xiaodu_client_id":               {ZhCN: "小度 Client ID / API Key（自动刷新需要）", EnUS: "Xiaodu Client ID / API Key (required for auto-refresh)"},
+	"prompt.xiaodu_client_secret":           {ZhCN: "小度 Client Secret / Secret Key（自动刷新需要）", EnUS: "Xiaodu Client Secret / Secret Key (required for auto-refresh)"},
+	"prompt.xiaodu_expires_at":              {ZhCN: "小度 Access Token 过期时间 Unix 秒（留空禁用自动刷新）", EnUS: "Xiaodu Access Token expires_at Unix seconds (empty disables auto-refresh)"},
+	"prompt.xiaodu_device_id":               {ZhCN: "小度设备 client_id（留空自动选择）", EnUS: "Xiaodu device client_id (empty for auto-select)"},
+	"prompt.xiaodu_cuid":                    {ZhCN: "小度设备 CUID（留空自动选择）", EnUS: "Xiaodu device CUID (empty for auto-select)"},
+	"prompt.xiaodu_speak_completed":         {ZhCN: "小度是否播报任务完成", EnUS: "Speak completed tasks on Xiaodu"},
+	"prompt.xiaodu_repeat_count":            {ZhCN: "小度需要操作事件总播报次数（含首次）", EnUS: "Xiaodu repeat count for action-needed events (including first speech)"},
+	"prompt.xiaodu_repeat_interval_seconds": {ZhCN: "小度重复播报间隔秒数", EnUS: "Xiaodu repeat interval seconds"},
 
 	// ── Survey help text ───────────────────────────────────────
 	"prompt.help.multiselect": {ZhCN: "[↑↓ 移动, 空格 选择/取消, Enter 确认] ", EnUS: "[↑↓ navigate, space toggle, enter confirm] "},
@@ -75,6 +88,7 @@ var catalog = map[string]map[Lang]string{
 	"err.bark_not_configured":     {ZhCN: "未配置 Bark Webhook URL，请先运行配置向导", EnUS: "Bark Webhook URL not configured; please run setup first"},
 	"err.ntfy_not_configured":     {ZhCN: "未配置 Ntfy Topic URL，请先运行配置向导", EnUS: "Ntfy Topic URL not configured; please run setup first"},
 	"err.slack_not_configured":    {ZhCN: "未配置 Slack Webhook URL，请先运行配置向导", EnUS: "Slack Webhook URL not configured; please run setup first"},
+	"err.xiaodu_not_configured":   {ZhCN: "未配置小度 API 地址或 Access Token，请先运行配置向导", EnUS: "Xiaodu API URL or Access Token not configured; please run setup first"},
 
 	// ── Clean / reset flow ─────────────────────────────────────
 	"clean.confirm":          {ZhCN: "确认清理所有配置？", EnUS: "Reset all configuration?"},
@@ -102,10 +116,13 @@ var catalog = map[string]map[Lang]string{
 	// ── Slack init ─────────────────────────────────────────────
 	"slack.init_done": {ZhCN: "✅ Slack Webhook 配置完成", EnUS: "✅ Slack Webhook configured"},
 
+	// ── Xiaodu init ────────────────────────────────────────────
+	"xiaodu.init_done": {ZhCN: "✅ 小度音箱配置完成", EnUS: "✅ Xiaodu configured"},
+
 	// ── View config table ──────────────────────────────────────
-	"view.header":     {ZhCN: "| Agent        | 飞书 | 系统 | 企业微信 | 钉钉 | Bark | Ntfy | Slack |", EnUS: "| Agent        | Feishu|System|  WeCom  | DingT.| Bark | Ntfy | Slack |"},
-	"view.separator":  {ZhCN: "+--------------+------+------+----------+------+------+------+-------+", EnUS: "+--------------+------+------+----------+------+------+------+-------+"},
-	"view.row_format": {ZhCN: "| %-12s |  %s  |  %s  |    %s    |  %s  |  %s  |  %s  |  %s  |", EnUS: "| %-12s |  %s  |  %s  |    %s    |  %s  |  %s  |  %s  |  %s  |"},
+	"view.header":     {ZhCN: "| Agent        | 飞书 | 系统 | 企业微信 | 钉钉 | Bark | Ntfy | Slack | 小度 |", EnUS: "| Agent        | Feishu|System|  WeCom  | DingT.| Bark | Ntfy | Slack |Xiaodu|"},
+	"view.separator":  {ZhCN: "+--------------+------+------+----------+------+------+------+-------+------+", EnUS: "+--------------+------+------+----------+------+------+------+-------+------+"},
+	"view.row_format": {ZhCN: "| %-12s |  %s  |  %s  |    %s    |  %s  |  %s  |  %s  |  %s  |  %s  |", EnUS: "| %-12s |  %s  |  %s  |    %s    |  %s  |  %s  |  %s  |  %s  |  %s  |"},
 
 	// ── Doctor output ──────────────────────────────────────────
 	"doctor.config_file":      {ZhCN: "配置文件: %s\n\n", EnUS: "Config file: %s\n\n"},
@@ -113,8 +130,8 @@ var catalog = map[string]map[Lang]string{
 	"doctor.agent_sep":        {ZhCN: "+--------------+----------+----------------+", EnUS: "+--------------+----------+----------------+"},
 	"doctor.agent_header":     {ZhCN: "| Agent        | 安装状态 | 集成配置       |", EnUS: "| Agent        | Installed| Integration    |"},
 	"doctor.channel_status":   {ZhCN: "【通知渠道状态】", EnUS: "【Notification Channels】"},
-	"doctor.channel_sep":      {ZhCN: "+--------------+------+------+----------+------+------+------+-------+", EnUS: "+--------------+------+------+----------+------+------+------+-------+"},
-	"doctor.channel_header":   {ZhCN: "| Agent        | 飞书 | 系统 | 企业微信 | 钉钉 | Bark | Ntfy | Slack |", EnUS: "| Agent        | Feishu|System|  WeCom  | DingT.| Bark | Ntfy | Slack |"},
+	"doctor.channel_sep":      {ZhCN: "+--------------+------+------+----------+------+------+------+-------+------+", EnUS: "+--------------+------+------+----------+------+------+------+-------+------+"},
+	"doctor.channel_header":   {ZhCN: "| Agent        | 飞书 | 系统 | 企业微信 | 钉钉 | Bark | Ntfy | Slack | 小度 |", EnUS: "| Agent        | Feishu|System|  WeCom  | DingT.| Bark | Ntfy | Slack |Xiaodu|"},
 	"doctor.system_env":       {ZhCN: "【系统环境】", EnUS: "【System Environment】"},
 	"doctor.env_sep":          {ZhCN: "+----------------------+------------+", EnUS: "+----------------------+------------+"},
 	"doctor.env_header":       {ZhCN: "| 检查项               | 状态       |", EnUS: "| Check Item           | Status     |"},
@@ -148,6 +165,7 @@ var catalog = map[string]map[Lang]string{
 	"test.msg_body_bark":     {ZhCN: "这是一条 Bark 测试消息", EnUS: "This is a Bark test notification"},
 	"test.msg_body_ntfy":     {ZhCN: "这是一条 Ntfy 测试消息", EnUS: "This is a Ntfy test notification"},
 	"test.msg_body_slack":    {ZhCN: "这是一条 Slack 测试消息", EnUS: "This is a Slack test notification"},
+	"test.msg_body_xiaodu":   {ZhCN: "这是一条小度音箱测试消息", EnUS: "This is a Xiaodu test notification"},
 	"test.feishu_sent":       {ZhCN: "飞书测试通知已发送", EnUS: "Feishu test notification sent"},
 	"test.system_sent":       {ZhCN: "系统测试通知已发送", EnUS: "System test notification sent"},
 	"test.wechat_sent":       {ZhCN: "企业微信测试通知已发送", EnUS: "WeChat Work test notification sent"},
@@ -155,6 +173,7 @@ var catalog = map[string]map[Lang]string{
 	"test.bark_sent":         {ZhCN: "Bark 测试通知已发送", EnUS: "Bark test notification sent"},
 	"test.ntfy_sent":         {ZhCN: "Ntfy 测试通知已发送", EnUS: "Ntfy test notification sent"},
 	"test.slack_sent":        {ZhCN: "Slack 测试通知已发送", EnUS: "Slack test notification sent"},
+	"test.xiaodu_sent":       {ZhCN: "小度音箱测试通知已发送", EnUS: "Xiaodu test notification sent"},
 
 	// ── Setup service messages ─────────────────────────────────
 	"setup.config_file":        {ZhCN: "配置文件: %s\n", EnUS: "Config file: %s\n"},
