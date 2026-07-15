@@ -1,0 +1,7 @@
+{
+  "hookEventName": "stop_failure",
+  "sessionId": "sess-grok-4",
+  "cwd": "/Users/demo/project",
+  "errorMessage": "API rate limit exceeded",
+  "timestamp": "2026-04-14T12:00:00Z"
+}

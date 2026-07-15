@@ -15,6 +15,8 @@ func TestService_CodexBarkChannel(t *testing.T) {
 	svc := NewService(
 		WithClaudeIntegration(&mockIntegration{name: "Claude Code", detectInstalled: false}),
 		WithCodexIntegration(&mockIntegration{name: "Codex", detectInstalled: true, settingsPath: "/tmp/.codex/config.toml"}),
+		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
+		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
 		WithConfigLoader(loader),
 	)
 	wantURL := "https://api.day.app/testkey/replace-me"
@@ -55,6 +57,8 @@ func TestService_DisablesExistingBarkWhenDeselected(t *testing.T) {
 	svc := NewService(
 		WithClaudeIntegration(&mockIntegration{name: "Claude Code", detectInstalled: true, settingsPath: "/tmp/.claude/settings.json"}),
 		WithCodexIntegration(&mockIntegration{name: "Codex", detectInstalled: false}),
+		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
+		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
 		WithConfigLoader(loader),
 	)
 	prompter := &mockPrompter{

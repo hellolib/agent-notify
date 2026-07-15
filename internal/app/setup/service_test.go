@@ -134,6 +134,7 @@ func TestService_NoAgentsDetected(t *testing.T) {
 		WithClaudeIntegration(&mockIntegration{name: "Claude Code", detectInstalled: false}),
 		WithCodexIntegration(&mockIntegration{name: "Codex", detectInstalled: false}),
 		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
+		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
 	)
 
 	prompter := &mockPrompter{}
@@ -154,6 +155,8 @@ func TestService_ClaudeIntegration(t *testing.T) {
 			isHookInstalled: true,
 		}),
 		WithCodexIntegration(&mockIntegration{name: "Codex", detectInstalled: false}),
+		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
+		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
 		WithFeishuPreparer(&mockFeishuPreparer{}),
 	)
 
@@ -183,6 +186,8 @@ func TestService_CodexIntegration(t *testing.T) {
 			settingsPath:    "/tmp/.codex/config.toml",
 			isHookInstalled: true,
 		}),
+		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
+		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
 		WithFeishuPreparer(&mockFeishuPreparer{}),
 	)
 
@@ -210,6 +215,8 @@ func TestService_UsesInjectedConfigLoader(t *testing.T) {
 	svc := NewService(
 		WithClaudeIntegration(&mockIntegration{name: "Claude Code", detectInstalled: true, settingsPath: "/tmp/.claude/settings.json"}),
 		WithCodexIntegration(&mockIntegration{name: "Codex", detectInstalled: false}),
+		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
+		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
 		WithConfigLoader(loader),
 	)
 	prompter := &mockPrompter{selectResult: "claude", multiResult: []string{"system"}}

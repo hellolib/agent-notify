@@ -27,6 +27,7 @@ type Service struct {
 	configLoader     ConfigLoader
 	feishuSender     notify.Sender
 	systemSender     notify.Sender
+	wechatSender     notify.Sender
 	wechatWorkSender notify.Sender
 	dingTalkSender   notify.Sender
 	barkSender       notify.Sender
@@ -64,6 +65,11 @@ func WithFeishuSender(sender notify.Sender) Option {
 // WithSystemSender sets the system sender.
 func WithSystemSender(sender notify.Sender) Option {
 	return func(s *Service) { s.systemSender = sender }
+}
+
+// WithWechatSender sets the personal WeChat webhook sender.
+func WithWechatSender(sender notify.Sender) Option {
+	return func(s *Service) { s.wechatSender = sender }
 }
 
 // WithWechatWorkSender sets the WeChat Work sender.
@@ -124,6 +130,20 @@ func (s *Service) TestSystem(ctx context.Context) (*TestSystemResult, error) {
 		return nil, err
 	}
 	return &TestSystemResult{Message: i18n.T("test.system_sent")}, nil
+}
+
+// TestWechatResult contains the result of a personal WeChat webhook test.
+type TestWechatResult struct {
+	Message string
+}
+
+// TestWechat sends a test WeChat notification using the provided webhook URL.
+func (s *Service) TestWechat(ctx context.Context, webhookURL string) (*TestWechatResult, error) {
+	msg := notify.Message{Event: "permission_required", Title: i18n.T("test.msg_title"), Body: i18n.T("test.msg_body_wechat_personal")}
+	if err := s.wechatNotificationSender(webhookURL).Send(ctx, msg); err != nil {
+		return nil, err
+	}
+	return &TestWechatResult{Message: i18n.T("test.wechat_personal_sent")}, nil
 }
 
 // TestWechatWorkResult contains the result of a WeChat Work test.
@@ -222,6 +242,13 @@ func (s *Service) systemNotificationSender() notify.Sender {
 		return s.systemSender
 	}
 	return notify.NewSystemSender(notify.DefaultRunner, true)
+}
+
+func (s *Service) wechatNotificationSender(webhookURL string) notify.Sender {
+	if s.wechatSender != nil {
+		return s.wechatSender
+	}
+	return notify.NewWechatSender(webhookURL)
 }
 
 func (s *Service) wechatWorkNotificationSender(webhookURL string) notify.Sender {

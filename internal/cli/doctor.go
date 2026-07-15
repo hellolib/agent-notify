@@ -16,6 +16,8 @@ func newDoctorCmd(streams Streams) *cobra.Command {
 			svc := doctor.NewService(
 				doctor.WithClaudeIntegration(agentintegrations.NewClaudeIntegration()),
 				doctor.WithCodexIntegration(agentintegrations.NewCodexIntegration()),
+				doctor.WithZcodeIntegration(agentintegrations.NewZcodeIntegration()),
+				doctor.WithGrokIntegration(agentintegrations.NewGrokIntegration()),
 			)
 			result, err := svc.Run()
 			if err != nil {

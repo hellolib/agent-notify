@@ -25,8 +25,9 @@ func TestWindowsSenderSendPushesToastRequest(t *testing.T) {
 	if !strings.Contains(got.Body, "Test Body") {
 		t.Fatalf("body = %q, want to contain %q", got.Body, "Test Body")
 	}
-	if !strings.Contains(got.Body, "/path/to/project") {
-		t.Fatalf("body = %q, want to contain workspace path", got.Body)
+	// Windows body uses shortened workspace (last two segments)
+	if !strings.Contains(got.Body, "to/project") {
+		t.Fatalf("body = %q, want to contain shortened workspace to/project", got.Body)
 	}
 	if !got.ClickToFocus {
 		t.Fatal("ClickToFocus = false, want true")
@@ -84,7 +85,7 @@ func TestWindowsSenderFormatBody(t *testing.T) {
 		{
 			name:      "with workspace",
 			msg:       Message{Body: "Test message", Workspace: "/home/user/project"},
-			wantParts: []string{"/home/user/project", "Test message"},
+			wantParts: []string{"user/project", "Test message"},
 			dontWant:  []string{},
 		},
 		{

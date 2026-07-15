@@ -13,6 +13,8 @@ import (
 func Dispatch(ctx context.Context, cfg config.Config, statePath, logPath string, msg notify.Message) error {
 	// hook 进程由终端 / IDE 启动，此处能从继承的环境变量识别宿主应用
 	msg.SourceApp = notify.DetectSourceApp()
+	// Windows 上 hook stdin 偶发把路径中的中文变成 '?'；用 env / Getwd 纠正
+	msg.Workspace = notify.ResolveWorkspace(msg.Workspace)
 
 	store := state.NewStore(statePath)
 	senders := buildSenders(cfg, msg)
@@ -36,10 +38,13 @@ func buildSenders(cfg config.Config, msg notify.Message) []notify.Sender {
 	var senders []notify.Sender
 
 	notifyCfg := cfg.Notify.ClaudeCode
-	if msg.Agent == "codex" {
+	switch msg.Agent {
+	case "codex":
 		notifyCfg = cfg.Notify.Codex
-	} else if msg.Agent == "zcode" {
+	case "zcode":
 		notifyCfg = cfg.Notify.ZCode
+	case "grok":
+		notifyCfg = cfg.Notify.Grok
 	}
 
 	if !contains(notifyCfg.Events, msg.Event) {
@@ -51,6 +56,9 @@ func buildSenders(cfg config.Config, msg notify.Message) []notify.Sender {
 	}
 	if notifyCfg.Channels.Feishu.Enabled {
 		senders = append(senders, notify.NewDefaultFeishuSender())
+	}
+	if notifyCfg.Channels.Wechat.Enabled && notifyCfg.Channels.Wechat.WebhookURL != "" {
+		senders = append(senders, notify.NewWechatSender(notifyCfg.Channels.Wechat.WebhookURL))
 	}
 	if notifyCfg.Channels.WechatWork.Enabled && notifyCfg.Channels.WechatWork.WebhookURL != "" {
 		senders = append(senders, notify.NewWechatWorkSender(notifyCfg.Channels.WechatWork.WebhookURL))

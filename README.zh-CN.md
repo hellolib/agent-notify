@@ -14,7 +14,7 @@
 
 ## 项目简介
 
-一个面向 AI Agent 的通知配置工具。支持将 Claude Code、Codex、ZCode (Z.ai) 等 Agent 的事件通知推送到飞书、企业微信、钉钉、Bark、ntfy 和系统通知。
+一个面向 AI Agent 的通知配置工具。支持将 Claude Code、Codex、ZCode (Z.ai)、Grok 等 Agent 的事件通知推送到飞书、企业微信、钉钉、Bark、ntfy 和系统通知。
 
 ## 功能特性
 ### 支持的通知渠道
@@ -32,19 +32,20 @@
 
 ### 支持的事件
 
-| 事件 | 说明 | Claude Code | Codex | ZCode |
-|------|------|:---:|:---:|:---:|
-| `session_start` | Agent 新会话开始 | — | — | ✅ |
-| `permission_required` | Agent 需要授权（如执行命令） | ✅ | ✅ | ✅ |
-| `input_required` | Agent 等待用户输入 | ✅ | — | — |
-| `run_completed` | 任务执行完成 | ✅ | ✅ | ✅ |
-| `run_failed` | 任务执行失败 | ✅ | — | ✅ |
+| 事件 | 说明 | Claude Code | Codex | ZCode | Grok |
+|------|------|:---:|:---:|:---:|:---:|
+| `session_start` | Agent 新会话开始 | — | — | ✅ | ✅ |
+| `permission_required` | Agent 需要授权（如执行命令） | ✅ | ✅ | ✅ | ✅* |
+| `input_required` | Agent 等待用户输入 | ✅ | — | — | ✅ |
+| `run_completed` | 任务执行完成 | ✅ | ✅ | ✅ | ✅ |
+| `run_failed` | 任务执行失败 | ✅ | — | ✅ | ✅ |
 
 说明：
 
 - Claude Code 通过 `~/.claude/settings.json` 的 hooks 订阅四个事件（`PermissionRequest`、`Notification`、`Stop`、`PostToolUseFailure`）。
 - Codex 通过 `~/.codex/hooks.json` 订阅 `PermissionRequest` 与 `Stop`，分别映射到 `permission_required` 与 `run_completed`。`input_required` 与 `run_failed` Codex 目前没有对应 hook，因此暂不支持。
 - ZCode 通过 `~/.zcode/cli/config.json` 订阅 `SessionStart`、`PermissionRequest`、`PostToolUseFailure` 和 `Stop`，分别映射到 `session_start`、`permission_required`、`run_failed` 和 `run_completed`。ZCode 没有 `Notification` 事件（因此不支持 `input_required`），且其 hook 配置格式较为严格——无法识别的事件名称会导致整个 hooks 配置被静默丢弃。
+- Grok 通过 `~/.grok/hooks/agent-notify.json` 订阅 `SessionStart`、`Notification`、`Stop`、`StopFailure`、`PostToolUseFailure`。Grok 没有独立的 `PermissionRequest` 事件，带 permission/approval 语义的 `Notification` 会映射为 `permission_required`（表中 *）；其它通知映射为 `input_required`。`StopFailure` / `PostToolUseFailure` 映射为 `run_failed`。
 
 ### 支持的平台
 
@@ -68,17 +69,22 @@ npx agent-notify
 之后每次运行都会检查本地二进制版本：不存在则自动下载，版本落后则自动更新，否则直接运行。launcher 不会持久修改 PATH，始终用绝对路径执行。
 
 > **注意**: Codex 通过 `~/.codex/hooks.json` 接入官方 hooks 系统，目前仅订阅 `PermissionRequest`、`Stop` 两个事件。首次安装后请在 codex 内运行 `/hooks` 完成 trust 审核。
+>
+> **Grok**: 写入 `~/.grok/hooks/agent-notify.json`。全局 hooks 始终可信；项目级 hooks（`.grok/hooks/`）需在仓库内运行 `/hooks-trust` 或使用 `--trust`。安装后可在 Grok 中运行 `/hooks`（或 `Ctrl+L`）确认已加载。
 
 
 ## 配置说明
 
 > agent-notify 不需要手动处理配置文件，该章节仅是为了说明配置相关信息。
 
-agent-notify 自身配置位于 `~/.agent-notify/config.yaml`。Agent 集成配置位置：
+agent-notify 自身配置位于 `~/.agent-notify/config.yaml`。**新安装默认关闭所有 Agent 与通知渠道**——需运行一次 `npx agent-notify`（配置向导）启用你需要的 Agent 与渠道。这样可避免只配置了一个 Agent 后，在「查看配置 / 诊断」里把未配置的 Agent 显示为已就绪。已有配置文件不受影响。
+
+Agent 集成配置位置：
 
 - Claude Code: `~/.claude/settings.json`（写入 hooks → 命令 `agent-notify handle-claude-hook`）
 - Codex: `~/.codex/hooks.json`（写入 hooks → 命令 `agent-notify handle-codex-hook`，需在 codex 内运行 `/hooks` 完成 trust）
 - ZCode: `~/.zcode/cli/config.json`（写入 `hooks.events.<Event>` + `hooks.enabled` → 命令 `agent-notify handle-zcode-hook`；重启 ZCode 使配置生效）
+- Grok: `~/.grok/hooks/agent-notify.json`（写入 hooks → 命令 `agent-notify handle-grok-hook`；项目 scope 为 `.grok/hooks/agent-notify.json`）
 
 ### 企业微信机器人绑定小技巧
 

@@ -2,7 +2,7 @@ package notify
 
 import (
 	"context"
-	"fmt"
+	"strings"
 	"time"
 )
 
@@ -42,8 +42,15 @@ func (s *WindowsSender) Send(ctx context.Context, msg Message) error {
 
 func (s *WindowsSender) formatBody(msg Message) string {
 	timestamp := time.Now().Format("15:04:05")
+	parts := make([]string, 0, 3)
+	// Prefer a shortened path (last two segments) so CJK project folders remain
+	// readable and long drive paths do not dominate the toast body.
 	if msg.Workspace != "" {
-		return fmt.Sprintf("%s\n%s\n%s", msg.Workspace, msg.Body, timestamp)
+		parts = append(parts, shortenWorkspace(msg.Workspace))
 	}
-	return fmt.Sprintf("%s\n%s", msg.Body, timestamp)
+	if msg.Body != "" {
+		parts = append(parts, msg.Body)
+	}
+	parts = append(parts, timestamp)
+	return strings.Join(parts, "\n")
 }

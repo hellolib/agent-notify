@@ -40,10 +40,11 @@ func runInitNtfy(streams Streams, prompter Prompter) error {
 		return err
 	}
 
-	cfg.Notify.ClaudeCode.Channels.Ntfy.Enabled = true
-	cfg.Notify.ClaudeCode.Channels.Ntfy.TopicURL = topicURL
-	cfg.Notify.Codex.Channels.Ntfy.Enabled = true
-	cfg.Notify.Codex.Channels.Ntfy.TopicURL = topicURL
+	// Store URL on all agents; enable only for agents already configured.
+	applyChannelToAgents(&cfg, func(agentEnabled bool, notify *config.AgentNotifyConfig) {
+		notify.Channels.Ntfy.TopicURL = topicURL
+		notify.Channels.Ntfy.Enabled = agentEnabled
+	})
 
 	if err := config.Save(path, cfg); err != nil {
 		return fmt.Errorf("%s: %w", i18n.T("err.save_failed"), err)
@@ -58,5 +59,11 @@ func ntfyURLFromConfig(cfg config.Config) string {
 	if cfg.Notify.ClaudeCode.Channels.Ntfy.TopicURL != "" {
 		return cfg.Notify.ClaudeCode.Channels.Ntfy.TopicURL
 	}
-	return cfg.Notify.Codex.Channels.Ntfy.TopicURL
+	if cfg.Notify.Codex.Channels.Ntfy.TopicURL != "" {
+		return cfg.Notify.Codex.Channels.Ntfy.TopicURL
+	}
+	if cfg.Notify.ZCode.Channels.Ntfy.TopicURL != "" {
+		return cfg.Notify.ZCode.Channels.Ntfy.TopicURL
+	}
+	return cfg.Notify.Grok.Channels.Ntfy.TopicURL
 }

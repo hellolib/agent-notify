@@ -25,6 +25,7 @@ type Service struct {
 	claudeIntegration agentintegrations.Integration
 	codexIntegration  agentintegrations.Integration
 	zcodeIntegration  agentintegrations.Integration
+	grokIntegration   agentintegrations.Integration
 }
 
 // NewService creates a new doctor service.
@@ -33,6 +34,7 @@ func NewService(opts ...Option) *Service {
 		claudeIntegration: agentintegrations.NewClaudeIntegration(),
 		codexIntegration:  agentintegrations.NewCodexIntegration(),
 		zcodeIntegration:  agentintegrations.NewZcodeIntegration(),
+		grokIntegration:   agentintegrations.NewGrokIntegration(),
 	}
 
 	for _, opt := range opts {
@@ -60,6 +62,11 @@ func WithZcodeIntegration(i agentintegrations.Integration) Option {
 	return func(s *Service) { s.zcodeIntegration = i }
 }
 
+// WithGrokIntegration sets the Grok integration.
+func WithGrokIntegration(i agentintegrations.Integration) Option {
+	return func(s *Service) { s.grokIntegration = i }
+}
+
 type DiagnosticStatus string
 
 const (
@@ -83,6 +90,7 @@ type DiagnosticsResult struct {
 	FeishuCLIReady            bool
 	ClaudeFeishuEnabled       bool
 	ClaudeSystemEnabled       bool
+	ClaudeWechatEnabled       bool
 	ClaudeWechatWorkEnabled   bool
 	ClaudeDingTalkEnabled     bool
 	ClaudeBarkEnabled         bool
@@ -90,6 +98,7 @@ type DiagnosticsResult struct {
 	ClaudeSlackEnabled        bool
 	CodexFeishuEnabled        bool
 	CodexSystemEnabled        bool
+	CodexWechatEnabled        bool
 	CodexWechatWorkEnabled    bool
 	CodexDingTalkEnabled      bool
 	CodexBarkEnabled          bool
@@ -99,14 +108,26 @@ type DiagnosticsResult struct {
 	ZcodeHookInstalled        bool
 	ZcodeFeishuEnabled        bool
 	ZcodeSystemEnabled        bool
+	ZcodeWechatEnabled        bool
 	ZcodeWechatWorkEnabled    bool
 	ZcodeDingTalkEnabled      bool
 	ZcodeBarkEnabled          bool
 	ZcodeNtfyEnabled          bool
 	ZcodeSlackEnabled         bool
+	GrokInstalled             bool
+	GrokHookInstalled         bool
+	GrokFeishuEnabled         bool
+	GrokSystemEnabled         bool
+	GrokWechatEnabled         bool
+	GrokWechatWorkEnabled     bool
+	GrokDingTalkEnabled       bool
+	GrokBarkEnabled           bool
+	GrokNtfyEnabled           bool
+	GrokSlackEnabled          bool
 	ClaudeIntegrationStatus   DiagnosticStatus
 	CodexIntegrationStatus    DiagnosticStatus
 	ZcodeIntegrationStatus    DiagnosticStatus
+	GrokIntegrationStatus     DiagnosticStatus
 }
 
 // Run executes diagnostics and returns results.
@@ -117,6 +138,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.ClaudeInstalled = s.claudeIntegration.DetectInstalled()
 	result.CodexInstalled = s.codexIntegration.DetectInstalled()
 	result.ZcodeInstalled = s.zcodeIntegration != nil && s.zcodeIntegration.DetectInstalled()
+	result.GrokInstalled = s.grokIntegration != nil && s.grokIntegration.DetectInstalled()
 
 	// System notification detection
 	result.SystemNotifyAvailable, result.SystemNotifyName = detectSystemNotification()
@@ -152,9 +174,19 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 		}
 	}
 
+	// Grok hooks settings
+	if s.grokIntegration != nil {
+		grokSettingsPath, _ := s.grokIntegration.SettingsPath("user")
+		if grokSettingsPath != "" {
+			installed, err := s.grokIntegration.IsHookInstalled(grokSettingsPath)
+			result.GrokHookInstalled = err == nil && installed
+		}
+	}
+
 	// Config values
 	result.ClaudeFeishuEnabled = cfgLoadErr == nil && cfg.Notify.ClaudeCode.Channels.Feishu.Enabled
 	result.ClaudeSystemEnabled = cfgLoadErr == nil && cfg.Notify.ClaudeCode.Channels.System.Enabled
+	result.ClaudeWechatEnabled = cfgLoadErr == nil && cfg.Notify.ClaudeCode.Channels.Wechat.Enabled
 	result.ClaudeWechatWorkEnabled = cfgLoadErr == nil && cfg.Notify.ClaudeCode.Channels.WechatWork.Enabled
 	result.ClaudeDingTalkEnabled = cfgLoadErr == nil && cfg.Notify.ClaudeCode.Channels.DingTalk.Enabled
 	result.ClaudeBarkEnabled = cfgLoadErr == nil && cfg.Notify.ClaudeCode.Channels.Bark.Enabled
@@ -162,6 +194,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.ClaudeSlackEnabled = cfgLoadErr == nil && cfg.Notify.ClaudeCode.Channels.Slack.Enabled
 	result.CodexFeishuEnabled = cfgLoadErr == nil && cfg.Notify.Codex.Channels.Feishu.Enabled
 	result.CodexSystemEnabled = cfgLoadErr == nil && cfg.Notify.Codex.Channels.System.Enabled
+	result.CodexWechatEnabled = cfgLoadErr == nil && cfg.Notify.Codex.Channels.Wechat.Enabled
 	result.CodexWechatWorkEnabled = cfgLoadErr == nil && cfg.Notify.Codex.Channels.WechatWork.Enabled
 	result.CodexDingTalkEnabled = cfgLoadErr == nil && cfg.Notify.Codex.Channels.DingTalk.Enabled
 	result.CodexBarkEnabled = cfgLoadErr == nil && cfg.Notify.Codex.Channels.Bark.Enabled
@@ -169,15 +202,25 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.CodexSlackEnabled = cfgLoadErr == nil && cfg.Notify.Codex.Channels.Slack.Enabled
 	result.ZcodeFeishuEnabled = cfgLoadErr == nil && cfg.Notify.ZCode.Channels.Feishu.Enabled
 	result.ZcodeSystemEnabled = cfgLoadErr == nil && cfg.Notify.ZCode.Channels.System.Enabled
+	result.ZcodeWechatEnabled = cfgLoadErr == nil && cfg.Notify.ZCode.Channels.Wechat.Enabled
 	result.ZcodeWechatWorkEnabled = cfgLoadErr == nil && cfg.Notify.ZCode.Channels.WechatWork.Enabled
 	result.ZcodeDingTalkEnabled = cfgLoadErr == nil && cfg.Notify.ZCode.Channels.DingTalk.Enabled
 	result.ZcodeBarkEnabled = cfgLoadErr == nil && cfg.Notify.ZCode.Channels.Bark.Enabled
 	result.ZcodeNtfyEnabled = cfgLoadErr == nil && cfg.Notify.ZCode.Channels.Ntfy.Enabled
 	result.ZcodeSlackEnabled = cfgLoadErr == nil && cfg.Notify.ZCode.Channels.Slack.Enabled
+	result.GrokFeishuEnabled = cfgLoadErr == nil && cfg.Notify.Grok.Channels.Feishu.Enabled
+	result.GrokSystemEnabled = cfgLoadErr == nil && cfg.Notify.Grok.Channels.System.Enabled
+	result.GrokWechatEnabled = cfgLoadErr == nil && cfg.Notify.Grok.Channels.Wechat.Enabled
+	result.GrokWechatWorkEnabled = cfgLoadErr == nil && cfg.Notify.Grok.Channels.WechatWork.Enabled
+	result.GrokDingTalkEnabled = cfgLoadErr == nil && cfg.Notify.Grok.Channels.DingTalk.Enabled
+	result.GrokBarkEnabled = cfgLoadErr == nil && cfg.Notify.Grok.Channels.Bark.Enabled
+	result.GrokNtfyEnabled = cfgLoadErr == nil && cfg.Notify.Grok.Channels.Ntfy.Enabled
+	result.GrokSlackEnabled = cfgLoadErr == nil && cfg.Notify.Grok.Channels.Slack.Enabled
 
 	result.ClaudeIntegrationStatus = integrationStatus(result.ConfigExists, result.ClaudeInstalled, result.ClaudeHookInstalled)
 	result.CodexIntegrationStatus = integrationStatus(result.ConfigExists, result.CodexInstalled, result.CodexHookInstalled)
 	result.ZcodeIntegrationStatus = integrationStatus(result.ConfigExists, result.ZcodeInstalled, result.ZcodeHookInstalled)
+	result.GrokIntegrationStatus = integrationStatus(result.ConfigExists, result.GrokInstalled, result.GrokHookInstalled)
 
 	// Feishu CLI
 	_, feishuCLIConfigErr := feishucli.ParseConfig()
@@ -231,6 +274,13 @@ func (s *Service) Print(output OutputWriter, result *DiagnosticsResult) {
 	zcodeNotifyStatus := padRight(diagnosticStatusLabel(result.ZcodeIntegrationStatus), 14)
 	output.Writef(i18n.T("doctor.row_format")+"\n", "ZCode", zcodeInstallStatus, zcodeNotifyStatus)
 
+	grokInstallStatus := padRight(i18n.T("status.not_installed"), 8)
+	if result.GrokInstalled {
+		grokInstallStatus = padRight(i18n.T("status.installed"), 8)
+	}
+	grokNotifyStatus := padRight(diagnosticStatusLabel(result.GrokIntegrationStatus), 14)
+	output.Writef(i18n.T("doctor.row_format")+"\n", "Grok", grokInstallStatus, grokNotifyStatus)
+
 	output.Writef(i18n.T("doctor.agent_sep") + "\n")
 	output.Writef("\n")
 
@@ -239,32 +289,47 @@ func (s *Service) Print(output OutputWriter, result *DiagnosticsResult) {
 	output.Writef(i18n.T("doctor.channel_sep") + "\n")
 	output.Writef(i18n.T("doctor.channel_header") + "\n")
 	output.Writef(i18n.T("doctor.channel_sep") + "\n")
-	output.Writef("| %-12s |  %s  |  %s  |    %s    |  %s  |  %s  |  %s  |  %s  |\n", "Claude Code",
+	// Columns: Feishu | System | WeChat | WeCom | DingTalk | Bark | Ntfy | Slack
+	channelRow := i18n.T("view.row_format") + "\n"
+	output.Writef(channelRow, "Claude Code",
 		boolIcon(result.ClaudeFeishuEnabled),
 		boolIcon(result.ClaudeSystemEnabled),
+		boolIcon(result.ClaudeWechatEnabled),
 		boolIcon(result.ClaudeWechatWorkEnabled),
 		boolIcon(result.ClaudeDingTalkEnabled),
 		boolIcon(result.ClaudeBarkEnabled),
 		boolIcon(result.ClaudeNtfyEnabled),
 		boolIcon(result.ClaudeSlackEnabled),
 	)
-	output.Writef("| %-12s |  %s  |  %s  |    %s    |  %s  |  %s  |  %s  |  %s  |\n", "Codex",
+	output.Writef(channelRow, "Codex",
 		boolIcon(result.CodexFeishuEnabled),
 		boolIcon(result.CodexSystemEnabled),
+		boolIcon(result.CodexWechatEnabled),
 		boolIcon(result.CodexWechatWorkEnabled),
 		boolIcon(result.CodexDingTalkEnabled),
 		boolIcon(result.CodexBarkEnabled),
 		boolIcon(result.CodexNtfyEnabled),
 		boolIcon(result.CodexSlackEnabled),
 	)
-	output.Writef("| %-12s |  %s  |  %s  |    %s    |  %s  |  %s  |  %s  |  %s  |\n", "ZCode",
+	output.Writef(channelRow, "ZCode",
 		boolIcon(result.ZcodeFeishuEnabled),
 		boolIcon(result.ZcodeSystemEnabled),
+		boolIcon(result.ZcodeWechatEnabled),
 		boolIcon(result.ZcodeWechatWorkEnabled),
 		boolIcon(result.ZcodeDingTalkEnabled),
 		boolIcon(result.ZcodeBarkEnabled),
 		boolIcon(result.ZcodeNtfyEnabled),
 		boolIcon(result.ZcodeSlackEnabled),
+	)
+	output.Writef(channelRow, "Grok",
+		boolIcon(result.GrokFeishuEnabled),
+		boolIcon(result.GrokSystemEnabled),
+		boolIcon(result.GrokWechatEnabled),
+		boolIcon(result.GrokWechatWorkEnabled),
+		boolIcon(result.GrokDingTalkEnabled),
+		boolIcon(result.GrokBarkEnabled),
+		boolIcon(result.GrokNtfyEnabled),
+		boolIcon(result.GrokSlackEnabled),
 	)
 	output.Writef(i18n.T("doctor.channel_sep") + "\n")
 	output.Writef("\n")

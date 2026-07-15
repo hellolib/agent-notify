@@ -23,6 +23,8 @@ func appDisplayName(agent string) string {
 		return "Codex"
 	case "zcode":
 		return "ZCode"
+	case "grok":
+		return "Grok"
 	default:
 		return agent
 	}

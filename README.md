@@ -14,7 +14,7 @@
 
 ## Overview
 
-Agent Notify hooks into the lifecycle events of AI coding agents (Claude Code, Codex, ZCode, etc.) and pushes them to your phone and desktop. Get notified the moment your agent needs permission, is waiting for input, finishes a task, or fails — so you never have to babysit a running agent.
+Agent Notify hooks into the lifecycle events of AI coding agents (Claude Code, Codex, ZCode, Grok, etc.) and pushes them to your phone and desktop. Get notified the moment your agent needs permission, is waiting for input, finishes a task, or fails — so you never have to babysit a running agent.
 
 Supported delivery channels: **OS-native system notifications**, **Feishu/Lark**, **WeChat Work (企业微信)**, **DingTalk (钉钉)**, **Bark (iOS)**, and **ntfy**.
 
@@ -36,19 +36,20 @@ Supported delivery channels: **OS-native system notifications**, **Feishu/Lark**
 
 ### Supported Events
 
-| Event | Description | Claude Code | Codex | ZCode |
-|------|------|:---:|:---:|:---:|
-| `session_start` | A new agent session has started | — | — | ✅ |
-| `permission_required` | Agent needs authorization (e.g. to run a command) | ✅ | ✅ | ✅ |
-| `input_required` | Agent is waiting for user input | ✅ | — | — |
-| `run_completed` | Task finished | ✅ | ✅ | ✅ |
-| `run_failed` | Task failed | ✅ | — | ✅ |
+| Event | Description | Claude Code | Codex | ZCode | Grok |
+|------|------|:---:|:---:|:---:|:---:|
+| `session_start` | A new agent session has started | — | — | ✅ | ✅ |
+| `permission_required` | Agent needs authorization (e.g. to run a command) | ✅ | ✅ | ✅ | ✅* |
+| `input_required` | Agent is waiting for user input | ✅ | — | — | ✅ |
+| `run_completed` | Task finished | ✅ | ✅ | ✅ | ✅ |
+| `run_failed` | Task failed | ✅ | — | ✅ | ✅ |
 
 Notes:
 
 - Claude Code subscribes to all four events via hooks in `~/.claude/settings.json` (`PermissionRequest`, `Notification`, `Stop`, `PostToolUseFailure`).
 - Codex subscribes to `PermissionRequest` and `Stop` via `~/.codex/hooks.json`, mapped to `permission_required` and `run_completed` respectively. `input_required` and `run_failed` have no corresponding Codex hook yet, so they are not supported.
 - ZCode subscribes to `SessionStart`, `PermissionRequest`, `PostToolUseFailure`, and `Stop` via `~/.zcode/cli/config.json`, mapped to `session_start`, `permission_required`, `run_failed`, and `run_completed`. ZCode has no `Notification` event (so no `input_required`), and its hook schema is strict — an unknown event name will cause the whole hooks config to be silently dropped.
+- Grok subscribes to `SessionStart`, `Notification`, `Stop`, `StopFailure`, and `PostToolUseFailure` via `~/.grok/hooks/agent-notify.json`. There is no dedicated `PermissionRequest` event; `Notification`s with permission/approval semantics map to `permission_required` (marked *), others map to `input_required`. `StopFailure` / `PostToolUseFailure` map to `run_failed`.
 
 ### Supported Platforms
 
@@ -72,16 +73,21 @@ On first run, the launcher downloads the platform-specific binary matching the c
 On every subsequent run it checks the local binary version: it downloads if missing, updates if outdated, and otherwise runs directly. The launcher never persistently modifies `PATH` — it always executes via an absolute path.
 
 > **Note**: Codex integrates through the official hooks system in `~/.codex/hooks.json` and currently subscribes only to `PermissionRequest` and `Stop`. After first install, run `/hooks` inside Codex to complete the trust review.
+>
+> **Grok**: Writes `~/.grok/hooks/agent-notify.json`. Global hooks are always trusted; project hooks (`.grok/hooks/`) require `/hooks-trust` or `--trust`. After install, run `/hooks` (or `Ctrl+L`) inside Grok to confirm they loaded.
 
 ## Configuration
 
 > You don't need to edit config files by hand — this section is for reference only.
 
-Agent Notify's own config lives at `~/.agent-notify/config.yaml`. Agent integration config locations:
+Agent Notify's own config lives at `~/.agent-notify/config.yaml`. **New installs start with all agents and channels disabled** — run `npx agent-notify` (setup wizard) once to enable the agents and channels you want. This avoids showing unconfigured agents as ready in view/doctor after a partial setup. Existing config files are left unchanged.
+
+Agent integration config locations:
 
 - Claude Code: `~/.claude/settings.json` (writes hooks → command `agent-notify handle-claude-hook`)
 - Codex: `~/.codex/hooks.json` (writes hooks → command `agent-notify handle-codex-hook`; run `/hooks` inside Codex to complete trust)
 - ZCode: `~/.zcode/cli/config.json` (writes `hooks.events.<Event>` + `hooks.enabled` → command `agent-notify handle-zcode-hook`; restart ZCode for the config to take effect)
+- Grok: `~/.grok/hooks/agent-notify.json` (writes hooks → command `agent-notify handle-grok-hook`; project scope uses `.grok/hooks/agent-notify.json`)
 
 ### WeChat Work Bot Binding Tip
 

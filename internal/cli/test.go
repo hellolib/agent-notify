@@ -16,11 +16,22 @@ func newTestCmd(ctx context.Context, streams Streams) *cobra.Command {
 	cmd.AddCommand(
 		newTestFeishuCmd(ctx, streams),
 		newTestSystemCmd(ctx, streams),
+		newTestWechatCmd(ctx, streams),
 		newTestBarkCmd(ctx, streams),
 		newTestDingTalkCmd(ctx, streams),
 		newTestNtfyCmd(ctx, streams),
 	)
 	return cmd
+}
+
+func newTestWechatCmd(ctx context.Context, streams Streams) *cobra.Command {
+	return &cobra.Command{
+		Use:   "wechat",
+		Short: "Send a WeChat webhook test notification",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runTestWechat(ctx, streams)
+		},
+	}
 }
 
 func newTestFeishuCmd(ctx context.Context, streams Streams) *cobra.Command {

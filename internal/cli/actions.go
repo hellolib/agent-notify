@@ -14,6 +14,7 @@ import (
 	"github.com/hellolib/agent-notify/internal/claudehooks"
 	"github.com/hellolib/agent-notify/internal/common"
 	"github.com/hellolib/agent-notify/internal/config"
+	"github.com/hellolib/agent-notify/internal/grokhooks"
 	"github.com/hellolib/agent-notify/internal/i18n"
 	"github.com/hellolib/agent-notify/internal/zcodehooks"
 )
@@ -70,6 +71,7 @@ func runInitFlow(ctx context.Context, streams Streams, prompter Prompter, config
 		setup.WithClaudeIntegration(agentintegrations.NewClaudeIntegration()),
 		setup.WithCodexIntegration(agentintegrations.NewCodexIntegration()),
 		setup.WithZcodeIntegration(agentintegrations.NewZcodeIntegration()),
+		setup.WithGrokIntegration(agentintegrations.NewGrokIntegration()),
 		setup.WithFeishuPreparer(&feishuPreparerAdapter{}),
 	)
 
@@ -116,6 +118,24 @@ func runInstallZcodeHooks(scope, binaryPath string) error {
 	return zcodehooks.Install(path, common.ResolveBinaryPath(binaryPath))
 }
 
+func runPrintGrokHooks(streams Streams, binaryPath string) error {
+	settings := grokhooks.BuildHookSettings(common.ResolveBinaryPath(binaryPath))
+	data, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(streams.Stdout, string(data))
+	return err
+}
+
+func runInstallGrokHooks(scope, binaryPath string) error {
+	path, err := settingsPathForAgent("grok", scope)
+	if err != nil {
+		return err
+	}
+	return grokhooks.Install(path, common.ResolveBinaryPath(binaryPath))
+}
+
 func runTestFeishu(ctx context.Context, streams Streams) error {
 	svc := tester.NewService(
 		tester.WithFeishuPreparer(&feishuPreparerAdapter{}),
@@ -144,13 +164,16 @@ func runTestWechatWork(ctx context.Context, streams Streams) error {
 		return err
 	}
 
-	// Try claude config first, fall back to codex, then zcode
+	// Try claude config first, fall back to codex, zcode, then grok
 	webhookURL := cfg.Notify.ClaudeCode.Channels.WechatWork.WebhookURL
 	if webhookURL == "" {
 		webhookURL = cfg.Notify.Codex.Channels.WechatWork.WebhookURL
 	}
 	if webhookURL == "" {
 		webhookURL = cfg.Notify.ZCode.Channels.WechatWork.WebhookURL
+	}
+	if webhookURL == "" {
+		webhookURL = cfg.Notify.Grok.Channels.WechatWork.WebhookURL
 	}
 	if webhookURL == "" {
 		return fmt.Errorf("%s", i18n.T("err.wechat_not_configured"))
@@ -179,19 +202,20 @@ func runInitWechatWork(streams Streams, prompter Prompter) error {
 	if currentURL == "" {
 		currentURL = cfg.Notify.ZCode.Channels.WechatWork.WebhookURL
 	}
+	if currentURL == "" {
+		currentURL = cfg.Notify.Grok.Channels.WechatWork.WebhookURL
+	}
 
 	webhookURL, err := prompter.Input(i18n.T("prompt.wechat_webhook"), currentURL)
 	if err != nil {
 		return err
 	}
 
-	// Update all agents with the same webhook URL
-	cfg.Notify.ClaudeCode.Channels.WechatWork.Enabled = true
-	cfg.Notify.ClaudeCode.Channels.WechatWork.WebhookURL = webhookURL
-	cfg.Notify.Codex.Channels.WechatWork.Enabled = true
-	cfg.Notify.Codex.Channels.WechatWork.WebhookURL = webhookURL
-	cfg.Notify.ZCode.Channels.WechatWork.Enabled = true
-	cfg.Notify.ZCode.Channels.WechatWork.WebhookURL = webhookURL
+	// Store URL on all agents; enable only for agents already configured.
+	applyChannelToAgents(&cfg, func(agentEnabled bool, notify *config.AgentNotifyConfig) {
+		notify.Channels.WechatWork.WebhookURL = webhookURL
+		notify.Channels.WechatWork.Enabled = agentEnabled
+	})
 
 	if err := config.Save(path, cfg); err != nil {
 		return fmt.Errorf("%s: %w", i18n.T("err.save_failed"), err)
@@ -207,6 +231,7 @@ func runDoctor(streams Streams) error {
 		doctor.WithClaudeIntegration(agentintegrations.NewClaudeIntegration()),
 		doctor.WithCodexIntegration(agentintegrations.NewCodexIntegration()),
 		doctor.WithZcodeIntegration(agentintegrations.NewZcodeIntegration()),
+		doctor.WithGrokIntegration(agentintegrations.NewGrokIntegration()),
 	)
 	result, err := svc.Run()
 	if err != nil {
@@ -248,9 +273,11 @@ func printCurrentNotifyConfig(streams Streams) error {
 	fmt.Fprintln(streams.Stdout, i18n.T("view.separator"))
 	fmt.Fprintln(streams.Stdout, i18n.T("view.header"))
 	fmt.Fprintln(streams.Stdout, i18n.T("view.separator"))
+	// Columns: Feishu | System | WeChat | WeCom | DingTalk | Bark | Ntfy | Slack
 	fmt.Fprintf(streams.Stdout, i18n.T("view.row_format")+"\n", "Claude Code",
 		statusIcon(cfg.Notify.ClaudeCode.Channels.Feishu.Enabled),
 		statusIcon(cfg.Notify.ClaudeCode.Channels.System.Enabled),
+		statusIcon(cfg.Notify.ClaudeCode.Channels.Wechat.Enabled),
 		statusIcon(cfg.Notify.ClaudeCode.Channels.WechatWork.Enabled),
 		statusIcon(cfg.Notify.ClaudeCode.Channels.DingTalk.Enabled),
 		statusIcon(cfg.Notify.ClaudeCode.Channels.Bark.Enabled),
@@ -259,6 +286,7 @@ func printCurrentNotifyConfig(streams Streams) error {
 	fmt.Fprintf(streams.Stdout, i18n.T("view.row_format")+"\n", "Codex",
 		statusIcon(cfg.Notify.Codex.Channels.Feishu.Enabled),
 		statusIcon(cfg.Notify.Codex.Channels.System.Enabled),
+		statusIcon(cfg.Notify.Codex.Channels.Wechat.Enabled),
 		statusIcon(cfg.Notify.Codex.Channels.WechatWork.Enabled),
 		statusIcon(cfg.Notify.Codex.Channels.DingTalk.Enabled),
 		statusIcon(cfg.Notify.Codex.Channels.Bark.Enabled),
@@ -267,11 +295,21 @@ func printCurrentNotifyConfig(streams Streams) error {
 	fmt.Fprintf(streams.Stdout, i18n.T("view.row_format")+"\n", "ZCode",
 		statusIcon(cfg.Notify.ZCode.Channels.Feishu.Enabled),
 		statusIcon(cfg.Notify.ZCode.Channels.System.Enabled),
+		statusIcon(cfg.Notify.ZCode.Channels.Wechat.Enabled),
 		statusIcon(cfg.Notify.ZCode.Channels.WechatWork.Enabled),
 		statusIcon(cfg.Notify.ZCode.Channels.DingTalk.Enabled),
 		statusIcon(cfg.Notify.ZCode.Channels.Bark.Enabled),
 		statusIcon(cfg.Notify.ZCode.Channels.Ntfy.Enabled),
 		statusIcon(cfg.Notify.ZCode.Channels.Slack.Enabled))
+	fmt.Fprintf(streams.Stdout, i18n.T("view.row_format")+"\n", "Grok",
+		statusIcon(cfg.Notify.Grok.Channels.Feishu.Enabled),
+		statusIcon(cfg.Notify.Grok.Channels.System.Enabled),
+		statusIcon(cfg.Notify.Grok.Channels.Wechat.Enabled),
+		statusIcon(cfg.Notify.Grok.Channels.WechatWork.Enabled),
+		statusIcon(cfg.Notify.Grok.Channels.DingTalk.Enabled),
+		statusIcon(cfg.Notify.Grok.Channels.Bark.Enabled),
+		statusIcon(cfg.Notify.Grok.Channels.Ntfy.Enabled),
+		statusIcon(cfg.Notify.Grok.Channels.Slack.Enabled))
 	fmt.Fprintln(streams.Stdout, i18n.T("view.separator"))
 
 	return nil
@@ -302,6 +340,15 @@ func settingsPathForAgent(agent, scope string) (string, error) {
 			return filepath.Join(home, ".zcode", "cli", "config.json"), nil
 		case "project":
 			return filepath.Join(".zcode", "cli", "config.json"), nil
+		default:
+			return "", fmt.Errorf("unsupported scope: %s", scope)
+		}
+	case "grok":
+		switch scope {
+		case "user":
+			return filepath.Join(home, ".grok", "hooks", "agent-notify.json"), nil
+		case "project":
+			return filepath.Join(".grok", "hooks", "agent-notify.json"), nil
 		default:
 			return "", fmt.Errorf("unsupported scope: %s", scope)
 		}

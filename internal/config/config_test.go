@@ -16,14 +16,25 @@ func TestDefaultConfigUsesAgentScopedNotifyConfig(t *testing.T) {
 	if cfg.Version != 1 {
 		t.Fatalf("Version = %d, want 1", cfg.Version)
 	}
-	if !cfg.Agent.ClaudeCode.Enabled {
-		t.Fatal("Claude Code should be enabled by default")
+	// No agent or channel is pre-enabled: first-time view config stays clean
+	// until the user explicitly configures an agent / channel.
+	if cfg.Agent.ClaudeCode.Enabled {
+		t.Fatal("Claude Code should be disabled by default until setup")
 	}
 	if cfg.Agent.Codex.Enabled {
 		t.Fatal("Codex should be disabled by default")
 	}
-	if !cfg.Notify.ClaudeCode.Channels.System.Enabled {
-		t.Fatal("Claude Code system notification should be enabled by default")
+	if cfg.Agent.Grok.Enabled {
+		t.Fatal("Grok should be disabled by default")
+	}
+	if cfg.Notify.ClaudeCode.Channels.System.Enabled {
+		t.Fatal("Claude Code system notification should be disabled by default")
+	}
+	if cfg.Notify.ZCode.Channels.System.Enabled {
+		t.Fatal("ZCode system notification should be disabled by default")
+	}
+	if cfg.Notify.Grok.Channels.System.Enabled {
+		t.Fatal("Grok system notification should be disabled by default")
 	}
 	if !reflect.DeepEqual(cfg.Notify.ClaudeCode.Events, allEvents) {
 		t.Fatalf("Claude Code events = %#v, want %#v", cfg.Notify.ClaudeCode.Events, allEvents)
@@ -161,5 +172,64 @@ func TestLoadMissingFileReturnsDefault(t *testing.T) {
 
 	if !reflect.DeepEqual(got, Default()) {
 		t.Fatalf("Load() mismatch\ngot  %#v\nwant %#v", got, Default())
+	}
+}
+
+func TestLoadBackfillsEventsWhenChannelsEnabledWithoutEvents(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+
+	// Mimic channel-menu-only setup: wechat enabled, events omitted from YAML.
+	configYAML := []byte(`version: 1
+agent:
+  claude_code:
+    enabled: true
+    install_scope: user
+  grok:
+    enabled: true
+    install_scope: user
+notify:
+  claude_code:
+    channels:
+      wechat:
+        enabled: true
+        webhook_url: https://push.example.com/api/notify/x
+  grok:
+    channels:
+      wechat:
+        enabled: true
+        webhook_url: https://push.example.com/api/notify/x
+      bark:
+        enabled: true
+        webhook_url: https://api.day.app/key
+behavior:
+  dedupe_seconds: 60
+  send_timeout_seconds: 5
+  locale: zh-CN
+`)
+	if err := os.WriteFile(path, configYAML, 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	got, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if !got.Notify.ClaudeCode.Channels.Wechat.Enabled {
+		t.Fatal("wechat should remain enabled")
+	}
+	if len(got.Notify.ClaudeCode.Events) == 0 {
+		t.Fatal("ClaudeCode events should be backfilled when channels are enabled")
+	}
+	if len(got.Notify.Grok.Events) == 0 {
+		t.Fatal("Grok events should be backfilled when channels are enabled")
+	}
+	// Bark must not replace wechat during load.
+	if !got.Notify.Grok.Channels.Wechat.Enabled {
+		t.Fatal("Grok wechat must not be lost when bark is also enabled")
+	}
+	if !got.Notify.Grok.Channels.Bark.Enabled {
+		t.Fatal("Grok bark should remain enabled alongside wechat")
 	}
 }

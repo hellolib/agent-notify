@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/hellolib/agent-notify/internal/config"
+	"github.com/hellolib/agent-notify/internal/testutil"
 )
 
 type fakePrompter struct {
@@ -227,16 +229,25 @@ func TestRunInitWritesConfig(t *testing.T) {
 }
 
 func TestRunTestFeishuWithoutConfig(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("HOME", dir)
+	testutil.IsolateHome(t)
+
+	// Test Feishu intentionally ignores channel enabled flags and always tries to send.
+	// Mock the preparer so tests never launch interactive Feishu CLI login.
+	oldPrepare := prepareFeishuCLI
+	prepareFeishuCLI = func(ctx context.Context) error {
+		return fmt.Errorf("feishu CLI not ready")
+	}
+	defer func() {
+		prepareFeishuCLI = oldPrepare
+	}()
 
 	var stdout bytes.Buffer
 	err := Run(context.Background(), []string{"test", "feishu"}, strings.NewReader(""), &stdout, &bytes.Buffer{})
 	if err == nil {
-		t.Fatal("Run() error = nil, want disabled feishu error")
+		t.Fatal("Run() error = nil, want preparer error")
 	}
-	if !strings.Contains(err.Error(), "feishu is disabled") {
-		t.Fatalf("err = %v, want feishu disabled error", err)
+	if !strings.Contains(err.Error(), "feishu CLI not ready") {
+		t.Fatalf("err = %v, want preparer error", err)
 	}
 }
 
@@ -269,8 +280,7 @@ func TestRunDoctorWithoutConfig(t *testing.T) {
 }
 
 func TestRunDoctorDetectsCodexHookConfig(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("HOME", dir)
+	dir := testutil.IsolateHome(t)
 	if err := os.MkdirAll(filepath.Join(dir, ".codex"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -384,8 +394,7 @@ func TestRunInitPartialEventsSelection(t *testing.T) {
 }
 
 func TestRunInitInstallsCodexHookConfig(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("HOME", dir)
+	dir := testutil.IsolateHome(t)
 	configPath := filepath.Join(dir, "config.yaml")
 
 	// Mock prepareFeishuCLI to avoid actual feishu CLI interaction
@@ -442,8 +451,7 @@ func TestRunInitInstallsCodexHookConfig(t *testing.T) {
 // TestRunInitCodexDoesNotOverwriteClaudeCodeConfig verifies that initializing Codex
 // does not overwrite Claude Code's existing notify config
 func TestRunInitCodexDoesNotOverwriteClaudeCodeConfig(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("HOME", dir)
+	dir := testutil.IsolateHome(t)
 	configPath := filepath.Join(dir, "config.yaml")
 
 	// Mock prepareFeishuCLI to avoid actual feishu CLI interaction
@@ -523,8 +531,7 @@ func TestRunInitCodexDoesNotOverwriteClaudeCodeConfig(t *testing.T) {
 // TestRunInitEditSameAgentConfig verifies that re-configuring the same agent
 // correctly updates the config (editing scenario)
 func TestRunInitEditSameAgentConfig(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("HOME", dir)
+	dir := testutil.IsolateHome(t)
 	configPath := filepath.Join(dir, "config.yaml")
 
 	// Mock prepareFeishuCLI to avoid actual feishu CLI interaction
@@ -600,8 +607,7 @@ func TestRunInitEditSameAgentConfig(t *testing.T) {
 // TestRunInitClaudeCodeDoesNotOverwriteCodexConfig verifies that initializing Claude Code
 // does not overwrite Codex's existing notify config
 func TestRunInitClaudeCodeDoesNotOverwriteCodexConfig(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("HOME", dir)
+	dir := testutil.IsolateHome(t)
 	configPath := filepath.Join(dir, "config.yaml")
 
 	// Mock prepareFeishuCLI to avoid actual feishu CLI interaction

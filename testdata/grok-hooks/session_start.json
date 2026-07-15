@@ -1,0 +1,7 @@
+{
+  "hookEventName": "session_start",
+  "sessionId": "sess-grok-0",
+  "cwd": "/Users/demo/project",
+  "workspaceRoot": "/Users/demo/project",
+  "timestamp": "2026-04-14T12:00:00Z"
+}

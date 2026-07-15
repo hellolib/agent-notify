@@ -1,0 +1,9 @@
+{
+  "hookEventName": "notification",
+  "sessionId": "sess-grok-2",
+  "cwd": "/Users/demo/project",
+  "toolName": "run_terminal_command",
+  "message": "Permission required to run shell command",
+  "notificationType": "permission_prompt",
+  "timestamp": "2026-04-14T12:00:00Z"
+}

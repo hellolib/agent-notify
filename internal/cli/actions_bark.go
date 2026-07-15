@@ -40,10 +40,11 @@ func runInitBark(streams Streams, prompter Prompter) error {
 		return err
 	}
 
-	cfg.Notify.ClaudeCode.Channels.Bark.Enabled = true
-	cfg.Notify.ClaudeCode.Channels.Bark.WebhookURL = webhookURL
-	cfg.Notify.Codex.Channels.Bark.Enabled = true
-	cfg.Notify.Codex.Channels.Bark.WebhookURL = webhookURL
+	// Store URL on all agents; enable only for agents already configured.
+	applyChannelToAgents(&cfg, func(agentEnabled bool, notify *config.AgentNotifyConfig) {
+		notify.Channels.Bark.WebhookURL = webhookURL
+		notify.Channels.Bark.Enabled = agentEnabled
+	})
 
 	if err := config.Save(path, cfg); err != nil {
 		return fmt.Errorf("%s: %w", i18n.T("err.save_failed"), err)
@@ -58,5 +59,11 @@ func barkURLFromConfig(cfg config.Config) string {
 	if cfg.Notify.ClaudeCode.Channels.Bark.WebhookURL != "" {
 		return cfg.Notify.ClaudeCode.Channels.Bark.WebhookURL
 	}
-	return cfg.Notify.Codex.Channels.Bark.WebhookURL
+	if cfg.Notify.Codex.Channels.Bark.WebhookURL != "" {
+		return cfg.Notify.Codex.Channels.Bark.WebhookURL
+	}
+	if cfg.Notify.ZCode.Channels.Bark.WebhookURL != "" {
+		return cfg.Notify.ZCode.Channels.Bark.WebhookURL
+	}
+	return cfg.Notify.Grok.Channels.Bark.WebhookURL
 }

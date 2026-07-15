@@ -39,6 +39,7 @@ type Service struct {
 	claudeIntegration agentintegrations.Integration
 	codexIntegration  agentintegrations.Integration
 	zcodeIntegration  agentintegrations.Integration
+	grokIntegration   agentintegrations.Integration
 	feishuPreparer    FeishuPreparer
 	configLoader      ConfigLoader
 }
@@ -63,6 +64,7 @@ func NewService(opts ...Option) *Service {
 		claudeIntegration: agentintegrations.NewClaudeIntegration(),
 		codexIntegration:  agentintegrations.NewCodexIntegration(),
 		zcodeIntegration:  agentintegrations.NewZcodeIntegration(),
+		grokIntegration:   agentintegrations.NewGrokIntegration(),
 	}
 
 	for _, opt := range opts {
@@ -88,6 +90,11 @@ func WithCodexIntegration(i agentintegrations.Integration) Option {
 // WithZcodeIntegration sets the ZCode integration.
 func WithZcodeIntegration(i agentintegrations.Integration) Option {
 	return func(s *Service) { s.zcodeIntegration = i }
+}
+
+// WithGrokIntegration sets the Grok integration.
+func WithGrokIntegration(i agentintegrations.Integration) Option {
+	return func(s *Service) { s.grokIntegration = i }
 }
 
 // WithFeishuPreparer sets the Feishu preparer.
@@ -126,6 +133,19 @@ func zcodeEventOptionsFn() []PromptOption {
 	return []PromptOption{
 		{Label: i18n.T("event.session_start"), Value: "session_start"},
 		{Label: i18n.T("event.permission_required"), Value: "permission_required"},
+		{Label: i18n.T("event.run_completed"), Value: "run_completed"},
+		{Label: i18n.T("event.run_failed"), Value: "run_failed"},
+	}
+}
+
+// grokEventOptionsFn returns event options for Grok.
+// Grok 支持 SessionStart / Notification / Stop / StopFailure / PostToolUseFailure，
+// 映射为 session_start / input_required|permission_required / run_completed / run_failed。
+func grokEventOptionsFn() []PromptOption {
+	return []PromptOption{
+		{Label: i18n.T("event.session_start"), Value: "session_start"},
+		{Label: i18n.T("event.permission_required"), Value: "permission_required"},
+		{Label: i18n.T("event.input_required"), Value: "input_required"},
 		{Label: i18n.T("event.run_completed"), Value: "run_completed"},
 		{Label: i18n.T("event.run_failed"), Value: "run_failed"},
 	}
@@ -238,6 +258,8 @@ func (s *Service) disableAgentNotification(cfg config.Config, path, agent string
 	case "claude":
 		cfg.Notify.ClaudeCode.Channels.Feishu.Enabled = false
 		cfg.Notify.ClaudeCode.Channels.System.Enabled = false
+		cfg.Notify.ClaudeCode.Channels.Wechat.Enabled = false
+		cfg.Notify.ClaudeCode.Channels.Wechat.WebhookURL = ""
 		cfg.Notify.ClaudeCode.Channels.WechatWork.Enabled = false
 		cfg.Notify.ClaudeCode.Channels.DingTalk.Enabled = false
 		cfg.Notify.ClaudeCode.Channels.Bark.Enabled = false
@@ -249,6 +271,8 @@ func (s *Service) disableAgentNotification(cfg config.Config, path, agent string
 	case "codex":
 		cfg.Notify.Codex.Channels.Feishu.Enabled = false
 		cfg.Notify.Codex.Channels.System.Enabled = false
+		cfg.Notify.Codex.Channels.Wechat.Enabled = false
+		cfg.Notify.Codex.Channels.Wechat.WebhookURL = ""
 		cfg.Notify.Codex.Channels.WechatWork.Enabled = false
 		cfg.Notify.Codex.Channels.DingTalk.Enabled = false
 		cfg.Notify.Codex.Channels.Bark.Enabled = false
@@ -260,6 +284,8 @@ func (s *Service) disableAgentNotification(cfg config.Config, path, agent string
 	case "zcode":
 		cfg.Notify.ZCode.Channels.Feishu.Enabled = false
 		cfg.Notify.ZCode.Channels.System.Enabled = false
+		cfg.Notify.ZCode.Channels.Wechat.Enabled = false
+		cfg.Notify.ZCode.Channels.Wechat.WebhookURL = ""
 		cfg.Notify.ZCode.Channels.WechatWork.Enabled = false
 		cfg.Notify.ZCode.Channels.DingTalk.Enabled = false
 		cfg.Notify.ZCode.Channels.Bark.Enabled = false
@@ -268,6 +294,19 @@ func (s *Service) disableAgentNotification(cfg config.Config, path, agent string
 		cfg.Notify.ZCode.Channels.Slack.WebhookURL = ""
 		cfg.Notify.ZCode.Events = nil
 		cfg.Agent.ZCode.Enabled = false
+	case "grok":
+		cfg.Notify.Grok.Channels.Feishu.Enabled = false
+		cfg.Notify.Grok.Channels.System.Enabled = false
+		cfg.Notify.Grok.Channels.Wechat.Enabled = false
+		cfg.Notify.Grok.Channels.Wechat.WebhookURL = ""
+		cfg.Notify.Grok.Channels.WechatWork.Enabled = false
+		cfg.Notify.Grok.Channels.DingTalk.Enabled = false
+		cfg.Notify.Grok.Channels.Bark.Enabled = false
+		cfg.Notify.Grok.Channels.Ntfy.Enabled = false
+		cfg.Notify.Grok.Channels.Slack.Enabled = false
+		cfg.Notify.Grok.Channels.Slack.WebhookURL = ""
+		cfg.Notify.Grok.Events = nil
+		cfg.Agent.Grok.Enabled = false
 	}
 
 	if err := s.saveConfig(path, cfg); err != nil {
@@ -290,6 +329,8 @@ func agentName(agent string) string {
 		return "Codex"
 	case "zcode":
 		return "ZCode"
+	case "grok":
+		return "Grok"
 	default:
 		return agent
 	}

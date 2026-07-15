@@ -1,0 +1,8 @@
+{
+  "hookEventName": "notification",
+  "sessionId": "sess-grok-1",
+  "cwd": "/Users/demo/project",
+  "workspaceRoot": "/Users/demo/project",
+  "message": "Grok is waiting for your input",
+  "timestamp": "2026-04-14T12:00:00Z"
+}
