@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hellolib/agent-notify/internal/common"
 )
@@ -15,8 +14,10 @@ const hookCommandMarker = "handle-zcode-hook"
 
 // managedEvents 是本插件托管的 ZCode 事件列表。
 // ZCode 内置的 hook 事件枚举共 7 个：
-//   SessionStart / UserPromptSubmit / PreToolUse / PermissionRequest /
-//   PostToolUse / PostToolUseFailure / Stop
+//
+//	SessionStart / UserPromptSubmit / PreToolUse / PermissionRequest /
+//	PostToolUse / PostToolUseFailure / Stop
+//
 // 注意：ZCode 没有 Claude Code 的 Notification 事件，且其 schema 为 strict，
 // 任何未知事件名都会导致整个 hooks 配置加载失败，因此这里只能列合法事件。
 // 这里托管与通知最相关的 4 个；PostToolUse（成功）默认不托管，避免噪音。
@@ -92,10 +93,10 @@ func Install(path string, binaryPath string) error {
 	}
 
 	for _, event := range managedEvents {
-		if eventHasManagedHook(events, event) {
+		if common.EventHasManagedHook(events, event, hookCommandMarker) {
 			continue
 		}
-		entries := toAnySlice(events[event])
+		entries := common.ToAnySlice(events[event])
 		entries = append(entries, map[string]any{
 			"hooks": []any{
 				map[string]any{
@@ -131,7 +132,7 @@ func IsInstalled(path string) (bool, error) {
 
 	events := eventsOf(settings)
 	for _, event := range managedEvents {
-		if eventHasManagedHook(events, event) {
+		if common.EventHasManagedHook(events, event, hookCommandMarker) {
 			return true, nil
 		}
 	}
@@ -162,7 +163,7 @@ func Uninstall(path string) error {
 	}
 
 	for event, raw := range events {
-		entries := toAnySlice(raw)
+		entries := common.ToAnySlice(raw)
 		cleaned := entries[:0]
 		for _, entry := range entries {
 			entryMap, ok := entry.(map[string]any)
@@ -170,10 +171,10 @@ func Uninstall(path string) error {
 				cleaned = append(cleaned, entry)
 				continue
 			}
-			inner := toAnySlice(entryMap["hooks"])
+			inner := common.ToAnySlice(entryMap["hooks"])
 			keptInner := inner[:0]
 			for _, h := range inner {
-				if !isManagedHook(h) {
+				if !common.IsManagedHook(h, hookCommandMarker) {
 					keptInner = append(keptInner, h)
 				}
 			}
@@ -247,43 +248,4 @@ func writeSettings(path string, settings map[string]any) error {
 		return err
 	}
 	return os.WriteFile(path, out, 0o644)
-}
-
-func eventHasManagedHook(events map[string]any, event string) bool {
-	for _, entry := range toAnySlice(events[event]) {
-		entryMap, ok := entry.(map[string]any)
-		if !ok {
-			continue
-		}
-		for _, h := range toAnySlice(entryMap["hooks"]) {
-			if isManagedHook(h) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func isManagedHook(hook any) bool {
-	m, ok := hook.(map[string]any)
-	if !ok {
-		return false
-	}
-	cmd, _ := m["command"].(string)
-	return strings.Contains(cmd, hookCommandMarker)
-}
-
-func toAnySlice(v any) []any {
-	switch s := v.(type) {
-	case []any:
-		return s
-	case []map[string]any:
-		out := make([]any, 0, len(s))
-		for _, item := range s {
-			out = append(out, item)
-		}
-		return out
-	default:
-		return nil
-	}
 }

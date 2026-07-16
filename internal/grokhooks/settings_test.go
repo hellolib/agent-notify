@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/hellolib/agent-notify/internal/common"
 )
 
 func TestBuildHookSettingsStructure(t *testing.T) {
@@ -103,7 +105,7 @@ func TestInstallIsIdempotent(t *testing.T) {
 
 	got := readSettingsForTest(t, path)
 	hooks := got["hooks"].(map[string]any)
-	entries := toAnySlice(hooks["Stop"])
+	entries := common.ToAnySlice(hooks["Stop"])
 	if len(entries) != 1 {
 		t.Fatalf("Stop entries = %d, want 1 after double install", len(entries))
 	}

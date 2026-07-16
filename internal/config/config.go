@@ -293,7 +293,9 @@ func anyChannelEnabled(c ChannelsConfig) bool {
 }
 
 func Save(path string, cfg Config) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	// Config holds webhook URLs and other secrets — keep the directory and file
+	// owner-only (issue #20).
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
 
@@ -302,5 +304,10 @@ func Save(path string, cfg Config) error {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0o644)
+	// WriteFile's permission bits only apply on create. Chmod after write so an
+	// existing 0644 config is tightened on the next Save.
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o600)
 }

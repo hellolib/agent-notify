@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/hellolib/agent-notify/internal/common"
 )
 
 // TestBuildHookSettingsStructure 验证 ZCode 的配置结构：
@@ -136,7 +138,7 @@ func TestInstallIdempotent(t *testing.T) {
 		for _, e := range entries {
 			entryMap := e.(map[string]any)
 			for _, h := range entryMap["hooks"].([]any) {
-				if isManagedHook(h) {
+				if common.IsManagedHook(h, hookCommandMarker) {
 					marked++
 				}
 			}

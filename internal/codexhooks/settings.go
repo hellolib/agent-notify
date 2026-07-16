@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hellolib/agent-notify/internal/common"
 )
@@ -64,10 +63,10 @@ func Install(path string, binaryPath string) error {
 	}
 
 	for _, event := range managedEvents {
-		if eventHasManagedHook(hooks, event) {
+		if common.EventHasManagedHook(hooks, event, hookCommandMarker) {
 			continue
 		}
-		entries := toAnySlice(hooks[event])
+		entries := common.ToAnySlice(hooks[event])
 		entries = append(entries, map[string]any{
 			"hooks": []any{
 				map[string]any{
@@ -116,7 +115,7 @@ func IsInstalled(path string) (bool, error) {
 	}
 
 	for _, event := range managedEvents {
-		if eventHasManagedHook(hooks, event) {
+		if common.EventHasManagedHook(hooks, event, hookCommandMarker) {
 			return true, nil
 		}
 	}
@@ -148,7 +147,7 @@ func Uninstall(path string) error {
 	}
 
 	for event, raw := range hooks {
-		entries := toAnySlice(raw)
+		entries := common.ToAnySlice(raw)
 		cleaned := entries[:0]
 		for _, entry := range entries {
 			entryMap, ok := entry.(map[string]any)
@@ -156,10 +155,10 @@ func Uninstall(path string) error {
 				cleaned = append(cleaned, entry)
 				continue
 			}
-			inner := toAnySlice(entryMap["hooks"])
+			inner := common.ToAnySlice(entryMap["hooks"])
 			keptInner := inner[:0]
 			for _, h := range inner {
-				if !isManagedHook(h) {
+				if !common.IsManagedHook(h, hookCommandMarker) {
 					keptInner = append(keptInner, h)
 				}
 			}
@@ -212,43 +211,4 @@ func writeSettings(path string, settings map[string]any) error {
 		return err
 	}
 	return os.WriteFile(path, out, 0o644)
-}
-
-func eventHasManagedHook(hooks map[string]any, event string) bool {
-	for _, entry := range toAnySlice(hooks[event]) {
-		entryMap, ok := entry.(map[string]any)
-		if !ok {
-			continue
-		}
-		for _, h := range toAnySlice(entryMap["hooks"]) {
-			if isManagedHook(h) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func isManagedHook(hook any) bool {
-	m, ok := hook.(map[string]any)
-	if !ok {
-		return false
-	}
-	cmd, _ := m["command"].(string)
-	return strings.Contains(cmd, hookCommandMarker)
-}
-
-func toAnySlice(v any) []any {
-	switch s := v.(type) {
-	case []any:
-		return s
-	case []map[string]any:
-		out := make([]any, 0, len(s))
-		for _, item := range s {
-			out = append(out, item)
-		}
-		return out
-	default:
-		return nil
-	}
 }

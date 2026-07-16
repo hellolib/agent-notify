@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestParseSessionStart(t *testing.T) {
@@ -242,5 +243,77 @@ func TestExtractInputHintStripsGrokPrefix(t *testing.T) {
 	got = extractInputHint("claude is waiting for your input: x")
 	if got != "claude is waiting for your input: x" {
 		t.Fatalf("unexpected strip of claude prefix: %q", got)
+	}
+}
+
+func TestTruncateIsRuneSafe(t *testing.T) {
+	// 10 CJK runes; each is 3 bytes. Byte-based truncate would split a rune.
+	s := "一二三四五六七八九十"
+	got := truncate(s, 6)
+	want := "一二三..."
+	if got != want {
+		t.Fatalf("truncate() = %q, want %q", got, want)
+	}
+	// Must remain valid UTF-8 and exact rune length of 6 (3 + "...").
+	if !utf8.ValidString(got) {
+		t.Fatalf("truncate() produced invalid UTF-8: %q", got)
+	}
+	if n := utf8.RuneCountInString(got); n != 6 {
+		t.Fatalf("rune count = %d, want 6", n)
+	}
+	if truncate(s, 100) != s {
+		t.Fatalf("truncate short string should return original")
+	}
+}
+
+func TestPermissionNotificationTypeAllowlist(t *testing.T) {
+	// Positive allowlist.
+	for _, tname := range []string{
+		"permission_prompt", "permission", "permission_request",
+		"approval", "approval_prompt", "approval_request",
+	} {
+		if !isPermissionNotificationType(tname) {
+			t.Fatalf("isPermissionNotificationType(%q) = false, want true", tname)
+		}
+	}
+	// Broad HasPrefix would match these; explicit allowlist must not.
+	for _, tname := range []string{
+		"permission_granted", "permission_revoked", "approval_rejected",
+		"permission_denied", "", "other",
+	} {
+		if isPermissionNotificationType(tname) {
+			t.Fatalf("isPermissionNotificationType(%q) = true, want false", tname)
+		}
+	}
+}
+
+func TestInputRequiredNotificationTypeAllowlist(t *testing.T) {
+	for _, tname := range []string{"idle_prompt", "input_required", "waiting_input", "needs_input"} {
+		if !isInputRequiredNotificationType(tname) {
+			t.Fatalf("isInputRequiredNotificationType(%q) = false, want true", tname)
+		}
+	}
+	for _, tname := range []string{"input_finished", "idle_done", "input_cancelled", ""} {
+		if isInputRequiredNotificationType(tname) {
+			t.Fatalf("isInputRequiredNotificationType(%q) = true, want false", tname)
+		}
+	}
+}
+
+func TestParseNotificationPermissionGrantedIsNotPermissionRequired(t *testing.T) {
+	raw := []byte(`{
+		"hookEventName":"notification",
+		"sessionId":"s",
+		"cwd":"/tmp",
+		"notificationType":"permission_granted",
+		"message":"Permission was granted"
+	}`)
+	msg, err := ParseMessage(raw)
+	if err != nil {
+		t.Fatalf("ParseMessage() error = %v", err)
+	}
+	// Without allowlist match, falls through to input_required (non-empty message).
+	if msg.Event != "input_required" {
+		t.Fatalf("Event = %q, want input_required for permission_granted", msg.Event)
 	}
 }
