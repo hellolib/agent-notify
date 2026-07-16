@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/hellolib/agent-notify/internal/common"
 )
 
 func TestBuildHookSettings_RegistersTwoEvents(t *testing.T) {
@@ -141,7 +143,7 @@ func TestInstall_Idempotent(t *testing.T) {
 		for _, e := range entries {
 			entryMap := e.(map[string]any)
 			for _, h := range entryMap["hooks"].([]any) {
-				if isManagedHook(h) {
+				if common.IsManagedHook(h, hookCommandMarker) {
 					marked++
 				}
 			}

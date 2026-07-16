@@ -15,7 +15,7 @@ import (
 
 // payload 描述 Grok hooks 通过 stdin 投递的事件 JSON。
 // Grok 文档示例使用 camelCase 字段名，hookEventName 的值为 snake_case
-//（如 pre_tool_use / session_start）。同时兼容 PascalCase 与下划线字段名。
+// （如 pre_tool_use / session_start）。同时兼容 PascalCase 与下划线字段名。
 type payload struct {
 	HookEventName         string         `json:"hook_event_name"`
 	HookEventNameCamel    string         `json:"hookEventName"`
@@ -226,31 +226,34 @@ func normalizeEventName(name string) string {
 }
 
 // isPermissionNotificationType matches structured notificationType values from Grok.
+// Explicit allowlist only — HasPrefix("permission_") would also match
+// permission_granted / permission_revoked (issue #22).
 func isPermissionNotificationType(t string) bool {
-	if t == "" {
+	switch t {
+	case "permission_prompt",
+		"permission",
+		"permission_request",
+		"approval",
+		"approval_prompt",
+		"approval_request":
+		return true
+	default:
 		return false
 	}
-	return t == "permission_prompt" ||
-		t == "permission" ||
-		t == "permission_request" ||
-		t == "approval" ||
-		t == "approval_prompt" ||
-		t == "approval_request" ||
-		strings.HasPrefix(t, "permission_") ||
-		strings.HasPrefix(t, "approval_")
 }
 
 // isInputRequiredNotificationType matches structured notificationType values for idle/input.
+// Explicit allowlist only — HasPrefix("input_") / HasPrefix("idle_") is too broad (issue #22).
 func isInputRequiredNotificationType(t string) bool {
-	if t == "" {
+	switch t {
+	case "idle_prompt",
+		"input_required",
+		"waiting_input",
+		"needs_input":
+		return true
+	default:
 		return false
 	}
-	return t == "idle_prompt" ||
-		t == "input_required" ||
-		t == "waiting_input" ||
-		t == "needs_input" ||
-		strings.HasPrefix(t, "idle_") ||
-		strings.HasPrefix(t, "input_")
 }
 
 // isPermissionNotificationMessage matches specific permission phrases in the message body.
@@ -306,10 +309,7 @@ func extractInputHint(msg string) string {
 			return rest
 		}
 	}
-	if len(msg) > 100 {
-		return msg[:97] + "..."
-	}
-	return msg
+	return truncate(msg, 100)
 }
 
 func extractErrorMessage(p payload) string {
@@ -336,9 +336,15 @@ func extractErrorMessage(p payload) string {
 	return "操作失败"
 }
 
+// truncate limits s to max runes (not bytes) so CJK multibyte characters are
+// not split mid-sequence (issue #19). max must be > 3 when truncation is needed.
 func truncate(s string, max int) string {
-	if len(s) > max {
-		return s[:max-3] + "..."
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
 	}
-	return s
+	if max <= 3 {
+		return string(runes[:max])
+	}
+	return string(runes[:max-3]) + "..."
 }

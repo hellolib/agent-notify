@@ -56,6 +56,48 @@ func TestDefaultConfigUsesAgentScopedNotifyConfig(t *testing.T) {
 	}
 }
 
+func TestSaveUsesOwnerOnlyPermissions(t *testing.T) {
+	dir := t.TempDir()
+	// Parent is a temp dir (usually 0700); Save still creates config dir if needed.
+	cfgDir := filepath.Join(dir, ".agent-notify")
+	path := filepath.Join(cfgDir, "config.yaml")
+
+	if err := Save(path, Default()); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Stat(config) error = %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Fatalf("config mode = %04o, want 0600", perm)
+	}
+
+	dirInfo, err := os.Stat(cfgDir)
+	if err != nil {
+		t.Fatalf("Stat(dir) error = %v", err)
+	}
+	if perm := dirInfo.Mode().Perm(); perm != 0o700 {
+		t.Fatalf("config dir mode = %04o, want 0700", perm)
+	}
+
+	// Existing world-readable file must be tightened on re-save.
+	if err := os.Chmod(path, 0o644); err != nil {
+		t.Fatalf("Chmod(0644) error = %v", err)
+	}
+	if err := Save(path, Default()); err != nil {
+		t.Fatalf("re-Save() error = %v", err)
+	}
+	info, err = os.Stat(path)
+	if err != nil {
+		t.Fatalf("Stat after re-Save error = %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Fatalf("config mode after re-Save = %04o, want 0600", perm)
+	}
+}
+
 func TestSaveAndLoadRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
