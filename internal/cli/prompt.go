@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"io"
+	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
@@ -151,6 +152,11 @@ func (p *surveyPrompter) askOpts() []survey.AskOpt {
 	return []survey.AskOpt{
 		survey.WithStdio(p.in, p.out, p.err),
 		survey.WithPageSize(10),
+		// survey.Select 会把可打印字符（含空格）当 type-to-filter。
+		// 默认 filter 是 strings.Contains；中文菜单项通常不含空格，
+		// 按空格会滤空列表，界面像“菜单消失”，只能 Backspace 才能恢复。
+		// 把纯空白 filter 视为无筛选，避免误触空格把选项滤没。
+		survey.WithFilter(selectFilter),
 		survey.WithIcons(func(icons *survey.IconSet) {
 			icons.Question.Text = "?"
 			icons.Help.Text = i18n.T("prompt.help.multiselect")
@@ -158,4 +164,14 @@ func (p *surveyPrompter) askOpts() []survey.AskOpt {
 			icons.UnmarkedOption.Text = "[ ]" // 多选未选中项
 		}),
 	}
+}
+
+// selectFilter 与 survey 默认 filter 一致（大小写不敏感子串匹配），
+// 但忽略纯空白输入，避免 Select 菜单在按空格后被滤空。
+func selectFilter(filter, value string, _ int) bool {
+	filter = strings.TrimSpace(filter)
+	if filter == "" {
+		return true
+	}
+	return strings.Contains(strings.ToLower(value), strings.ToLower(filter))
 }
