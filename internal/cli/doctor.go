@@ -9,10 +9,14 @@ import (
 )
 
 func newDoctorCmd(streams Streams) *cobra.Command {
-	return &cobra.Command{
+	var focusProbe bool
+	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Check current notification setup",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if focusProbe {
+				return doctor.RunFocusProbe(cmd.OutOrStdout())
+			}
 			svc := doctor.NewService(
 				doctor.WithClaudeIntegration(agentintegrations.NewClaudeIntegration()),
 				doctor.WithCodexIntegration(agentintegrations.NewCodexIntegration()),
@@ -30,6 +34,8 @@ func newDoctorCmd(streams Streams) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&focusProbe, "focus-probe", false, "打印 Windows 点击聚焦解析诊断")
+	return cmd
 }
 
 // streamOutputWriter implements doctor.OutputWriter
