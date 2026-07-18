@@ -79,3 +79,18 @@ func TestTFallbackToZhCN(t *testing.T) {
 		}
 	}
 }
+
+func TestAdvancedFocusPrecisionKeysExist(t *testing.T) {
+	Set("zh-CN")
+	for _, k := range []string{"menu.advanced", "advanced.title", "advanced.focus_precision", "advanced.focus_precision.app", "advanced.focus_precision.window"} {
+		if T(k) == k {
+			t.Fatalf("missing zh-CN key %q", k)
+		}
+	}
+	Set("en-US")
+	for _, k := range []string{"menu.advanced", "advanced.title", "advanced.focus_precision"} {
+		if T(k) == k {
+			t.Fatalf("missing en-US key %q", k)
+		}
+	}
+}

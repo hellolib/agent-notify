@@ -26,7 +26,7 @@ func TestMacOSSenderSendFallbackToOsascript(t *testing.T) {
 		gotName = name
 		gotArgs = args
 		return nil
-	}, true, func() string { return "" }) // notifierPath 返回空 → 直接走 osascript
+	}, true, "app", func() string { return "" }) // notifierPath 返回空 → 直接走 osascript
 
 	if err := sender.Send(context.Background(), Message{Title: "Title", Body: "Body", Workspace: "/path"}); err != nil {
 		t.Fatalf("Send() error = %v", err)
@@ -54,7 +54,7 @@ func TestMacOSSenderSendUsesTerminalNotifier(t *testing.T) {
 			args []string
 		}{name, args})
 		return nil
-	}, true, mockResolver)
+	}, true, "app", mockResolver)
 
 	if err := sender.Send(context.Background(), Message{Title: "Title", Body: "Body", Workspace: "/path"}); err != nil {
 		t.Fatalf("Send() error = %v", err)
@@ -73,7 +73,7 @@ func TestMacOSSenderTerminalNotifierExecutesOpenBundle(t *testing.T) {
 				gotArgs = args
 			}
 			return nil
-		}, clickToFocus, mockResolver)
+		}, clickToFocus, "app", mockResolver)
 		if err := sender.Send(context.Background(), msg); err != nil {
 			t.Fatalf("Send() error = %v", err)
 		}
@@ -128,7 +128,7 @@ func TestMacOSSenderGroupPerAgent(t *testing.T) {
 			gotArgs = args
 		}
 		return nil
-	}, true, mockResolver)
+	}, true, "app", mockResolver)
 
 	if err := sender.Send(context.Background(), Message{Agent: "codex", Title: "T", Body: "B"}); err != nil {
 		t.Fatalf("Send() error = %v", err)
@@ -152,7 +152,7 @@ func TestMacOSSenderSubtitleHasTimestamp(t *testing.T) {
 			gotArgs = args
 		}
 		return nil
-	}, true, mockResolver)
+	}, true, "app", mockResolver)
 
 	if err := sender.Send(context.Background(), Message{Agent: "codex", Title: "T", Body: "B"}); err != nil {
 		t.Fatalf("Send() error = %v", err)
@@ -172,7 +172,7 @@ func TestMacOSSenderSubtitleHasTimestamp(t *testing.T) {
 func TestMacOSSenderFormatBodyNoTimestamp(t *testing.T) {
 	sender := NewMacOSSenderWithResolver(func(_ context.Context, name string, args ...string) error {
 		return nil
-	}, true, mockResolver)
+	}, true, "app", mockResolver)
 
 	// 正文不含时间戳，时间已移至 subtitle
 	body := sender.formatBody(Message{Body: "任务完成", Workspace: "/repo"})
@@ -185,6 +185,85 @@ func TestMacOSSenderFormatBodyNoTimestamp(t *testing.T) {
 func containsAlarmEmoji(s string) bool {
 	for _, r := range s {
 		if r == '⏰' {
+			return true
+		}
+	}
+	return false
+}
+
+func TestMacOSSenderAppPrecisionUsesOpenBundle(t *testing.T) {
+	var gotArgs []string
+	s := NewMacOSSenderWithResolver(func(_ context.Context, name string, args ...string) error {
+		if name == mockExe {
+			gotArgs = args
+		}
+		return nil
+	}, true, "app", mockResolver)
+	_ = s.Send(context.Background(), Message{Title: "T", Body: "B", SourceApp: SourceApp{BundleID: "com.apple.Terminal"}})
+
+	if !sliceContainsPair(gotArgs, "-execute", "open -b com.apple.Terminal") {
+		t.Fatalf("app precision: args=%#v, want -execute open -b com.apple.Terminal", gotArgs)
+	}
+}
+
+func TestMacOSSenderWindowPrecisionUsesHelperWhenPresent(t *testing.T) {
+	var gotArgs []string
+	helperPath := "/mock/mac-focus-helper"
+	s := NewMacOSSenderWithResolver(func(_ context.Context, name string, args ...string) error {
+		if name == mockExe {
+			gotArgs = args
+		}
+		return nil
+	}, true, "window", mockResolver)
+	s.macFocusHelperPath = func() string { return helperPath }
+	s.ppid = func() int { return 4242 }
+	_ = s.Send(context.Background(), Message{Title: "T", Body: "B", SourceApp: SourceApp{BundleID: "com.apple.Terminal"}})
+
+	want := "'/mock/mac-focus-helper' --owner-pid 4242 --bundle com.apple.Terminal"
+	if !sliceContainsPair(gotArgs, "-execute", want) {
+		t.Fatalf("window precision: args=%#v, want -execute %q", gotArgs, want)
+	}
+}
+
+func TestMacOSSenderWindowPrecisionDegradesWhenHelperMissing(t *testing.T) {
+	var gotArgs []string
+	s := NewMacOSSenderWithResolver(func(_ context.Context, name string, args ...string) error {
+		if name == mockExe {
+			gotArgs = args
+		}
+		return nil
+	}, true, "window", mockResolver)
+	s.macFocusHelperPath = func() string { return "" } // no helper -> degrade
+	s.ppid = func() int { return 4242 }
+	_ = s.Send(context.Background(), Message{Title: "T", Body: "B", SourceApp: SourceApp{BundleID: "com.apple.Terminal"}})
+
+	if !sliceContainsPair(gotArgs, "-execute", "open -b com.apple.Terminal") {
+		t.Fatalf("window+no helper: args=%#v, want degrade to open -b", gotArgs)
+	}
+}
+
+func TestMacOSSenderWindowPrecisionDegradesWhenNoBundle(t *testing.T) {
+	var gotArgs []string
+	s := NewMacOSSenderWithResolver(func(_ context.Context, name string, args ...string) error {
+		if name == mockExe {
+			gotArgs = args
+		}
+		return nil
+	}, true, "window", mockResolver)
+	s.macFocusHelperPath = func() string { return "/mock/mac-focus-helper" }
+	s.ppid = func() int { return 4242 }
+	_ = s.Send(context.Background(), Message{Title: "T", Body: "B"}) // no SourceApp
+
+	for _, a := range gotArgs {
+		if a == "-execute" {
+			t.Fatalf("window+no bundle: should not append -execute, args=%#v", gotArgs)
+		}
+	}
+}
+
+func sliceContainsPair(args []string, flag, val string) bool {
+	for i, a := range args {
+		if a == flag && i+1 < len(args) && args[i+1] == val {
 			return true
 		}
 	}

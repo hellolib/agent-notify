@@ -5,7 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { PassThrough } = require('node:stream');
 const tar = require('tar');
-const { installFromArchive, WINDOWS_FOCUS_HELPER } = require('../lib/install');
+const { installFromArchive, WINDOWS_FOCUS_HELPER, MAC_FOCUS_HELPER } = require('../lib/install');
 const { downloadToFile } = require('../lib/download');
 
 test('replaces installed binary with extracted binary', async (t) => {
@@ -70,6 +70,40 @@ test('installs windows focus helper when archive contains it', async (t) => {
 
   const helperPath = path.join(installDir, WINDOWS_FOCUS_HELPER);
   assert.equal(fs.readFileSync(helperPath, 'utf8'), 'helper-binary');
+});
+
+test('installs mac focus helper when archive contains it', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-notify-install-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const installDir = path.join(root, '.agent-notify');
+  const archivePath = path.join(root, 'agent-notify-v0.2.3-darwin-arm64.tar.gz');
+  const extractedBinaryName = 'agent-notify-v0.2.3-darwin-arm64';
+
+  fs.mkdirSync(path.join(root, 'src'));
+  fs.writeFileSync(path.join(root, 'src', extractedBinaryName), 'new-binary');
+  fs.writeFileSync(path.join(root, 'src', MAC_FOCUS_HELPER), 'helper-binary');
+
+  await tar.c(
+    {
+      gzip: true,
+      file: archivePath,
+      cwd: path.join(root, 'src'),
+    },
+    [extractedBinaryName, MAC_FOCUS_HELPER],
+  );
+
+  await installFromArchive({
+    archivePath,
+    installDir,
+    binaryNameInArchive: extractedBinaryName,
+    finalBinaryName: 'agent-notify',
+  });
+
+  const helperPath = path.join(installDir, MAC_FOCUS_HELPER);
+  assert.equal(fs.readFileSync(helperPath, 'utf8'), 'helper-binary');
+  // helper must be executable (0o755) on macOS
+  const mode = fs.statSync(helperPath).mode;
+  assert.equal(mode & 0o111, 0o111, 'mac-focus-helper should be executable');
 });
 
 test('throws when archive does not contain expected binary', async (t) => {

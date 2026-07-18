@@ -61,10 +61,24 @@ type ChannelConfig struct {
 	Enabled bool `yaml:"enabled"` // 是否启用该通知渠道
 }
 
+const (
+	FocusPrecisionApp    = "app"
+	FocusPrecisionWindow = "window"
+)
+
 // SystemChannelConfig holds configuration for OS-native system notifications.
 type SystemChannelConfig struct {
-	Enabled      bool `yaml:"enabled"`        // 是否启用系统通知渠道
-	ClickToFocus bool `yaml:"click_to_focus"` // 点击通知是否激活宿主应用；识别不到 BundleID 时自动降级
+	Enabled        bool   `yaml:"enabled"`                   // 是否启用系统通知渠道
+	ClickToFocus   bool   `yaml:"click_to_focus"`            // 点击通知是否激活宿主应用；识别不到 BundleID 时自动降级
+	FocusPrecision string `yaml:"focus_precision,omitempty"` // "app" | "window"; darwin-only window semantics
+}
+
+// EffectiveFocusPrecision returns the validated focus precision. Unknown/empty -> app.
+func (c SystemChannelConfig) EffectiveFocusPrecision() string {
+	if c.FocusPrecision == FocusPrecisionWindow {
+		return FocusPrecisionWindow
+	}
+	return FocusPrecisionApp
 }
 
 // WechatChannelConfig holds configuration for personal WeChat / notify-gateway webhooks.
@@ -136,7 +150,7 @@ func Default() Config {
 	// New installs must run `agent-notify` / the setup wizard once.
 	disabledChannels := func() ChannelsConfig {
 		return ChannelsConfig{
-			System:     SystemChannelConfig{Enabled: false, ClickToFocus: true},
+			System:     SystemChannelConfig{Enabled: false, ClickToFocus: true, FocusPrecision: FocusPrecisionApp},
 			Feishu:     ChannelConfig{Enabled: false},
 			Wechat:     WechatChannelConfig{Enabled: false, WebhookURL: ""},
 			WechatWork: WechatWorkChannelConfig{Enabled: false, WebhookURL: ""},

@@ -128,6 +128,12 @@ type DiagnosticsResult struct {
 	CodexIntegrationStatus    DiagnosticStatus
 	ZcodeIntegrationStatus    DiagnosticStatus
 	GrokIntegrationStatus     DiagnosticStatus
+
+	// Per-agent system-channel focus precision (effective "app"|"window").
+	ClaudeSystemFocusPrecision string
+	CodexSystemFocusPrecision  string
+	ZcodeSystemFocusPrecision  string
+	GrokSystemFocusPrecision   string
 }
 
 // Run executes diagnostics and returns results.
@@ -216,6 +222,18 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.GrokBarkEnabled = cfgLoadErr == nil && cfg.Notify.Grok.Channels.Bark.Enabled
 	result.GrokNtfyEnabled = cfgLoadErr == nil && cfg.Notify.Grok.Channels.Ntfy.Enabled
 	result.GrokSlackEnabled = cfgLoadErr == nil && cfg.Notify.Grok.Channels.Slack.Enabled
+
+	// Per-agent effective system focus precision (default app when config missing).
+	result.ClaudeSystemFocusPrecision = config.FocusPrecisionApp
+	result.CodexSystemFocusPrecision = config.FocusPrecisionApp
+	result.ZcodeSystemFocusPrecision = config.FocusPrecisionApp
+	result.GrokSystemFocusPrecision = config.FocusPrecisionApp
+	if cfgLoadErr == nil {
+		result.ClaudeSystemFocusPrecision = cfg.Notify.ClaudeCode.Channels.System.EffectiveFocusPrecision()
+		result.CodexSystemFocusPrecision = cfg.Notify.Codex.Channels.System.EffectiveFocusPrecision()
+		result.ZcodeSystemFocusPrecision = cfg.Notify.ZCode.Channels.System.EffectiveFocusPrecision()
+		result.GrokSystemFocusPrecision = cfg.Notify.Grok.Channels.System.EffectiveFocusPrecision()
+	}
 
 	result.ClaudeIntegrationStatus = integrationStatus(result.ConfigExists, result.ClaudeInstalled, result.ClaudeHookInstalled)
 	result.CodexIntegrationStatus = integrationStatus(result.ConfigExists, result.CodexInstalled, result.CodexHookInstalled)
@@ -360,6 +378,13 @@ func (s *Service) Print(output OutputWriter, result *DiagnosticsResult) {
 	}
 	output.Writef(i18n.T("doctor.env_row_format")+"\n", padRight(i18n.T("doctor.item_click_focus"), 20), clickFocusStatus)
 
+	// macOS 焦点精度状态行：仅 darwin 显示，反映首个启用系统通知渠道的 agent 的聚焦精度。
+	if runtime.GOOS == "darwin" {
+		precision := firstEnabledAgentSystemPrecision(result)
+		status := SummarizeMacFocus(precision, detectMacFocusHelper())
+		output.Writef(i18n.T("doctor.env_row_format")+"\n", padRight(i18n.T("advanced.focus_precision"), 20), i18n.T(focusPrecisionI18nKey(status)))
+	}
+
 	feishuCLIStatus := padRight(i18n.T("status.not_configured"), 10)
 	if result.FeishuCLIReady {
 		feishuCLIStatus = padRight(i18n.T("status.ready"), 10)
@@ -367,6 +392,40 @@ func (s *Service) Print(output OutputWriter, result *DiagnosticsResult) {
 	output.Writef(i18n.T("doctor.env_row_format")+"\n", padRight(i18n.T("doctor.item_feishu_cli"), 20), feishuCLIStatus)
 
 	output.Writef(i18n.T("doctor.env_sep") + "\n")
+}
+
+// focusPrecisionI18nKey maps a SummarizeMacFocus status token to its i18n key.
+// Unknown/empty statuses default to the app-level key.
+func focusPrecisionI18nKey(status string) string {
+	switch status {
+	case "window-ready":
+		return "doctor.focus_precision_window_ready"
+	case "window-degrade":
+		return "doctor.focus_precision_window_degrade"
+	default:
+		return "doctor.focus_precision_app"
+	}
+}
+
+// firstEnabledAgentSystemPrecision returns the effective system focus precision
+// of the first agent (Claude, Codex, ZCode, Grok) with Channels.System.Enabled,
+// or "app" when no agent has system notifications enabled.
+func firstEnabledAgentSystemPrecision(result *DiagnosticsResult) string {
+	precision := config.FocusPrecisionApp
+	switch {
+	case result.ClaudeSystemEnabled:
+		precision = result.ClaudeSystemFocusPrecision
+	case result.CodexSystemEnabled:
+		precision = result.CodexSystemFocusPrecision
+	case result.ZcodeSystemEnabled:
+		precision = result.ZcodeSystemFocusPrecision
+	case result.GrokSystemEnabled:
+		precision = result.GrokSystemFocusPrecision
+	}
+	if precision != config.FocusPrecisionWindow {
+		return config.FocusPrecisionApp
+	}
+	return config.FocusPrecisionWindow
 }
 
 // boolIcon returns the ✅/❌ icon for a boolean status.
@@ -389,6 +448,20 @@ func detectClickFocusHelper() bool {
 	default:
 		return false
 	}
+}
+
+// SummarizeMacFocus returns a stable machine-readable status for mac focus precision.
+// Values: "app", "window-ready", "window-degrade".
+// This pure, cross-platform function is i18n-free so it stays unit-testable;
+// the doctor display layer (Task 9) maps these tokens to localized strings.
+func SummarizeMacFocus(precision string, helperPresent bool) string {
+	if precision != "window" {
+		return "app"
+	}
+	if helperPresent {
+		return "window-ready"
+	}
+	return "window-degrade"
 }
 
 // detectTerminalNotifier checks whether terminal-notifier is available.

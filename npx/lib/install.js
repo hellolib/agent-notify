@@ -11,6 +11,8 @@ function isUnsafeArchivePath(entryPath) {
 const NOTIFIER_BUNDLE = 'terminal-notifier.app';
 // WINDOWS_FOCUS_HELPER 是 Windows release 包内的点击聚焦 helper 文件名。
 const WINDOWS_FOCUS_HELPER = 'toast-focus-helper.exe';
+// MAC_FOCUS_HELPER 是 macOS release 包内的窗口级聚焦 helper 文件名。
+const MAC_FOCUS_HELPER = 'mac-focus-helper';
 
 async function installFromArchive({ archivePath, installDir, binaryNameInArchive, finalBinaryName }) {
   fs.mkdirSync(installDir, { recursive: true });
@@ -79,6 +81,17 @@ async function installFromArchive({ archivePath, installDir, binaryNameInArchive
       }
     }
 
+    // macOS: 若 tar.gz 内含窗口级聚焦 helper，提取到 installDir，与 agent-notify 同目录。
+    const hasMacFocusHelper = entries.some((e) => e.path === MAC_FOCUS_HELPER && e.type === 'File');
+    if (hasMacFocusHelper) {
+      const srcHelper = path.join(extractDir, MAC_FOCUS_HELPER);
+      const dstHelper = path.join(installDir, MAC_FOCUS_HELPER);
+      if (fs.existsSync(srcHelper)) {
+        fs.copyFileSync(srcHelper, dstHelper);
+        fs.chmodSync(dstHelper, 0o755);
+      }
+    }
+
     return finalPath;
   } finally {
     fs.rmSync(tempFinalPath, { force: true });
@@ -90,4 +103,5 @@ module.exports = {
   installFromArchive,
   NOTIFIER_BUNDLE,
   WINDOWS_FOCUS_HELPER,
+  MAC_FOCUS_HELPER,
 };

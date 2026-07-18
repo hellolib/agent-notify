@@ -675,6 +675,50 @@ func TestRunInitClaudeCodeDoesNotOverwriteCodexConfig(t *testing.T) {
 	}
 }
 
+func TestRunAdvancedMenuSetsWindowPrecision(t *testing.T) {
+	testutil.IsolateHome(t)
+
+	// Seed a default config so config.Load has something to mutate.
+	cfgPath, err := config.DefaultPath()
+	if err != nil {
+		t.Fatalf("DefaultPath() error = %v", err)
+	}
+	if err := config.Save(cfgPath, config.Default()); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	streams := Streams{
+		Stdin:  strings.NewReader(""),
+		Stdout: &bytes.Buffer{},
+		Stderr: &bytes.Buffer{},
+	}
+
+	// Two-level menu: first select "precision" from advanced menu, then "window" from focus precision menu, then "back" to exit.
+	prompter := &fakePrompter{
+		selects: []string{"precision", "window", "back"},
+	}
+	useFakePrompter(t, prompter)
+
+	if err := runAdvancedMenu(context.Background(), streams, prompter); err != nil {
+		t.Fatalf("runAdvancedMenu() error = %v", err)
+	}
+
+	got, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	for name, precision := range map[string]string{
+		"ClaudeCode": got.Notify.ClaudeCode.Channels.System.FocusPrecision,
+		"Codex":      got.Notify.Codex.Channels.System.FocusPrecision,
+		"ZCode":      got.Notify.ZCode.Channels.System.FocusPrecision,
+		"Grok":       got.Notify.Grok.Channels.System.FocusPrecision,
+	} {
+		if precision != config.FocusPrecisionWindow {
+			t.Fatalf("%s FocusPrecision = %q, want %q", name, precision, config.FocusPrecisionWindow)
+		}
+	}
+}
+
 func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }

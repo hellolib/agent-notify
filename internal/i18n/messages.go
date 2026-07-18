@@ -12,7 +12,7 @@ var catalog = map[string]map[Lang]string{
 	"menu.quit":           {ZhCN: "退出", EnUS: "Quit"},
 
 	// ── Test sub-menu ──────────────────────────────────────────
-	"test.title":    {ZhCN: "测试通知", EnUS: "Test Notification"},
+	"test.title":           {ZhCN: "测试通知", EnUS: "Test Notification"},
 	"test.system":          {ZhCN: "系统通知", EnUS: "System"},
 	"test.feishu":          {ZhCN: "飞书", EnUS: "Feishu"},
 	"test.wechat_personal": {ZhCN: "微信", EnUS: "WeChat"},
@@ -67,12 +67,12 @@ var catalog = map[string]map[Lang]string{
 	"msg.test_sent":       {ZhCN: "✅ %s", EnUS: "✅ %s"},
 
 	// ── Error messages ─────────────────────────────────────────
-	"err.config_failed":           {ZhCN: "❌ 配置失败", EnUS: "❌ Configuration failed"},
-	"err.test_failed":             {ZhCN: "❌ 测试失败", EnUS: "❌ Test failed"},
-	"err.doctor_failed":           {ZhCN: "❌ 诊断失败", EnUS: "❌ Diagnostics failed"},
-	"err.view_failed":             {ZhCN: "❌ 读取配置失败", EnUS: "❌ Failed to read config"},
-	"err.clean_failed":            {ZhCN: "❌ 清理失败", EnUS: "❌ Reset failed"},
-	"err.save_failed":             {ZhCN: "保存配置失败", EnUS: "failed to save config"},
+	"err.config_failed":                  {ZhCN: "❌ 配置失败", EnUS: "❌ Configuration failed"},
+	"err.test_failed":                    {ZhCN: "❌ 测试失败", EnUS: "❌ Test failed"},
+	"err.doctor_failed":                  {ZhCN: "❌ 诊断失败", EnUS: "❌ Diagnostics failed"},
+	"err.view_failed":                    {ZhCN: "❌ 读取配置失败", EnUS: "❌ Failed to read config"},
+	"err.clean_failed":                   {ZhCN: "❌ 清理失败", EnUS: "❌ Reset failed"},
+	"err.save_failed":                    {ZhCN: "保存配置失败", EnUS: "failed to save config"},
 	"err.wechat_personal_not_configured": {ZhCN: "未配置微信推送 API URL，请先运行配置向导", EnUS: "WeChat notify API URL not configured; please run setup first"},
 	"err.wechat_not_configured":          {ZhCN: "未配置企业微信 Webhook URL，请先运行配置向导", EnUS: "WeChat Work Webhook URL not configured; please run setup first"},
 	"err.dingtalk_not_configured":        {ZhCN: "未配置钉钉 Webhook URL，请先运行配置向导", EnUS: "DingTalk Webhook URL not configured; please run setup first"},
@@ -146,8 +146,8 @@ var catalog = map[string]map[Lang]string{
 	"doctor.system_notify_name":         {ZhCN: "系统通知", EnUS: "System Notification"},
 
 	// ── Test notification content ──────────────────────────────
-	"test.msg_title":         {ZhCN: "Agent Notify 测试", EnUS: "Agent Notify Test"},
-	"test.msg_body":          {ZhCN: "这是一条测试消息", EnUS: "This is a test notification"},
+	"test.msg_title":                {ZhCN: "Agent Notify 测试", EnUS: "Agent Notify Test"},
+	"test.msg_body":                 {ZhCN: "这是一条测试消息", EnUS: "This is a test notification"},
 	"test.msg_body_wechat_personal": {ZhCN: "这是一条微信测试消息", EnUS: "This is a WeChat test notification"},
 	"test.msg_body_wechat":          {ZhCN: "这是一条企业微信测试消息", EnUS: "This is a WeChat Work test notification"},
 	"test.msg_body_dingtalk":        {ZhCN: "这是一条钉钉测试消息", EnUS: "This is a DingTalk test notification"},
@@ -181,4 +181,19 @@ var catalog = map[string]map[Lang]string{
 	"setup.grok_hooks_err":     {ZhCN: "获取 grok hooks 路径失败", EnUS: "failed to get Grok hooks path"},
 	"setup.grok_install_err":   {ZhCN: "安装 grok hooks 失败", EnUS: "failed to install Grok hooks"},
 	"setup.grok_hooks_done":    {ZhCN: "grok hooks 安装: %s\n", EnUS: "Grok hooks installed: %s\n"},
+
+	// ── Advanced ───────────────────────────────────────────────
+	"menu.advanced":                        {ZhCN: "高级功能", EnUS: "Advanced"},
+	"advanced.title":                       {ZhCN: "高级功能", EnUS: "Advanced"},
+	"advanced.focus_precision":             {ZhCN: "聚焦精度", EnUS: "Focus Precision"},
+	"advanced.focus_precision.desc":        {ZhCN: "点击系统通知消息弹窗时的工作区聚焦精度", EnUS: "Workspace focus precision when clicking notification popups"},
+	"advanced.focus_precision.app":         {ZhCN: "应用级", EnUS: "App-level"},
+	"advanced.focus_precision.app.desc":    {ZhCN: "打开应用主窗口", EnUS: "Opens the main app window"},
+	"advanced.focus_precision.window":      {ZhCN: "窗口级", EnUS: "Window-level"},
+	"advanced.focus_precision.window.desc": {ZhCN: "精确到触发通知的窗口", EnUS: "Precisely focuses the window that triggered the notification"},
+
+	// ── Doctor: focus precision ───────────────────────────────
+	"doctor.focus_precision_app":            {ZhCN: "工作区聚焦: 应用级", EnUS: "Workspace focus: App-level"},
+	"doctor.focus_precision_window_ready":   {ZhCN: "工作区聚焦: 窗口级可用", EnUS: "Workspace focus: Window-level ready"},
+	"doctor.focus_precision_window_degrade": {ZhCN: "工作区聚焦: 窗口级已配置·将降级", EnUS: "Workspace focus: Window-level configured (will degrade)"},
 }

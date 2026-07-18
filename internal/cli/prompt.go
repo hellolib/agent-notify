@@ -14,8 +14,9 @@ import (
 var ErrCancelled = errors.New("用户取消")
 
 type PromptOption struct {
-	Label string
-	Value string
+	Label       string
+	Value       string
+	Description string // 灰色描述文字，显示在 Label 后面
 }
 
 type Prompter interface {
@@ -51,16 +52,29 @@ func newSurveyPrompter(streams Streams) (Prompter, error) {
 	}, nil
 }
 
+const (
+	ansiDim   = "\033[2m" // 灰色（dim）
+	ansiReset = "\033[0m" // 重置
+)
+
+func dimText(s string) string {
+	return ansiDim + s + ansiReset
+}
+
 func (p *surveyPrompter) Select(message string, options []PromptOption, defaultValue string) (string, error) {
 	labels := make([]string, 0, len(options))
 	labelToValue := make(map[string]string, len(options))
 	defaultLabel := ""
 
 	for _, option := range options {
-		labels = append(labels, option.Label)
-		labelToValue[option.Label] = option.Value
+		display := option.Label
+		if option.Description != "" {
+			display += " - " + dimText(option.Description)
+		}
+		labels = append(labels, display)
+		labelToValue[display] = option.Value
 		if option.Value == defaultValue {
-			defaultLabel = option.Label
+			defaultLabel = display
 		}
 	}
 

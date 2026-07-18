@@ -258,3 +258,65 @@ func TestPadRight(t *testing.T) {
 		}
 	}
 }
+
+func TestSummarizeMacFocus(t *testing.T) {
+	cases := []struct{ precision string; helper bool; want string }{
+		{"app", true, "app"},
+		{"app", false, "app"},
+		{"window", true, "window-ready"},
+		{"window", false, "window-degrade"},
+	}
+	for _, c := range cases {
+		if got := SummarizeMacFocus(c.precision, c.helper); got != c.want {
+			t.Fatalf("SummarizeMacFocus(%q,%v)=%q want %q", c.precision, c.helper, got, c.want)
+		}
+	}
+}
+
+func TestFocusPrecisionI18nKey(t *testing.T) {
+	cases := map[string]string{
+		"app":           "doctor.focus_precision_app",
+		"window-ready":  "doctor.focus_precision_window_ready",
+		"window-degrade": "doctor.focus_precision_window_degrade",
+	}
+	for status, want := range cases {
+		if got := focusPrecisionI18nKey(status); got != want {
+			t.Fatalf("focusPrecisionI18nKey(%q)=%q want %q", status, got, want)
+		}
+	}
+	// Unknown statuses default to the app key.
+	if got := focusPrecisionI18nKey("nonsense"); got != "doctor.focus_precision_app" {
+		t.Fatalf("focusPrecisionI18nKey(unknown)=%q want doctor.focus_precision_app", got)
+	}
+}
+
+func TestFirstEnabledAgentSystemPrecision(t *testing.T) {
+	// No agent has System enabled -> default "app".
+	r := &DiagnosticsResult{}
+	if got := firstEnabledAgentSystemPrecision(r); got != "app" {
+		t.Fatalf("firstEnabledAgentSystemPrecision(empty)=%q want app", got)
+	}
+	// Claude enabled with window precision takes precedence.
+	r = &DiagnosticsResult{
+		ClaudeSystemEnabled:         true,
+		ClaudeSystemFocusPrecision:  "window",
+	}
+	if got := firstEnabledAgentSystemPrecision(r); got != "window" {
+		t.Fatalf("firstEnabledAgentSystemPrecision(claude)=%q want window", got)
+	}
+	// Claude disabled, Codex enabled -> Codex precision.
+	r = &DiagnosticsResult{
+		CodexSystemEnabled:         true,
+		CodexSystemFocusPrecision:  "window",
+	}
+	if got := firstEnabledAgentSystemPrecision(r); got != "window" {
+		t.Fatalf("firstEnabledAgentSystemPrecision(codex)=%q want window", got)
+	}
+	// Enabled but empty precision -> effective "app".
+	r = &DiagnosticsResult{
+		ZcodeSystemEnabled: true,
+	}
+	if got := firstEnabledAgentSystemPrecision(r); got != "app" {
+		t.Fatalf("firstEnabledAgentSystemPrecision(zcode-empty)=%q want app", got)
+	}
+}

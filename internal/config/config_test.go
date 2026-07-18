@@ -275,3 +275,26 @@ behavior:
 		t.Fatal("Grok bark should remain enabled alongside wechat")
 	}
 }
+
+func TestSystemChannelConfigEffectiveFocusPrecision(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"", "app"},
+		{"app", "app"},
+		{"window", "window"},
+		{"WINDOW", "app"}, // case-sensitive; unknown -> app
+		{"bogus", "app"},
+	}
+	for _, c := range cases {
+		got := SystemChannelConfig{FocusPrecision: c.in}.EffectiveFocusPrecision()
+		if got != c.want {
+			t.Fatalf("EffectiveFocusPrecision(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestDefaultSystemChannelFocusPrecisionIsApp(t *testing.T) {
+	cfg := Default()
+	if cfg.Notify.ClaudeCode.Channels.System.FocusPrecision != "app" {
+		t.Fatalf("default FocusPrecision = %q, want app", cfg.Notify.ClaudeCode.Channels.System.FocusPrecision)
+	}
+}

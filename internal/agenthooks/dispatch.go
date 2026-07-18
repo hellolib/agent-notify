@@ -52,7 +52,11 @@ func buildSenders(cfg config.Config, msg notify.Message) []notify.Sender {
 	}
 
 	if notifyCfg.Channels.System.Enabled {
-		senders = append(senders, notify.NewSystemSender(notify.DefaultRunner, notifyCfg.Channels.System.ClickToFocus))
+		senders = append(senders, notify.NewSystemSender(
+			notify.DefaultRunner,
+			notifyCfg.Channels.System.ClickToFocus,
+			notifyCfg.Channels.System.EffectiveFocusPrecision(),
+		))
 	}
 	if notifyCfg.Channels.Feishu.Enabled {
 		senders = append(senders, notify.NewDefaultFeishuSender())

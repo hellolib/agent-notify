@@ -62,7 +62,8 @@ jobs:
           # macOS: 将预置的 terminal-notifier.app 打包进压缩包，用户下载 agent-notify 时一并获得
           if [ "${{ matrix.goos }}" = "darwin" ]; then
             unzip -o -q thirdparty/helper/mac/terminal-notifier-2.0.0.zip -d .
-            tar -czvf "${archive_name}" "${binary_name}" terminal-notifier.app
+            cp "thirdparty/helper/mac/mac-focus-helper-${{ matrix.goarch }}" mac-focus-helper
+            tar -czvf "${archive_name}" "${binary_name}" terminal-notifier.app mac-focus-helper
           elif [ "${{ matrix.goos }}" = "windows" ]; then
             cp "thirdparty/helper/windows/toast-focus-helper-${{ matrix.goarch }}.exe" toast-focus-helper.exe
             tar -czvf "${archive_name}" "${binary_name}" toast-focus-helper.exe
