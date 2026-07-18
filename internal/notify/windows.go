@@ -10,6 +10,8 @@ type windowsToastRequest struct {
 	Title        string
 	Body         string
 	ClickToFocus bool
+	FocusDebug   bool
+	LogPath      string
 }
 
 type windowsToastFunc func(ctx context.Context, req windowsToastRequest) error
@@ -17,14 +19,15 @@ type windowsToastFunc func(ctx context.Context, req windowsToastRequest) error
 type WindowsSender struct {
 	push         windowsToastFunc
 	clickToFocus bool
+	focusDebug   bool
 }
 
-func NewWindowsSender(_ Runner, clickToFocus bool) *WindowsSender {
-	return &WindowsSender{push: defaultWindowsToastPush, clickToFocus: clickToFocus}
+func NewWindowsSender(_ Runner, clickToFocus, focusDebug bool) *WindowsSender {
+	return &WindowsSender{push: defaultWindowsToastPush, clickToFocus: clickToFocus, focusDebug: focusDebug}
 }
 
-func NewWindowsSenderWithPusher(push windowsToastFunc, clickToFocus bool) *WindowsSender {
-	return &WindowsSender{push: push, clickToFocus: clickToFocus}
+func NewWindowsSenderWithPusher(push windowsToastFunc, clickToFocus, focusDebug bool) *WindowsSender {
+	return &WindowsSender{push: push, clickToFocus: clickToFocus, focusDebug: focusDebug}
 }
 
 func (s *WindowsSender) Name() string { return "system" }
@@ -37,6 +40,8 @@ func (s *WindowsSender) Send(ctx context.Context, msg Message) error {
 		Title:        msg.Title,
 		Body:         s.formatBody(msg),
 		ClickToFocus: s.clickToFocus,
+		FocusDebug:   s.focusDebug,
+		LogPath:      focusHelperLogPath(s.focusDebug),
 	})
 }
 

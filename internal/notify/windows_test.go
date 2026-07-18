@@ -12,7 +12,7 @@ func TestWindowsSenderSendPushesToastRequest(t *testing.T) {
 	sender := NewWindowsSenderWithPusher(func(_ context.Context, req windowsToastRequest) error {
 		got = req
 		return nil
-	}, true)
+	}, true, false)
 
 	msg := Message{Title: "Test Title", Body: "Test Body", Workspace: "/path/to/project"}
 	if err := sender.Send(context.Background(), msg); err != nil {
@@ -40,7 +40,7 @@ func TestWindowsSenderSendWithoutWorkspace(t *testing.T) {
 	sender := NewWindowsSenderWithPusher(func(_ context.Context, req windowsToastRequest) error {
 		got = req
 		return nil
-	}, false)
+	}, false, false)
 
 	msg := Message{Title: "Title", Body: "Body", Workspace: ""}
 	if err := sender.Send(context.Background(), msg); err != nil {
@@ -63,7 +63,7 @@ func TestWindowsSenderSendHonorsCanceledContext(t *testing.T) {
 	sender := NewWindowsSenderWithPusher(func(_ context.Context, _ windowsToastRequest) error {
 		called = true
 		return nil
-	}, true)
+	}, true, false)
 
 	if err := sender.Send(ctx, Message{Title: "Title", Body: "Body"}); err == nil {
 		t.Fatal("Send() error = nil, want context cancellation")

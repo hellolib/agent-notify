@@ -22,14 +22,27 @@ func defaultWindowsToastPush(ctx context.Context, req windowsToastRequest) error
 	activationType := "protocol"
 	activationArgs := ""
 	if req.ClickToFocus {
-		if focus, err := toast.PrepareFocusActivation(os.Getppid()); err == nil {
+		if act, diag, err := toast.PrepareFocusActivationVerbose(os.Getppid(), req.LogPath); err == nil {
 			activationType = "protocol"
-			activationArgs = focus.Arguments
+			activationArgs = act.Arguments
+			if req.FocusDebug && req.LogPath != "" {
+				appendFocusSendDiag(req.LogPath, diag.String())
+			}
 		}
 	}
 
 	xml := buildWindowsToastXML(req.Title, req.Body, activationType, activationArgs)
 	return pushWindowsToastXML(ctx, "agent-notify", xml)
+}
+
+// appendFocusSendDiag 把 send 诊断写入与 helper 同一日志文件；失败一律吞掉。
+func appendFocusSendDiag(path, text string) {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	_, _ = f.WriteString(text)
 }
 
 // pushWindowsToastXML shows a toast by decoding Base64 UTF-8 XML in PowerShell.

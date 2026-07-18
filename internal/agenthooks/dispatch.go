@@ -56,6 +56,7 @@ func buildSenders(cfg config.Config, msg notify.Message) []notify.Sender {
 			notify.DefaultRunner,
 			notifyCfg.Channels.System.ClickToFocus,
 			notifyCfg.Channels.System.EffectiveFocusPrecision(),
+			notifyCfg.Channels.System.EffectiveFocusDebug(),
 		))
 	}
 	if notifyCfg.Channels.Feishu.Enabled {

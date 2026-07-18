@@ -243,14 +243,16 @@ func (s *Service) systemNotificationSender() notify.Sender {
 	}
 	clickToFocus := true
 	precision := config.FocusPrecisionApp
+	focusDebug := false
 	cfgPath, err := config.DefaultPath()
 	if err == nil {
 		if cfg, err := config.Load(cfgPath); err == nil {
 			clickToFocus = cfg.Notify.ClaudeCode.Channels.System.ClickToFocus
 			precision = cfg.Notify.ClaudeCode.Channels.System.EffectiveFocusPrecision()
+			focusDebug = cfg.Notify.ClaudeCode.Channels.System.EffectiveFocusDebug()
 		}
 	}
-	return notify.NewSystemSender(notify.DefaultRunner, clickToFocus, precision)
+	return notify.NewSystemSender(notify.DefaultRunner, clickToFocus, precision, focusDebug)
 }
 
 func (s *Service) wechatNotificationSender(webhookURL string) notify.Sender {
