@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -71,6 +72,7 @@ type SystemChannelConfig struct {
 	Enabled        bool   `yaml:"enabled"`                   // 是否启用系统通知渠道
 	ClickToFocus   bool   `yaml:"click_to_focus"`            // 点击通知是否激活宿主应用；识别不到 BundleID 时自动降级
 	FocusPrecision string `yaml:"focus_precision,omitempty"` // "app" | "window"; darwin-only window semantics
+	FocusDebug     bool   `yaml:"focus_debug,omitempty"`     // 点击聚焦探针日志开关；env AGENT_NOTIFY_FOCUS_DEBUG 可覆盖
 }
 
 // EffectiveFocusPrecision returns the validated focus precision. Unknown/empty -> app.
@@ -79,6 +81,16 @@ func (c SystemChannelConfig) EffectiveFocusPrecision() string {
 		return FocusPrecisionWindow
 	}
 	return FocusPrecisionApp
+}
+
+// EffectiveFocusDebug returns whether to enable focus debug logging. Environment variable
+// AGENT_NOTIFY_FOCUS_DEBUG set to 1/true/yes (case-insensitive) forces it on, overriding config.
+func (c SystemChannelConfig) EffectiveFocusDebug() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("AGENT_NOTIFY_FOCUS_DEBUG"))) {
+	case "1", "true", "yes":
+		return true
+	}
+	return c.FocusDebug
 }
 
 // WechatChannelConfig holds configuration for personal WeChat / notify-gateway webhooks.

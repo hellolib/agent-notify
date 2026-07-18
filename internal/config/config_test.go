@@ -298,3 +298,23 @@ func TestDefaultSystemChannelFocusPrecisionIsApp(t *testing.T) {
 		t.Fatalf("default FocusPrecision = %q, want app", cfg.Notify.ClaudeCode.Channels.System.FocusPrecision)
 	}
 }
+
+func TestEffectiveFocusDebug(t *testing.T) {
+	t.Setenv("AGENT_NOTIFY_FOCUS_DEBUG", "")
+	if (SystemChannelConfig{FocusDebug: false}).EffectiveFocusDebug() {
+		t.Fatal("default should be false")
+	}
+	if !(SystemChannelConfig{FocusDebug: true}).EffectiveFocusDebug() {
+		t.Fatal("config true should enable")
+	}
+	for _, v := range []string{"1", "true", "yes", "TRUE"} {
+		t.Setenv("AGENT_NOTIFY_FOCUS_DEBUG", v)
+		if !(SystemChannelConfig{FocusDebug: false}).EffectiveFocusDebug() {
+			t.Fatalf("env %q should force-enable", v)
+		}
+	}
+	t.Setenv("AGENT_NOTIFY_FOCUS_DEBUG", "0")
+	if (SystemChannelConfig{FocusDebug: false}).EffectiveFocusDebug() {
+		t.Fatal("env 0 should not enable")
+	}
+}

@@ -22,8 +22,6 @@ github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+
 github.com/gorilla/websocket v1.5.0/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
 github.com/hellolib/client-tools v0.2.0 h1:5N/1z9TL5kmBgvH46YNoAIF6D1w5m6fDfZyt+aHYpkM=
 github.com/hellolib/client-tools v0.2.0/go.mod h1:6SM74z2qjI+j7AI/4CQmPk4c69dN9wykwBjz4xdCAHA=
-github.com/hellolib/toast v0.3.0 h1:5YLMEHBd2bkAJE0xPzaGcO7e+Ce+RB/9K0BhQ5HNd9c=
-github.com/hellolib/toast v0.3.0/go.mod h1:UtELDOM0fWYG3gL48tVJ3VACC0OxAxF/P37EkbHe81I=
 github.com/hinshun/vt10x v0.0.0-20220119200601-820417d04eec h1:qv2VnGeEQHchGaZ/u7lxST/RaJw+cv273q79D81Xbog=
 github.com/hinshun/vt10x v0.0.0-20220119200601-820417d04eec/go.mod h1:Q48J4R4DvxnHolD5P8pOtXigYlRuPLGl6moFx3ulM68=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
