@@ -2,7 +2,7 @@
 
 # Agent Notify
 
-<p align="center"><b>别再盯着 AI Agent 跑了</b><br/>Claude Code 需要你、或跑完时,手机立刻叮一声。</p>
+<p align="center"><b>别再盯着 AI Agent 跑了</b><br/>在 Agent 需要你时通知你</p>
 
 [![Go Version](https://img.shields.io/badge/Go-%3E%3D1.25-blue.svg)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -15,6 +15,14 @@
 ## 项目简介
 
 一个面向 AI Agent 的通知配置工具。支持将 Claude Code、Codex、ZCode (Z.ai)、Grok 等 Agent 的事件通知推送到飞书、企业微信、钉钉、Bark、ntfy 和系统通知。
+
+
+## 快速开始
+
+```bash
+npx agent-notify
+```
+
 
 ## 功能特性
 ### 支持的通知渠道
@@ -33,12 +41,12 @@
 ### 支持的事件
 
 | 事件 | 说明 | Claude Code | Codex | ZCode | Grok |
-|------|------|:---:|:---:|:---:|:---:|
-| `session_start` | Agent 新会话开始 | — | — | ✅ | ✅ |
-| `permission_required` | Agent 需要授权（如执行命令） | ✅ | ✅ | ✅ | ✅* |
-| `input_required` | Agent 等待用户输入 | ✅ | — | — | ✅ |
-| `run_completed` | 任务执行完成 | ✅ | ✅ | ✅ | ✅ |
-| `run_failed` | 任务执行失败 | ✅ | — | ✅ | ✅ |
+|------|------|:---:|:---:|:---:|:----:|
+| `session_start` | Agent 新会话开始 | — | — | ✅ |  ✅  |
+| `permission_required` | Agent 需要授权（如执行命令） | ✅ | ✅ | ✅ |  ✅  |
+| `input_required` | Agent 等待用户输入 | ✅ | — | — |  ✅  |
+| `run_completed` | 任务执行完成 | ✅ | ✅ | ✅ |  ✅  |
+| `run_failed` | 任务执行失败 | ✅ | — | ✅ |  ✅  |
 
 说明：
 
@@ -53,9 +61,9 @@
 |:---:|:---:|:---:|
 | macOS | amd64 / arm64 | ✅ |
 | Linux | amd64 / arm64 | ✅ |
-| Windows | amd64 | ✅ |
+| Windows | amd64 / arm64 | ✅ |
 
-## 快速开始
+## 安装说明
 
 ```bash
 npx agent-notify
@@ -94,14 +102,6 @@ Agent 集成配置位置：
 4. **绑定配置**：运行 `npx agent-notify`，在配置向导中选择启用企业微信渠道，粘贴 Webhook URL 即可；
 > 旧版企业微信添加机器人步骤：「群设置」->「群机器人」->「添加机器人」-> 「新建机器人」，命名并保存
 
-### Bark 配置说明
-
-1. **复制 Bark URL**：在 Bark App 内复制测试 URL，例如 `https://api.day.app/<key>/这里改成你自己的推送内容`；
-2. **绑定配置**：运行 `npx agent-notify`，进入「消息渠道配置」->「初始化 Bark」，粘贴 Bark URL 即可；
-3. **Codex 任务完成通知**：在配置文件 `~/.agent-notify/config.yaml` 中保留 Codex 的 `run_completed` 事件，并启用 `notify.codex.channels.bark`。
-
-Bark URL 会作为本地配置保存，发送时使用 Bark 的 POST JSON 参数 `title` 和 `body`。
-
 ## 工作流程
 
 <p align="center">
@@ -110,16 +110,16 @@ Bark URL 会作为本地配置保存，发送时使用 Bark 的 POST JSON 参数
 
 ## 效果图
 
-| |                                                              |
-|:---:|:------------------------------------------------------------:|
-| <img src="assist/launch-setting.png" alt="软件配置" width="75%"> |  <img src="assist/feishu-bind.png" alt="飞书绑定" width="75%">   |
-| **软件配置** |                           **飞书绑定**                           |
-| <img src="assist/feishu-notify-phone.png" alt="飞书通知" width="50%"> | <img src="assist/wecom-notify.jpg" alt="企业微信通知" width="55%"> |
-| **飞书通知** |                          **企业微信通知**                          |
-| ![系统通知](assist/system-notify.png) |                                                              |
-| **系统通知** |                                                              |
+| | |
+|:---:|:---:|
+| <img src="assist/launch-setting.png" alt="软件配置" width="75%"> | <img src="assist/feishu-bind.png" alt="飞书绑定" width="75%"> |
+| **软件配置** | **飞书绑定** |
+| <img src="assist/feishu-notify-phone.png" alt="飞书通知" width="55%"> | <img src="assist/wecom-notify.jpg" alt="企业微信通知" width="55%"> |
+| **飞书通知** | **企业微信通知** |
+| <img src="assist/system-notify.png" alt="系统通知" width="55%"> | |
+| **系统通知** | |
 
-## Friendship Link
+## 致谢
 
-Thanks for the support and feedback from the friends at [LINUX DO](https://linux.do/).
+感谢 [LINUX DO](https://linux.do/) 社区朋友们的支持与反馈。
 

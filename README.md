@@ -2,7 +2,7 @@
 
 # Agent Notify
 
-<p align="center"><b>Stop babysitting your AI coding agent.</b><br/>Get pinged on your phone the moment Claude Code needs you — or finishes.</p>
+<p align="center"><b>Stop babysitting your AI coding agent.</b><br/>Notifies you when your agent needs you</p>
 
 [![Go Version](https://img.shields.io/badge/Go-%3E%3D1.25-blue.svg)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -18,9 +18,18 @@ Agent Notify hooks into the lifecycle events of AI coding agents (Claude Code, C
 
 Supported delivery channels: **OS-native system notifications**, **Feishu/Lark**, **WeChat Work (企业微信)**, **DingTalk (钉钉)**, **Bark (iOS)**, and **ntfy**.
 
+
+## Quick Start
+
+```bash
+npx agent-notify
+```
+
+
+
 ## Features
 
-### Supported Channel
+### Supported Channels
 
 | Channel | Description | Setup   |
 |:--------|------|---------|
@@ -29,7 +38,7 @@ Supported delivery channels: **OS-native system notifications**, **Feishu/Lark**
 | <img src="assist/logo/qiyeweixin.png" width="24" align="absmiddle"> WeChat Work | Push notifications via a WeChat Work group bot webhook | Webhook |
 | <img src="assist/logo/dingding.png" width="24" align="absmiddle"> DingTalk | Push notifications via a DingTalk group bot webhook | Webhook |
 | <img src="assist/logo/bark.png" width="24" align="absmiddle"> Bark | Push to iOS devices via a Bark webhook URL | Webhook |
-| <img src="assist/logo/ntfy.png" width="24" align="absmiddle"> ntfy | Push via ntfy.sh or self-hosted ntfy server; | Topic |
+| <img src="assist/logo/ntfy.png" width="24" align="absmiddle"> ntfy | Push via ntfy.sh or self-hosted ntfy server | Topic |
 | <img src="assist/logo/slack.png" width="24" align="absmiddle"> Slack | Push via Slack Incoming Webhook | Webhook |
 | <img src="assist/logo/discord.png" width="24" align="absmiddle"> Discord | Push via Discord channel webhook | 🚧 Webhook |
 | <img src="assist/logo/telegram.png" width="24" align="absmiddle"> Telegram | Push via Telegram Bot API | 🚧 Bot token |
@@ -37,12 +46,12 @@ Supported delivery channels: **OS-native system notifications**, **Feishu/Lark**
 ### Supported Events
 
 | Event | Description | Claude Code | Codex | ZCode | Grok |
-|------|------|:---:|:---:|:---:|:---:|
-| `session_start` | A new agent session has started | — | — | ✅ | ✅ |
-| `permission_required` | Agent needs authorization (e.g. to run a command) | ✅ | ✅ | ✅ | ✅* |
-| `input_required` | Agent is waiting for user input | ✅ | — | — | ✅ |
-| `run_completed` | Task finished | ✅ | ✅ | ✅ | ✅ |
-| `run_failed` | Task failed | ✅ | — | ✅ | ✅ |
+|------|------|:---:|:---:|:---:|:----:|
+| `session_start` | A new agent session has started | — | — | ✅ |  ✅  |
+| `permission_required` | Agent needs authorization (e.g. to run a command) | ✅ | ✅ | ✅ |  ✅  |
+| `input_required` | Agent is waiting for user input | ✅ | — | — |  ✅  |
+| `run_completed` | Task finished | ✅ | ✅ | ✅ |  ✅  |
+| `run_failed` | Task failed | ✅ | — | ✅ |  ✅  |
 
 Notes:
 
@@ -57,13 +66,12 @@ Notes:
 |:---:|:---:|:---:|
 | macOS | amd64 / arm64 | ✅ |
 | Linux | amd64 / arm64 | ✅ |
-| Windows | amd64 | ✅ |
+| Windows | amd64 / arm64 | ✅ |
 
-## Quick Start
 
-```bash
-npx agent-notify
-```
+
+
+## Configuration
 
 On first run, the launcher downloads the platform-specific binary matching the current npm package version from GitHub Releases and installs it to:
 
@@ -76,7 +84,6 @@ On every subsequent run it checks the local binary version: it downloads if miss
 >
 > **Grok**: Writes `~/.grok/hooks/agent-notify.json`. Global hooks are always trusted; project hooks (`.grok/hooks/`) require `/hooks-trust` or `--trust`. After install, run `/hooks` (or `Ctrl+L`) inside Grok to confirm they loaded.
 
-## Configuration
 
 > You don't need to edit config files by hand — this section is for reference only.
 
@@ -97,15 +104,6 @@ Agent integration config locations:
 4. **Bind it**: run `npx agent-notify`, enable the WeChat Work channel in the setup wizard, and paste the webhook URL.
 > Older WeChat Work versions: "Group Settings" → "Group Bots" → "Add Bot" → "New Bot", name it and save.
 
-### Bark Setup
-
-1. **Copy the Bark URL**: in the Bark app, copy the test URL, e.g. `https://api.day.app/<key>/your-push-content`.
-2. **Bind it**: run `npx agent-notify`, go to "Channel Config" → "Init Bark", and paste the Bark URL.
-3. **Codex completion notifications**: in `~/.agent-notify/config.yaml`, keep Codex's `run_completed` event and enable `notify.codex.channels.bark`.
-
-The Bark URL is saved as local config; notifications are sent using Bark's POST JSON parameters `title` and `body`.
-
-## Workflow
 
 <p align="center">
   <img src="assist/workflow.png" alt="Workflow diagram" />
@@ -113,16 +111,16 @@ The Bark URL is saved as local config; notifications are sent using Bark's POST 
 
 ## Screenshots
 
-| |                                                              |
-|:---:|:------------------------------------------------------------:|
-| <img src="assist/launch-setting.png" alt="Setup" width="75%"> |  <img src="assist/feishu-bind.png" alt="Feishu binding" width="75%">   |
-| **Setup** |                           **Feishu Binding**                           |
-| <img src="assist/feishu-notify-phone.png" alt="Feishu notification" width="50%"> | <img src="assist/wecom-notify.jpg" alt="WeChat Work notification" width="55%"> |
-| **Feishu Notification** |                          **WeChat Work Notification**                          |
-| ![System notification](assist/system-notify.png) |                                                              |
-| **System Notification** |                                                              |
+| | |
+|:---:|:---:|
+| <img src="assist/launch-setting.png" alt="Setup" width="75%"> | <img src="assist/feishu-bind.png" alt="Feishu binding" width="75%"> |
+| **Setup** | **Feishu Binding** |
+| <img src="assist/feishu-notify-phone.png" alt="Feishu notification" width="55%"> | <img src="assist/wecom-notify.jpg" alt="WeChat Work notification" width="55%"> |
+| **Feishu Notification** | **WeChat Work Notification** |
+| <img src="assist/system-notify.png" alt="System notification" width="55%"> | |
+| **System Notification** | |
 
 
-## Friendship Link
+## Acknowledgments
 
 Thanks for the support and feedback from the friends at [LINUX DO](https://linux.do/).

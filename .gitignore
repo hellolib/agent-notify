@@ -3,7 +3,7 @@
 .idea/
 .worktrees/
 node_modules/
-docs/
+docs/superpowers
 dist/
 coverage/
 

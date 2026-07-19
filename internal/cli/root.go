@@ -16,7 +16,7 @@ type Streams struct {
 func NewRootCmd(ctx context.Context, streams Streams) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "agent-notify",
-		Short:         "Configure Claude Code notifications",
+		Short:         "Configure notifications for AI coding agents",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		CompletionOptions: cobra.CompletionOptions{
