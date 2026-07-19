@@ -9,7 +9,7 @@ require (
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/google/uuid v1.6.0
 	github.com/hellolib/client-tools v0.2.0
-	github.com/hellolib/toast v0.3.0
+	github.com/hellolib/toast v0.4.0
 	github.com/larksuite/oapi-sdk-go/v3 v3.5.3
 	github.com/pelletier/go-toml/v2 v2.3.0
 	github.com/spf13/cobra v1.10.2
@@ -29,5 +29,3 @@ require (
 	golang.org/x/term v0.41.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
 )
-
-replace github.com/hellolib/toast => /Users/liusaisai/workspace/github/hellolib/toast
