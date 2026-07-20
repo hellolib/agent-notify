@@ -55,7 +55,7 @@ func buildSenders(cfg config.Config, msg notify.Message) []notify.Sender {
 		senders = append(senders, notify.NewSystemSender(
 			notify.DefaultRunner,
 			notifyCfg.Channels.System.ClickToFocus,
-			notifyCfg.Channels.System.EffectiveFocusPrecision(),
+			config.FocusPrecisionFromEnv(),
 			notifyCfg.Channels.System.EffectiveFocusDebug(),
 		))
 	}

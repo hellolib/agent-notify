@@ -43,7 +43,6 @@ func runMenu(ctx context.Context, streams Streams) error {
 			{Label: i18n.T("menu.doctor"), Value: "doctor"},
 			{Label: i18n.T("menu.view_config"), Value: "view"},
 			{Label: i18n.T("menu.clean_config"), Value: "clean"},
-			{Label: i18n.T("menu.advanced"), Value: "advanced"},
 			{Label: i18n.T("menu.language"), Value: "language"},
 			{Label: i18n.T("menu.quit"), Value: "quit"},
 		}, "init")
@@ -93,12 +92,6 @@ func runMenu(ctx context.Context, streams Streams) error {
 			}
 		case "language":
 			if err := runSelectLanguage(streams, prompter); err != nil {
-				if !errors.Is(err, ErrCancelled) {
-					fmt.Fprintf(streams.Stdout, "\n%s: %v\n\n", i18n.T("err.config_failed"), err)
-				}
-			}
-		case "advanced":
-			if err := runAdvancedMenu(ctx, streams, prompter); err != nil {
 				if !errors.Is(err, ErrCancelled) {
 					fmt.Fprintf(streams.Stdout, "\n%s: %v\n\n", i18n.T("err.config_failed"), err)
 				}
@@ -364,56 +357,5 @@ func runSelectLanguage(streams Streams, prompter Prompter) error {
 
 	// Apply immediately
 	i18n.Set(choice)
-	return nil
-}
-
-func runAdvancedMenu(ctx context.Context, streams Streams, prompter Prompter) error {
-	for {
-		choice, err := prompter.Select(i18n.T("advanced.title"), []PromptOption{
-			{Label: i18n.T("advanced.focus_precision"), Value: "precision", Description: i18n.T("advanced.focus_precision.desc")},
-			{Label: i18n.T("test.back"), Value: "back"},
-		}, "precision")
-		if err != nil {
-			return err
-		}
-		if choice == "back" {
-			return nil
-		}
-
-		if err := runFocusPrecisionMenu(streams, prompter); err != nil {
-			if !errors.Is(err, ErrCancelled) {
-				return err
-			}
-		}
-	}
-}
-
-func runFocusPrecisionMenu(streams Streams, prompter Prompter) error {
-	cfgPath, err := config.DefaultPath()
-	if err != nil {
-		return err
-	}
-	cfg, err := config.Load(cfgPath)
-	if err != nil {
-		return err
-	}
-
-	current := cfg.Notify.ClaudeCode.Channels.System.EffectiveFocusPrecision()
-	options := []PromptOption{
-		{Label: i18n.T("advanced.focus_precision.app"), Value: "app", Description: i18n.T("advanced.focus_precision.app.desc")},
-		{Label: i18n.T("advanced.focus_precision.window"), Value: "window", Description: i18n.T("advanced.focus_precision.window.desc")},
-	}
-	precision, err := prompter.Select(fmt.Sprintf("%s - %s", i18n.T("advanced.focus_precision"), dimText(i18n.T("advanced.focus_precision.desc"))), options, current)
-	if err != nil {
-		return err
-	}
-	cfg.Notify.ClaudeCode.Channels.System.FocusPrecision = precision
-	cfg.Notify.Codex.Channels.System.FocusPrecision = precision
-	cfg.Notify.ZCode.Channels.System.FocusPrecision = precision
-	cfg.Notify.Grok.Channels.System.FocusPrecision = precision
-	if err := config.Save(cfgPath, cfg); err != nil {
-		return err
-	}
-	fmt.Fprintln(streams.Stdout, i18n.T("msg.config_done"))
 	return nil
 }

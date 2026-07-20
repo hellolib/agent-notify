@@ -276,26 +276,19 @@ behavior:
 	}
 }
 
-func TestSystemChannelConfigEffectiveFocusPrecision(t *testing.T) {
+func TestFocusPrecisionFromEnv(t *testing.T) {
 	cases := []struct{ in, want string }{
-		{"", "app"},
-		{"app", "app"},
+		{"", "app"}, // unset -> app
 		{"window", "window"},
-		{"WINDOW", "app"}, // case-sensitive; unknown -> app
-		{"bogus", "app"},
+		{"WINDOW", "window"}, // case-insensitive
+		{"app", "app"},
+		{"garbage", "app"},
 	}
 	for _, c := range cases {
-		got := SystemChannelConfig{FocusPrecision: c.in}.EffectiveFocusPrecision()
-		if got != c.want {
-			t.Fatalf("EffectiveFocusPrecision(%q) = %q, want %q", c.in, got, c.want)
+		t.Setenv("AGENT_NOTIFY_FOCUS_PRECISION", c.in)
+		if got := FocusPrecisionFromEnv(); got != c.want {
+			t.Fatalf("FocusPrecisionFromEnv() with %q = %q, want %q", c.in, got, c.want)
 		}
-	}
-}
-
-func TestDefaultSystemChannelFocusPrecisionIsApp(t *testing.T) {
-	cfg := Default()
-	if cfg.Notify.ClaudeCode.Channels.System.FocusPrecision != "app" {
-		t.Fatalf("default FocusPrecision = %q, want app", cfg.Notify.ClaudeCode.Channels.System.FocusPrecision)
 	}
 }
 

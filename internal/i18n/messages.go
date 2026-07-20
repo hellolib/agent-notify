@@ -182,17 +182,8 @@ var catalog = map[string]map[Lang]string{
 	"setup.grok_install_err":   {ZhCN: "安装 grok hooks 失败", EnUS: "failed to install Grok hooks"},
 	"setup.grok_hooks_done":    {ZhCN: "grok hooks 安装: %s\n", EnUS: "Grok hooks installed: %s\n"},
 
-	// ── Advanced ───────────────────────────────────────────────
-	"menu.advanced":                        {ZhCN: "高级功能", EnUS: "Advanced"},
-	"advanced.title":                       {ZhCN: "高级功能", EnUS: "Advanced"},
-	"advanced.focus_precision":             {ZhCN: "聚焦精度", EnUS: "Focus Precision"},
-	"advanced.focus_precision.desc":        {ZhCN: "点击系统通知消息弹窗时的工作区聚焦精度", EnUS: "Workspace focus precision when clicking notification popups"},
-	"advanced.focus_precision.app":         {ZhCN: "应用级", EnUS: "App-level"},
-	"advanced.focus_precision.app.desc":    {ZhCN: "打开应用主窗口", EnUS: "Opens the main app window"},
-	"advanced.focus_precision.window":      {ZhCN: "窗口级", EnUS: "Window-level"},
-	"advanced.focus_precision.window.desc": {ZhCN: "精确到触发通知的窗口", EnUS: "Precisely focuses the window that triggered the notification"},
-
 	// ── Doctor: focus precision ───────────────────────────────
+	"doctor.item_focus_precision":           {ZhCN: "聚焦精度", EnUS: "Focus Precision"},
 	"doctor.focus_precision_app":            {ZhCN: "工作区聚焦: 应用级", EnUS: "Workspace focus: App-level"},
 	"doctor.focus_precision_window_ready":   {ZhCN: "工作区聚焦: 窗口级可用", EnUS: "Workspace focus: Window-level ready"},
 	"doctor.focus_precision_window_degrade": {ZhCN: "工作区聚焦: 窗口级已配置·将降级", EnUS: "Workspace focus: Window-level configured (will degrade)"},

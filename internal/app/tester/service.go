@@ -248,7 +248,7 @@ func (s *Service) systemNotificationSender() notify.Sender {
 	if err == nil {
 		if cfg, err := config.Load(cfgPath); err == nil {
 			clickToFocus = cfg.Notify.ClaudeCode.Channels.System.ClickToFocus
-			precision = cfg.Notify.ClaudeCode.Channels.System.EffectiveFocusPrecision()
+			precision = config.FocusPrecisionFromEnv()
 			focusDebug = cfg.Notify.ClaudeCode.Channels.System.EffectiveFocusDebug()
 		}
 	}
