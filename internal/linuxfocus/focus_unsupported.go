@@ -17,6 +17,10 @@ func ResolveWindowID(context.Context, int) (string, error) {
 	return "", errors.New("linux focus is only supported on linux")
 }
 
+func CaptureActiveWindow(context.Context) (string, error) {
+	return "", errors.New("linux focus is only supported on linux")
+}
+
 func StartDetached(context.Context, Request) error {
 	return errors.New("linux focus is only supported on linux")
 }

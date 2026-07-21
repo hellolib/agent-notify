@@ -25,6 +25,16 @@ func ParseMessage(data []byte) (notify.Message, error) {
 	}
 
 	switch p.HookEventName {
+	case "SessionStart":
+		// 仅供 Linux 点击聚焦捕获窗口用；Dispatch 会拦截、不发通知。
+		return notify.Message{
+			Agent:     "claude_code",
+			Event:     "session_start",
+			SessionID: p.SessionID,
+			Workspace: p.CWD,
+			Title:     notify.FormatTitle("claude_code", "session_start"),
+			Body:      notify.DefaultBody("session_start"),
+		}, nil
 	case "PermissionRequest":
 		return notify.Message{
 			Agent:     "claude_code",

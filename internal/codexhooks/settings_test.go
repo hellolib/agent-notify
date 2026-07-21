@@ -9,7 +9,7 @@ import (
 	"github.com/hellolib/agent-notify/internal/common"
 )
 
-func TestBuildHookSettings_RegistersTwoEvents(t *testing.T) {
+func TestBuildHookSettings_RegistersManagedEvents(t *testing.T) {
 	got := BuildHookSettings("/tmp/agent-notify")
 
 	hooks, ok := got["hooks"].(map[string]any)
@@ -17,7 +17,7 @@ func TestBuildHookSettings_RegistersTwoEvents(t *testing.T) {
 		t.Fatalf("hooks type = %T, want map[string]any", got["hooks"])
 	}
 
-	for _, event := range []string{"PermissionRequest", "Stop"} {
+	for _, event := range []string{"SessionStart", "PermissionRequest", "Stop"} {
 		items, ok := hooks[event].([]map[string]any)
 		if !ok || len(items) != 1 {
 			t.Fatalf("%s entries missing or invalid: %v", event, hooks[event])
@@ -34,8 +34,8 @@ func TestBuildHookSettings_RegistersTwoEvents(t *testing.T) {
 		}
 	}
 
-	// 不应注册 Codex 不支持的事件
-	for _, unsupported := range []string{"Notification", "PostToolUseFailure", "UserPromptSubmit", "PreToolUse", "PostToolUse", "SessionStart"} {
+	// 不应注册 Codex 不支持的事件（SessionStart 现在仅用于 Linux 聚焦捕获，已托管）
+	for _, unsupported := range []string{"Notification", "PostToolUseFailure", "UserPromptSubmit", "PreToolUse", "PostToolUse"} {
 		if _, exists := hooks[unsupported]; exists {
 			t.Fatalf("hooks should not contain %s for Codex", unsupported)
 		}

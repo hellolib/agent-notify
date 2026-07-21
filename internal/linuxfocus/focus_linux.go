@@ -64,6 +64,52 @@ func ResolveWindowID(ctx context.Context, startPID int) (string, error) {
 	return "", errors.New("linux focus window not found")
 }
 
+// CaptureActiveWindow 返回当前 _NET_ACTIVE_WINDOW，并校验它属于本进程树祖先
+// （其 _NET_WM_PID 必须出现在从本进程向上的父进程链里）。这样在 SessionStart
+// 时刻抓到的就是"运行本 agent 的那个终端窗口"，能区分同一终端进程的多个兄弟窗口。
+// 校验不通过（例如用户此刻焦点在别的应用）时返回 error，调用方应据此放弃写入缓存。
+func CaptureActiveWindow(_ context.Context) (string, error) {
+	x, err := xgbutil.NewConn()
+	if err != nil {
+		return "", err
+	}
+	defer x.Conn().Close()
+
+	active, err := ewmh.ActiveWindowGet(x)
+	if err != nil {
+		return "", err
+	}
+	if active == 0 {
+		return "", errors.New("no active window")
+	}
+	wpid, err := ewmh.WmPidGet(x, active)
+	if err != nil {
+		return "", err
+	}
+	if !pidInAncestry(int(wpid)) {
+		return "", fmt.Errorf("active window pid %d not in process ancestry", wpid)
+	}
+	return strconv.FormatUint(uint64(active), 10), nil
+}
+
+// pidInAncestry 判断 target 是否出现在从当前进程向上的父进程链中。
+func pidInAncestry(target int) bool {
+	if target <= 1 {
+		return false
+	}
+	for pid, depth := os.Getpid(), 0; pid > 1 && depth < maxParentDepth; depth++ {
+		if pid == target {
+			return true
+		}
+		parent, err := parentPID(pid)
+		if err != nil || parent <= 1 || parent == pid {
+			break
+		}
+		pid = parent
+	}
+	return false
+}
+
 func StartDetached(ctx context.Context, req Request) error {
 	if strings.TrimSpace(req.WindowID) == "" {
 		return errors.New("linux focus window id is empty")

@@ -129,9 +129,9 @@ func codexEventOptionsFn() []PromptOption {
 // ZCode 支持 SessionStart / PermissionRequest / PostToolUseFailure / Stop，
 // 映射为 session_start / permission_required / run_failed / run_completed。
 // 注意 ZCode 没有 Notification 事件，因此没有 input_required。
+// session_start 仅用于 Linux 点击聚焦的窗口捕获，不作为通知事件，故不列为可选项。
 func zcodeEventOptionsFn() []PromptOption {
 	return []PromptOption{
-		{Label: i18n.T("event.session_start"), Value: "session_start"},
 		{Label: i18n.T("event.permission_required"), Value: "permission_required"},
 		{Label: i18n.T("event.run_completed"), Value: "run_completed"},
 		{Label: i18n.T("event.run_failed"), Value: "run_failed"},
@@ -141,9 +141,9 @@ func zcodeEventOptionsFn() []PromptOption {
 // grokEventOptionsFn returns event options for Grok.
 // Grok 支持 SessionStart / Notification / Stop / StopFailure / PostToolUseFailure，
 // 映射为 session_start / input_required|permission_required / run_completed / run_failed。
+// session_start 仅用于 Linux 点击聚焦的窗口捕获，不作为通知事件，故不列为可选项。
 func grokEventOptionsFn() []PromptOption {
 	return []PromptOption{
-		{Label: i18n.T("event.session_start"), Value: "session_start"},
 		{Label: i18n.T("event.permission_required"), Value: "permission_required"},
 		{Label: i18n.T("event.input_required"), Value: "input_required"},
 		{Label: i18n.T("event.run_completed"), Value: "run_completed"},

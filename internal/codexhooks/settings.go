@@ -14,9 +14,11 @@ import (
 const hookCommandMarker = "handle-codex-hook"
 
 // managedEvents 是本插件托管的 Codex 事件列表。
-// Codex 当前可靠支持的事件只有 PermissionRequest 与 Stop，
-// 分别对应项目里的 permission_required / run_completed。
+// PermissionRequest / Stop 对应项目里的 permission_required / run_completed。
+// SessionStart 仅用于 Linux 点击聚焦的窗口捕获（见 agenthooks.Dispatch），
+// 不产生任何通知；其它平台收到即 no-op。
 var managedEvents = []string{
+	"SessionStart",
 	"PermissionRequest",
 	"Stop",
 }

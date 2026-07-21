@@ -49,7 +49,10 @@ func isUsableWorkspace(p string) bool {
 // shortenWorkspace shortens a long path to the last two segments for toast display.
 // Example: E:\学习ai编程项目\agent-notify → 学习ai编程项目/agent-notify
 func shortenWorkspace(ws string) string {
-	parts := strings.Split(filepath.ToSlash(ws), "/")
+	// 同时归一化 '\' 与 '/'：filepath.ToSlash 只处理本机分隔符，跨平台时
+	// （如在 Linux 上收到 Windows 的 E:\a\b 路径）不足，故再显式替换反斜杠。
+	normalized := strings.ReplaceAll(filepath.ToSlash(ws), `\`, "/")
+	parts := strings.Split(normalized, "/")
 	var segs []string
 	for _, p := range parts {
 		if p != "" {
@@ -58,7 +61,7 @@ func shortenWorkspace(ws string) string {
 	}
 	if len(segs) <= 2 {
 		// Prefer forward slashes for consistent multi-platform toast text.
-		return filepath.ToSlash(ws)
+		return normalized
 	}
 	return strings.Join(segs[len(segs)-2:], "/")
 }

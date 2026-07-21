@@ -14,7 +14,10 @@ import (
 const hookCommandMarker = "handle-claude-hook"
 
 // managedEvents 是本插件托管的 Claude Code 事件列表。
+// SessionStart 仅用于 Linux 点击聚焦的窗口捕获（见 agenthooks.Dispatch），
+// 不产生任何通知；其它平台收到即 no-op。
 var managedEvents = []string{
+	"SessionStart",
 	"PermissionRequest",
 	"Notification",
 	"Stop",

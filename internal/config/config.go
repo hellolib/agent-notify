@@ -142,11 +142,13 @@ func Default() Config {
 	// Codex hooks 当前可靠支持的两个事件
 	codexEvents := []string{"permission_required", "run_completed"}
 	// ZCode hooks 支持的事件：与 Claude Code 基本一致，但没有 input_required
-	// （ZCode 没有 Notification 事件），并新增 session_start。
-	zcodeEvents := []string{"session_start", "permission_required", "run_completed", "run_failed"}
+	// （ZCode 没有 Notification 事件）。session_start 仅用于 Linux 点击聚焦的窗口
+	// 捕获，不作为通知事件，故不出现在这里。
+	zcodeEvents := []string{"permission_required", "run_completed", "run_failed"}
 	// Grok hooks 支持 SessionStart / Notification / Stop / StopFailure / PostToolUseFailure。
 	// 无 PermissionRequest；授权等待通过 Notification 映射为 permission_required。
-	grokEvents := []string{"session_start", "permission_required", "input_required", "run_completed", "run_failed"}
+	// session_start 同样只用于聚焦捕获，不作为通知事件。
+	grokEvents := []string{"permission_required", "input_required", "run_completed", "run_failed"}
 
 	// BREAKING (vs pre-Grok defaults): Claude Code is no longer enabled by default,
 	// and System notification is no longer pre-enabled for any agent.

@@ -169,6 +169,9 @@ func TestRunVersionFlag(t *testing.T) {
 }
 
 func TestRunInitWritesConfig(t *testing.T) {
+	// --settings 在 init 里是 no-op（见 actions.go），claude hook 实际写 HOME/.claude，
+	// 必须隔离 HOME，否则会污染真实 ~/.claude/settings.json。
+	testutil.IsolateHome(t)
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	settingsPath := filepath.Join(dir, "settings.json")
@@ -319,6 +322,7 @@ func TestRunDoctorDetectsCodexHookConfig(t *testing.T) {
 }
 
 func TestRunInitCanDisableSystemNotification(t *testing.T) {
+	testutil.IsolateHome(t) // init 忽略 --settings，claude hook 落到 HOME/.claude，需隔离
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	settingsPath := filepath.Join(dir, "settings.json")
@@ -357,6 +361,7 @@ func TestRunInitCanDisableSystemNotification(t *testing.T) {
 }
 
 func TestRunInitPartialEventsSelection(t *testing.T) {
+	testutil.IsolateHome(t) // init 忽略 --settings，claude hook 落到 HOME/.claude，需隔离
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	settingsPath := filepath.Join(dir, "settings.json")

@@ -22,7 +22,7 @@ func TestRunInitGrokWechatOnlyShowsGrokConfiguredInView(t *testing.T) {
 		selects: []string{"grok"},
 		multi: [][]string{
 			{"wechat"},
-			{"session_start", "permission_required", "input_required", "run_completed", "run_failed"},
+			{"permission_required", "input_required", "run_completed", "run_failed"},
 		},
 		inputs: []string{"https://push.example.com/api/notify/only-grok"},
 	})

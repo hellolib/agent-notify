@@ -15,6 +15,8 @@ func TestLinuxSenderSendCallsNotifySend(t *testing.T) {
 		gotArgs = args
 		return nil
 	}, false)
+	// 强制 D-Bus 通知失败，确定性地走到 notify-send 回退（避免依赖运行环境是否有活跃 D-Bus）。
+	sender.sendNotify = func(context.Context, string, string) error { return context.Canceled }
 
 	msg := Message{Title: "Test Title", Body: "Test Body", Workspace: "/path/to/project"}
 	if err := sender.Send(context.Background(), msg); err != nil {
@@ -55,6 +57,7 @@ func TestLinuxSenderSendWithoutWorkspace(t *testing.T) {
 		gotArgs = args
 		return nil
 	}, false)
+	sender.sendNotify = func(context.Context, string, string) error { return context.Canceled }
 
 	msg := Message{Title: "Title", Body: "Body", Workspace: ""}
 	if err := sender.Send(context.Background(), msg); err != nil {
@@ -129,7 +132,7 @@ func TestLinuxSenderClickToFocusStartsFocusHelper(t *testing.T) {
 	sender := NewLinuxSenderWithFocusStarter(func(_ context.Context, name string, args ...string) error {
 		runCalled = true
 		return nil
-	}, true, func(_ context.Context, title, body string) error {
+	}, true, func(_ context.Context, title, body, windowID string) error {
 		startCalled = true
 		if title != "Title" {
 			t.Fatalf("title = %q, want Title", title)
@@ -137,10 +140,13 @@ func TestLinuxSenderClickToFocusStartsFocusHelper(t *testing.T) {
 		if !strings.Contains(body, "Body") {
 			t.Fatalf("body = %q, want to contain Body", body)
 		}
+		if windowID != "0x123" {
+			t.Fatalf("windowID = %q, want 0x123 (from Message.FocusWindowID)", windowID)
+		}
 		return nil
 	})
 
-	if err := sender.Send(context.Background(), Message{Title: "Title", Body: "Body"}); err != nil {
+	if err := sender.Send(context.Background(), Message{Title: "Title", Body: "Body", FocusWindowID: "0x123"}); err != nil {
 		t.Fatalf("Send() error = %v", err)
 	}
 	if !startCalled {
@@ -157,9 +163,10 @@ func TestLinuxSenderClickToFocusFallsBackToNotifySend(t *testing.T) {
 	sender := NewLinuxSenderWithFocusStarter(func(_ context.Context, name string, args ...string) error {
 		gotName = name
 		return nil
-	}, true, func(_ context.Context, title, body string) error {
+	}, true, func(_ context.Context, title, body, windowID string) error {
 		return context.Canceled
 	})
+	sender.sendNotify = func(context.Context, string, string) error { return context.Canceled }
 
 	if err := sender.Send(context.Background(), Message{Title: "Title", Body: "Body"}); err != nil {
 		t.Fatalf("Send() error = %v", err)

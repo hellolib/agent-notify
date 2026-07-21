@@ -10,6 +10,9 @@ type Message struct {
 	Title     string
 	Body      string
 	SourceApp SourceApp
+	// FocusWindowID 是 Linux 点击聚焦的目标 X11 窗口 ID（十进制字符串），
+	// 由 dispatch 依据 SessionStart 缓存填充；为空则回退按进程树定位。仅 Linux 使用。
+	FocusWindowID string
 }
 
 // SourceApp 描述触发事件的宿主应用（终端 / IDE），用于系统通知点击后跳转聚焦。
