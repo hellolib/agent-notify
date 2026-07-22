@@ -132,7 +132,7 @@ type SlackChannelConfig struct {
 
 // BehaviorConfig holds behavior configuration.
 type BehaviorConfig struct {
-	DedupeSeconds      int    `yaml:"dedupe_seconds"`       // 去重时间窗口（秒），同一事件在此时间内不重复发送
+	DedupeSeconds      int    `yaml:"dedupe_seconds"`       // 去重时间窗口（秒）；同一会话、同一内容在此时间内不重复发送，超窗口再次触发则重提醒
 	SendTimeoutSeconds int    `yaml:"send_timeout_seconds"` // 发送超时时间（秒）
 	Locale             string `yaml:"locale"`               // 语言设置，如: zh-CN, en-US
 }
@@ -214,7 +214,7 @@ func Default() Config {
 			},
 		},
 		Behavior: BehaviorConfig{
-			DedupeSeconds:      60,
+			DedupeSeconds:      10,
 			SendTimeoutSeconds: 5,
 			Locale:             "zh-CN",
 		},
@@ -277,7 +277,7 @@ func Load(path string) (Config, error) {
 		cfg.Agent.Grok.InstallScope = "user"
 	}
 	if cfg.Behavior.DedupeSeconds == 0 {
-		cfg.Behavior.DedupeSeconds = 60
+		cfg.Behavior.DedupeSeconds = 10
 	}
 	if cfg.Behavior.SendTimeoutSeconds == 0 {
 		cfg.Behavior.SendTimeoutSeconds = 5
