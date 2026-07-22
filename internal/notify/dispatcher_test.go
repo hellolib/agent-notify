@@ -138,8 +138,13 @@ func TestUnsupportedSenderReturnsExplicitError(t *testing.T) {
 
 func TestDedupeKeySameContentSameKey(t *testing.T) {
 	base := Message{Agent: "claude", Event: "run_completed", SessionID: "s1", Title: "A", Body: "done"}
-	if dedupeKey(base, "system", 100) != dedupeKey(base, "system", 100) {
-		t.Fatal("identical message must produce identical key")
+	k := dedupeKey(base, "system", 100)
+	parts := strings.Split(k, "\x00")
+	if len(parts) != 5 {
+		t.Fatalf("key = %q, want 5 NUL-separated segments, got %d", k, len(parts))
+	}
+	if parts[0] != "claude" || parts[1] != "s1" || parts[2] != "run_completed" || parts[4] != "system" {
+		t.Fatalf("unexpected segments: %#v", parts)
 	}
 }
 
