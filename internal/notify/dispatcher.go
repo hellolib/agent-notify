@@ -44,7 +44,7 @@ func (d *Dispatcher) SendAll(ctx context.Context, msg Message) error {
 			errs = append(errs, fmt.Sprintf("%s: %v", sender.Name(), err))
 			continue
 		}
-		if err := d.store.MarkSent(key, now); err != nil {
+		if err := d.store.MarkSent(key, d.window, now); err != nil {
 			return err
 		}
 	}
