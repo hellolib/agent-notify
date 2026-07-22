@@ -3,6 +3,7 @@ package agenthooks
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/hellolib/agent-notify/internal/config"
@@ -24,9 +25,15 @@ func Dispatch(ctx context.Context, cfg config.Config, statePath, logPath string,
 		return nil
 	}
 
-	// 非 session_start：若命中 SessionStart 缓存，填充精确窗口供 Linux 点击聚焦复用。
-	if windowID, ok := state.NewFocusStore(state.FocusWindowsPath(statePath)).Load(msg.SessionID); ok {
-		msg.FocusWindowID = windowID
+	// 非 session_start：若命中 SessionStart 缓存，填充精确窗口供点击聚焦复用。
+	// Linux 存的是 X11 window id（→ FocusWindowID）；macOS 存的是 mac-focus-helper
+	// --capture 的 JSON 快照（→ FocusCapture）。
+	if data, ok := state.NewFocusStore(state.FocusWindowsPath(statePath)).Load(msg.SessionID); ok {
+		if runtime.GOOS == "darwin" {
+			msg.FocusCapture = data
+		} else {
+			msg.FocusWindowID = data
+		}
 	}
 
 	store := state.NewStore(statePath)
@@ -47,18 +54,32 @@ func Dispatch(ctx context.Context, cfg config.Config, statePath, logPath string,
 	return nil
 }
 
-// captureFocusWindow 在 SessionStart 时刻抓取当前活动窗口（经 PID 祖先校验）并按
-// session 缓存，供后续事件点击聚焦复用。仅 Linux 生效；其它平台 CaptureActiveWindow
-// 返回 error，这里静默忽略。校验失败（例如用户此刻焦点在别的应用）时不覆盖已有缓存。
+// captureFocusWindow 在 SessionStart 时刻抓取“启动本 agent 的那个窗口”并按 session 缓存，
+// 供后续事件（permission/input/completed…）点击聚焦复用，避免发通知时用户已切走导致抓错窗口。
+// Linux 用 EWMH 抓 active window（经 PID 祖先校验）；macOS 用 mac-focus-helper --capture 走进程树定位。
+// 抓取失败（如焦点在别的应用、helper 缺失）时不覆盖已有缓存。其它平台不做。
 func captureFocusWindow(ctx context.Context, statePath, logPath string, msg notify.Message) {
 	if msg.SessionID == "" {
 		return
 	}
-	windowID, err := linuxfocus.CaptureActiveWindow(ctx)
-	if err != nil || windowID == "" {
+	var windowData string
+	switch runtime.GOOS {
+	case "linux":
+		windowID, err := linuxfocus.CaptureActiveWindow(ctx)
+		if err != nil || windowID == "" {
+			return
+		}
+		windowData = windowID
+	case "darwin":
+		capture, err := notify.CaptureMacWindow()
+		if err != nil || capture == "" {
+			return
+		}
+		windowData = capture
+	default:
 		return
 	}
-	if err := state.NewFocusStore(state.FocusWindowsPath(statePath)).Save(msg.SessionID, windowID, time.Now()); err != nil {
+	if err := state.NewFocusStore(state.FocusWindowsPath(statePath)).Save(msg.SessionID, windowData, time.Now()); err != nil {
 		_ = state.AppendLog(logPath, fmt.Sprintf("focus capture save error session=%s err=%v", msg.SessionID, err))
 	}
 }

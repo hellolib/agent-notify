@@ -261,6 +261,50 @@ func TestMacOSSenderWindowPrecisionDegradesWhenNoBundle(t *testing.T) {
 	}
 }
 
+func TestMacOSSenderWindowPrecisionUsesCachedCapture(t *testing.T) {
+	var gotArgs []string
+	s := NewMacOSSenderWithResolver(func(_ context.Context, name string, args ...string) error {
+		if name == mockExe {
+			gotArgs = args
+		}
+		return nil
+	}, true, "window", mockResolver)
+	s.macFocusHelperPath = func() string { return "/mock/mac-focus-helper" }
+	s.ppid = func() int { return 4242 }
+	// SessionStart 缓存的窗口快照；有它就不该再 send-time 抓取（mock helper 抓不到）。
+	cached := `{"window_id":463,"owner_pid":3852,"bundle":"com.apple.Terminal","title":"proj – file","x":0,"y":30,"w":1440,"h":870,"reason":"unique_pid"}`
+	_ = s.Send(context.Background(), Message{
+		Title: "T", Body: "B",
+		SourceApp:    SourceApp{BundleID: "com.apple.Terminal"},
+		FocusCapture: cached,
+	})
+
+	want := "'/mock/mac-focus-helper' --owner-pid 3852 --bundle com.apple.Terminal --window-id 463 --x 0 --y 30 --w 1440 --h 870 --title 'proj – file'"
+	if !sliceContainsPair(gotArgs, "-execute", want) {
+		t.Fatalf("cached capture: args=%#v, want -execute %q", gotArgs, want)
+	}
+}
+
+func TestParseCaptureJSON(t *testing.T) {
+	valid := `{"window_id":463,"owner_pid":3852,"title":"proj – file","x":0,"y":30,"w":1440,"h":870,"reason":"unique_pid"}`
+	info, ok := parseCaptureJSON(valid)
+	if !ok {
+		t.Fatal("parseCaptureJSON(valid) ok = false, want true")
+	}
+	if info.WindowID != 463 || info.OwnerPID != 3852 || info.X != 0 || info.Y != 30 || info.W != 1440 || info.H != 870 || info.Title != "proj – file" {
+		t.Fatalf("parseCaptureJSON(valid) = %+v", info)
+	}
+	if _, ok := parseCaptureJSON(""); ok {
+		t.Fatal("parseCaptureJSON(\"\") ok = true, want false")
+	}
+	if _, ok := parseCaptureJSON("   "); ok {
+		t.Fatal("parseCaptureJSON(blank) ok = true, want false")
+	}
+	if _, ok := parseCaptureJSON(`{"window_id":0,"owner_pid":1}`); ok {
+		t.Fatal("parseCaptureJSON(window_id:0) ok = true, want false")
+	}
+}
+
 func sliceContainsPair(args []string, flag, val string) bool {
 	for i, a := range args {
 		if a == flag && i+1 < len(args) && args[i+1] == val {

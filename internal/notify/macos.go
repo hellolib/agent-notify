@@ -2,6 +2,7 @@ package notify
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -172,16 +173,22 @@ func (s *MacOSSender) focusExecuteCommand(msg Message) string {
 	}
 	if s.focusPrecision == "window" {
 		if helper := s.macFocusHelperPath(); helper != "" {
-			// Call helper --capture to get current window info.
-			info, err := captureWindowInfoFromHelper(helper)
-			if err == nil && info.WindowID > 0 {
-				return fmt.Sprintf("%s --owner-pid %d --bundle %s --window-id %d --x %d --y %d --w %d --h %d --title %s",
-					shellQuote(helper), info.OwnerPID, bundle,
-					info.WindowID, info.X, info.Y, info.W, info.H,
-					shellQuote(info.Title))
+			// 优先用 SessionStart 缓存的窗口快照：即使用户在发通知前切走了窗口，
+			// 缓存里仍是启动 Claude 的那个窗口，避免 send-time 抓取取到已漂移的当前焦点窗。
+			info, ok := parseCaptureJSON(msg.FocusCapture)
+			if !ok {
+				// 无缓存 → 回退到发通知时抓取（旧行为）。
+				var err error
+				info, err = captureWindowInfoFromHelper(helper)
+				if err != nil || info.WindowID == 0 {
+					// 抓取也失败 → 回退到点击时进程树 walk。
+					return fmt.Sprintf("%s --owner-pid %d --bundle %s", shellQuote(helper), s.ppid(), bundle)
+				}
 			}
-			// capture failed, fall back to process-tree walk at click time.
-			return fmt.Sprintf("%s --owner-pid %d --bundle %s", shellQuote(helper), s.ppid(), bundle)
+			return fmt.Sprintf("%s --owner-pid %d --bundle %s --window-id %d --x %d --y %d --w %d --h %d --title %s",
+				shellQuote(helper), info.OwnerPID, bundle,
+				info.WindowID, info.X, info.Y, info.W, info.H,
+				shellQuote(info.Title))
 		}
 	}
 	return "open -b " + bundle
@@ -193,18 +200,53 @@ func captureWindowInfoFromHelper(helperPath string) (captureWindowInfo, error) {
 	if err != nil {
 		return captureWindowInfo{}, err
 	}
-	var info captureWindowInfo
-	// Minimal JSON parse — avoid importing encoding/json for a small fixed struct.
-	// Format: {"window_id":N,"owner_pid":N,"bundle":"...","title":"...","x":N,"y":N,"w":N,"h":N,"reason":"..."}
-	s := string(out)
-	info.WindowID = jsonUint32(s, "window_id")
-	info.OwnerPID = jsonInt(s, "owner_pid")
-	info.X = jsonInt(s, "x")
-	info.Y = jsonInt(s, "y")
-	info.W = jsonInt(s, "w")
-	info.H = jsonInt(s, "h")
-	info.Title = jsonString(s, "title")
+	info, ok := parseCaptureJSON(string(out))
+	if !ok {
+		return captureWindowInfo{}, errors.New("mac-focus-helper capture returned no window")
+	}
 	return info, nil
+}
+
+// parseCaptureJSON 解析 mac-focus-helper --capture 的 JSON 快照。
+// 避免为一个固定小结构引入 encoding/json，沿用 jsonInt/jsonString 手解析。
+// Format: {"window_id":N,"owner_pid":N,"bundle":"...","title":"...","x":N,"y":N,"w":N,"h":N,"reason":"..."}
+// 空串 / 缺 window_id / window_id=0（含 {"error":...}）时返回 ok=false。
+func parseCaptureJSON(s string) (captureWindowInfo, bool) {
+	if strings.TrimSpace(s) == "" {
+		return captureWindowInfo{}, false
+	}
+	wid := jsonUint32(s, "window_id")
+	if wid == 0 {
+		return captureWindowInfo{}, false
+	}
+	return captureWindowInfo{
+		WindowID: wid,
+		OwnerPID: jsonInt(s, "owner_pid"),
+		X:        jsonInt(s, "x"),
+		Y:        jsonInt(s, "y"),
+		W:        jsonInt(s, "w"),
+		H:        jsonInt(s, "h"),
+		Title:    jsonString(s, "title"),
+	}, true
+}
+
+// CaptureMacWindow 运行 mac-focus-helper --capture，返回原始 JSON 快照字符串，
+// 供 SessionStart 时刻抓取“启动 Claude 的那个窗口”并按 session 缓存复用。
+// helper 走进程树定位，SessionStart 时该宿主窗口在前台，故抓得准且不依赖 AX。
+// helper 不存在或未抓到有效窗口时返回 error（调用方据此放弃写缓存）。
+func CaptureMacWindow() (string, error) {
+	helper := defaultMacFocusHelperPath()
+	if helper == "" {
+		return "", errors.New("mac-focus-helper not found")
+	}
+	out, err := exec.Command(helper, "--capture").Output()
+	if err != nil {
+		return "", err
+	}
+	if _, ok := parseCaptureJSON(string(out)); !ok {
+		return "", errors.New("mac-focus-helper capture returned no window")
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 func jsonUint32(s, key string) uint32 {
