@@ -1,5 +1,7 @@
 # 系统通知窗口级聚焦设计（Window-Level Click-to-Focus）
 
+> **2026-07 更新**：三平台窗口级点击聚焦均已落地。当前各平台「句柄固化时机 / 激活机制」与**兜底降级矩阵**见 §6「现状 as-built」。两处主要变化：Linux 改为 **SessionStart 捕获窗口 + 按 session 缓存复用**（§5.2）；macOS 窗口级由环境变量 `AGENT_NOTIFY_FOCUS_PRECISION=window` 开启（§5.1.3，原 `focus_precision` yaml 字段已移除）。下方 §1–§5 的部分「计划 / 缺口 / 决策」为历史设计记录，以 §6 为准。
+
 > 状态：设计定稿；**macOS 窗口级**已通过「高级可选」产品路径落地（默认 App 级，用户可开启窗口级）  
 > 范围：macOS / Linux / Windows 均支持窗口级；macOS 通过预编译 Swift helper 实现  
 > 关联：`docs/superpowers/specs/2026-07-18-mac-focus-precision-design.md`（macOS 聚焦精度 spec）  
@@ -39,9 +41,9 @@
 
 | 平台 | 产品路径 | 说明 |
 |------|----------|------|
-| macOS | **高级可选**：默认 App 级 `open -b`；开启 `focus_precision: window` 后通过 `mac-focus-helper` 实现窗口级 | 两阶段：发送时 `--capture` 获取窗口信息，点击时用保存的句柄定位并 raise |
-| Linux/X11 | X11 Window ID + EWMH（待消歧加固） | 继续 |
-| Windows | HWND + `anfocus:` helper（待消歧加固） | 继续 |
+| macOS | **高级可选**：默认 App 级 `open -b`；开启 `AGENT_NOTIFY_FOCUS_PRECISION=window` 后通过 `mac-focus-helper` 实现窗口级 | 两阶段：发送时 `--capture` 获取窗口信息，点击时用保存的句柄定位并 raise |
+| Linux/X11 | **SessionStart 捕获 X11 Window ID + 按 session 缓存 + EWMH 激活**（见 §5.2） | 已落地 |
+| Windows | HWND + `anfocus:` 协议 + 独立 helper（见 §6） | 已落地 |
 
 ## 3. 精度分层（只保留两级）
 
@@ -90,7 +92,7 @@ PID 反查只有在「该 PID 恰好对应 1 个顶层窗口」时才够用：
 | 项 | 结论 |
 |----|------|
 | 默认行为 | `terminal-notifier -execute "open -b <BundleID>"`（App 级），零门槛 |
-| 高级可选 | 用户通过「高级功能 → 工作区聚焦精度」菜单开启 `focus_precision: window` |
+| 高级可选 | 用户通过环境变量 `AGENT_NOTIFY_FOCUS_PRECISION=window` 开启（原「高级功能菜单」已随 config 字段一并移除） |
 | 实现方式 | 预编译 Swift helper `mac-focus-helper`（仿 Windows `toast-focus-helper.exe` 模式） |
 | 失败策略 | **静默降级到 App 级**，不影响通知送达 |
 | 配置范围 | 每个 agent 独立配置，一次设置同时写入 Claude / Codex / ZCode / Grok |
@@ -111,28 +113,28 @@ PID 反查只有在「该 PID 恰好对应 1 个顶层窗口」时才够用：
 |------|------|
 | `internal/notify/macos.go` | 按 precision 分支 `-execute` 载荷；`captureWindowInfoFromHelper` 获取窗口快照 |
 | `thirdparty/helper/mac/mac-focus-helper-{arm64,amd64}` | 预编译 Swift 二进制：`--capture` 获取当前窗口信息，`--owner-pid` 定位并 raise |
-| `internal/cli/menu.go` | 高级菜单：聚焦精度选择（默认选中当前值） |
+| `config.FocusPrecisionFromEnv()` | 读取 `AGENT_NOTIFY_FOCUS_PRECISION`（原高级菜单已移除） |
 | `internal/app/doctor/` | darwin 诊断：显示当前精度 + helper 可用性 |
 
-#### 5.1.3 配置
+#### 5.1.3 配置（环境变量）
 
-```yaml
-# 每个 agent 的 channels.system 下
-system:
-  enabled: true
-  click_to_focus: true
-  focus_precision: app    # app | window；默认 app
+窗口级由环境变量 `AGENT_NOTIFY_FOCUS_PRECISION` 控制（原 `focus_precision` yaml 配置字段已移除）：
+
+```bash
+# 建议写入登录 shell 环境（如 ~/.zshrc），让所有终端拉起的 agent 及其 hook 都继承
+export AGENT_NOTIFY_FOCUS_PRECISION=window   # window | app；默认 app
 ```
 
-- 缺省 / 空 / 未知值 → `app`
-- `click_to_focus: false` 时忽略 `focus_precision`
-- 非 darwin 上 `window` 按 `app` 处理
+- 取值不区分大小写、去首尾空白；只有 `window` 是窗口级，缺省 / 空 / 未知值 → `app`
+- `config.FocusPrecisionFromEnv()` 在 hook 进程内、每次发通知时读取
+- **仅 macOS 采纳**；Linux（恒窗口级）/ Windows（恒窗口级）的 sender 不接收该参数
+- `click_to_focus: false` 时忽略聚焦精度
 
 #### 5.1.4 降级矩阵
 
 | 条件 | 行为 |
 |------|------|
-| `focus_precision: app` 或非 darwin | `open -b <BundleID>` |
+| 精度 ≠ `window`（默认）或非 darwin | `open -b <BundleID>` |
 | `window` 但 helper 不存在 | `open -b`（静默降级） |
 | `window` 但 `--capture` 失败 | 回退到 `--owner-pid` 进程树 walk |
 | `window` 但点击时无 AX 权限 | helper 内部 `open -b` |
@@ -144,7 +146,7 @@ system:
 
 macOS TCC 对辅助功能按**进程树归属**算账：在 VS Code / GoLand 等终端中，授权列表可能出现宿主 IDE + terminal-notifier 两条。这是 `-execute`(NSTask fork) 与 AX 调用的机制级耦合，非签名可解。
 
-因此 `focus_precision: window` 定位为**默认关闭的高级选项**，菜单中以灰色说明文字提示此成本。
+因此窗口级（`AGENT_NOTIFY_FOCUS_PRECISION=window`）定位为**默认关闭的高级选项**，文档中说明此成本。
 
 **为何 Windows 没这问题**：Windows toast `activationType=protocol` + `anfocus:` 协议，点击时**系统按协议拉起独立 helper 进程**（非 toast 发起方的 NSTask 子进程），fork 链被切断，故无「宿主+通知器双授权」。mac 要复刻需重做通知客户端，非签名 terminal-notifier 所能解决。
 
@@ -159,9 +161,11 @@ macOS TCC 对辅助功能按**进程树归属**算账：在 VS Code / GoLand 等
 - tab / pane / session 级  
 - 承诺多项目窗口精确回跳（mac 上产品不提供）
 
-### 5.2 Linux/X11（加固现有窗口级）
+### 5.2 Linux/X11（SessionStart 窗口捕获，as-built）
 
-**现状优点：**
+> **2026-07 更新**：Linux 不再「发通知时抓窗口」，改为在 **SessionStart**（终端必然是焦点的那一刻）用 `linuxfocus.CaptureActiveWindow` 读 `_NET_ACTIVE_WINDOW`，并校验其 `_NET_WM_PID` 在 hook 进程树祖先里（否则拒绝、不写，防污染），按 `session_id` 存入 `state.FocusStore`（`~/.agent-notify/focus-windows.json`，24h/64 条 GC）。后续 permission/completed 等事件按 session 查表 → `Message.FocusWindowID` → detached `linux-notify-wait` 等 D-Bus `ActionInvoked` → `ewmh.ActiveWindowReq` 激活。这样直接绕过了下述 `firstWindowForPID` 的一对多歧义（它降为「漏抓时兜底」），能区分单进程多窗口终端（deepin-terminal 等）的兄弟窗口。完整链路与兜底见 §6。下文为早期加固计划，保留作背景。
+
+**早期现状优点：**
 
 - 发通知前固化 window id（避免点击时 PID 复用）  
 - detached `linux-notify-wait` 等 D-Bus `ActionInvoked`  
@@ -196,13 +200,62 @@ macOS TCC 对辅助功能按**进程树归属**算账：在 VS Code / GoLand 等
 
 **不在范围：** Windows Terminal 标签页（同一 HWND 内 UI，OS 不可见）。
 
-## 6. 现状（agent-notify 代码）
+## 6. 现状（as-built，2026-07）
 
-| 平台 | 展示 | 点击聚焦 | 实际精度 | 产品结论 | 关键代码 |
-|------|------|----------|----------|----------|----------|
-| macOS | terminal-notifier → osascript | `-execute "open -b <BundleID>"` | **App 级** | **保持；不做窗口级** | `internal/notify/macos.go`、`sourceapp.go` |
-| Linux | D-Bus Notify / notify-send | `linux-notify-wait` + `ActiveWindowReq` | 窗口级尽力（缺消歧） | 继续加固 | `internal/notify/linux.go`、`internal/linuxfocus/` |
-| Windows | WinRT Toast (PowerShell) | `anfocus:pid[:hwnd]` + `toast-focus-helper` | 窗口级尽力（缺消歧） | 继续加固 | `internal/notify/windows*.go`、`hellolib/toast` |
+三平台窗口级点击聚焦均已落地，核心模式一致：**固化「触发源窗口句柄」→ 写入点击载荷 → 点击时用句柄激活 → 句柄失效逐级降级**。差异在「固化时机」与「激活机制」。
+
+| 平台 | 通知 | 窗口句柄固化时机 | 激活机制 | 精度开关 |
+|------|------|------------------|----------|----------|
+| macOS | terminal-notifier（回退 osascript） | **发通知时** `mac-focus-helper --capture` | 点击 → helper `CGWindowList` 定位 + AX raise | `AGENT_NOTIFY_FOCUS_PRECISION=window`（默认 app） |
+| Linux/X11 | D-Bus Notify（回退 notify-send） | **会话启动时（SessionStart）** `CaptureActiveWindow`，按 session_id 存 `focus-windows.json` | 点击 → `linux-notify-wait` → EWMH `_NET_ACTIVE_WINDOW` | 恒为窗口级（无开关，缓存命中即精确） |
+| Windows | WinRT Toast | **发通知时** `toast.PrepareFocusActivation(ppid)` → `anfocus:<pid>[:<hwnd>]` | 点击 → 协议拉起独立 `toast-focus-helper.exe` → HWND/PID 定位 + SetForegroundWindow | 恒为窗口级 |
+
+> **关键差异（新）**：mac / Windows 在**发通知瞬间**抓当前窗口；Linux 改为在 **SessionStart 抓一次并按 session 缓存复用**（见 §5.2）。因此 Linux 不受「发通知时用户已切走」影响，且能区分单进程多窗口终端（deepin-terminal 等）的兄弟窗口——这是 §4「同 PID 多窗歧义」在 Linux 上的实际解法。
+
+### 6.1 兜底 / 降级矩阵（窗口定位失败自动降级）
+
+三平台都遵守：**宁可降级 / 静默，绝不乱聚焦，且通知送达永不因聚焦失败而失败。**
+
+**macOS**（`macos.go focusExecuteCommand`）：
+
+| 条件 | 降级行为 |
+|------|----------|
+| 精度=app / 非 darwin | `open -b <BundleID>`（应用级） |
+| window 但无 helper | `open -b`（静默降应用级） |
+| window 但 `--capture` 失败 | `mac-focus-helper --owner-pid <ppid>`（点击时进程树 walk） |
+| window 但点击时无 AX 权限 | helper 内部 `open -b` |
+| 无 BundleID / 非法 | 无 `-execute`，纯展示通知 |
+| 无 terminal-notifier | `osascript` 展示（无点击跳转） |
+
+**Linux/X11**（`linux.go` + `linuxfocus` + `state.FocusStore`）：
+
+| 条件 | 降级行为 |
+|------|----------|
+| 命中 SessionStart 缓存 | 精确激活该窗口（`Message.FocusWindowID` → `ActivateWindow`） |
+| 无缓存（漏抓 / 校验未过） | `ResolveWindowID` 进程树反查（`firstWindowForPID`，多窗取第一个——旧行为，可能不精确） |
+| 进程树也找不到窗口 | starter 报错 → 退回纯 D-Bus 通知（无点击聚焦） |
+| D-Bus 不可用 | `notify-send`（无点击聚焦） |
+| SessionStart 时焦点非本终端 | `CaptureActiveWindow` 的 PID 祖先校验拒绝 → 不写缓存（保留上次正确值，防污染） |
+
+**Windows**（`windows_toast_windows.go` + `hellolib/toast`）：
+
+| 条件 | 降级行为 |
+|------|----------|
+| `PrepareFocusActivation` 成功 | toast 带 `anfocus:` 协议参数，点击拉起 helper |
+| 点击时保存的 HWND 失效 | helper 按 PID 重新找窗 |
+| `SetForegroundWindow` 被前台锁拒绝 | best-effort（`AttachThreadInput` 等手法） |
+| `PrepareFocusActivation` 失败 | 不加协议参数 → 纯 Toast（无点击聚焦） |
+| helper 未安装 / 找不到 | 协议点击无响应 → Toast 仍展示 |
+
+`click_to_focus: false` 时三平台均不挂任何激活逻辑。
+
+### 6.2 doctor 探测（各平台可用性）
+
+| 平台 | 探测项 | 说明 |
+|------|--------|------|
+| macOS | `mac-focus-helper` 文件是否存在（`detectMacFocusHelper`） | 不探 AX 授权（纯 Go 无 cgo），helper 运行时自降级 |
+| Linux | `DISPLAY` + D-Bus session bus（`detectLinuxFocusSupport`） | X11 会话判定；Wayland 原生不支持 |
+| Windows | `toast.FindFocusHelper()` + `--focus-probe` | 可跑 send 解析诊断 + 尾读 helper 日志 |
 
 配置：
 
@@ -212,6 +265,8 @@ channels:
     enabled: true
     click_to_focus: true   # false 时三平台均不挂激活逻辑
 ```
+
+> macOS 窗口级另由环境变量 `AGENT_NOTIFY_FOCUS_PRECISION=window` 开启（默认 app），见 §5.1.3；Linux / Windows 无此开关，恒为窗口级尽力。
 
 ## 7. 接口与集成
 
@@ -255,7 +310,9 @@ type LocateHint struct {
 
 **收益：** 修 VS Code / WT / GNOME 等同 PID 多窗误聚焦（非 mac）。
 
-### P1 — macOS：无窗口级合入（已关闭）
+### P1 — macOS：窗口级作为高级可选合入（已落地，修订自「无窗口级」）
+
+> **2026-07 更新**：早期「不做 mac 窗口级」的决定已修订。最终以**默认关闭的高级可选**形态落地：预编译 Swift `mac-focus-helper`（`--capture` + `CGWindowList` 定位 + AX raise）+ 环境变量 `AGENT_NOTIFY_FOCUS_PRECISION=window`；默认仍 App 级 `open -b`。接受附录 A 的「宿主 + terminal-notifier 双授权」成本，故默认关闭。仍不做：私有 CGS / SkyLight、自建签名通知客户端、tab 级。下方旧条目已过时。
 
 - **不做** `internal/macfocus`、`mac-focus` 子命令、AX/CGS、helper  
 - 保持现有 App 级 `open -b` + terminal-notifier  
@@ -295,7 +352,7 @@ type LocateHint struct {
 | 风险 | 缓解 |
 |------|------|
 | 同 PID 多窗消歧仍失败（L/W） | `Ambiguous` + 日志；不谎称精确 |
-| mac 多窗无法精确回跳 | **接受**；产品仅 App 级，文档写明 |
+| mac 多窗无法精确回跳（App 级时） | 默认 App 级；需精确回跳可开 `AGENT_NOTIFY_FOCUS_PRECISION=window`（附录 A 双授权成本） |
 | mac 再评估窗口级 | 三条路已实测否决；除非 Apple 改 TCC/提供免授权窗口激活 API，否则不再评估 |
 | WM / Windows 前台锁 | best-effort；文档不写「保证置顶」 |
 | Wayland | 范围外；doctor 标明 |
@@ -305,7 +362,7 @@ type LocateHint struct {
 
 1. **不做 tab 级。**  
 2. **Linux/Windows**：继续「发通知绑触发源窗 → 点击激活」+ 多窗消歧。  
-3. **macOS**：**弃用窗口级（AX/CGS/自建通知客户端全否决）**；产品 **仅 App 级** `open -b BundleID`。  
+3. **macOS**：默认 App 级 `open -b BundleID`；窗口级作为**高级可选**（`AGENT_NOTIFY_FOCUS_PRECISION=window`）经 `mac-focus-helper`（CGWindowList + AX raise）落地——接受附录 A 的双授权成本，故默认关闭。私有 CGS / 自建通知客户端仍否决。  
 4. **mac 否决根因**：terminal-notifier `-execute` 经 NSTask fork 子进程执行点击命令；窗口级需调 AX，AX 调用挂在 `宿主→terminal-notifier→sh→helper` fork 链上；macOS TCC 按进程树归属 → 宿主与通知器双授权；签名无法切断 fork 链；切断需自建独立通知客户端 + 协议拉起 helper（类 Windows `anfocus:`），ROI 不成立。  
 5. **落地顺序**：P0 Linux/Windows 消歧 → P2 Linux 激活加固；**无 mac 窗口级 P1**。  
 6. **产品话术**：mac 点击回到对应应用；Linux/Windows 尽量回到对应窗口（best-effort）。
