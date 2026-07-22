@@ -135,3 +135,40 @@ func TestUnsupportedSenderReturnsExplicitError(t *testing.T) {
 		t.Fatalf("Send() error = %v, want unsupported platform message", err)
 	}
 }
+
+func TestDedupeKeySameContentSameKey(t *testing.T) {
+	base := Message{Agent: "claude", Event: "run_completed", SessionID: "s1", Title: "A", Body: "done"}
+	if dedupeKey(base, "system", 100) != dedupeKey(base, "system", 100) {
+		t.Fatal("identical message must produce identical key")
+	}
+}
+
+func TestDedupeKeyDistinguishesContent(t *testing.T) {
+	base := Message{Agent: "claude", Event: "run_completed", SessionID: "s1", Title: "A", Body: "done"}
+	k1 := dedupeKey(base, "system", 100)
+
+	diffBody := base
+	diffBody.Body = "failed"
+	if dedupeKey(diffBody, "system", 100) == k1 {
+		t.Fatal("different body must produce different key")
+	}
+
+	diffTitle := base
+	diffTitle.Title = "B"
+	if dedupeKey(diffTitle, "system", 100) == k1 {
+		t.Fatal("different title must produce different key")
+	}
+}
+
+func TestDedupeKeyEmptySessionFallsBackToPPID(t *testing.T) {
+	msg := Message{Agent: "claude", Event: "run_completed", Title: "A", Body: "done"} // empty SessionID
+	if dedupeKey(msg, "system", 111) == dedupeKey(msg, "system", 222) {
+		t.Fatal("empty session with different ppid must not collapse")
+	}
+
+	withSess := msg
+	withSess.SessionID = "s1"
+	if dedupeKey(withSess, "system", 111) != dedupeKey(withSess, "system", 222) {
+		t.Fatal("non-empty session must ignore ppid")
+	}
+}
