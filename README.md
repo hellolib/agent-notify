@@ -47,7 +47,6 @@ npx agent-notify
 
 | Event | Description | Claude Code | Codex | ZCode | Grok |
 |------|------|:---:|:---:|:---:|:----:|
-| `session_start` | A new agent session has started | — | — | ✅ |  ✅  |
 | `permission_required` | Agent needs authorization (e.g. to run a command) | ✅ | ✅ | ✅ |  ✅  |
 | `input_required` | Agent is waiting for user input | ✅ | — | — |  ✅  |
 | `run_completed` | Task finished | ✅ | ✅ | ✅ |  ✅  |
@@ -55,10 +54,11 @@ npx agent-notify
 
 Notes:
 
-- Claude Code subscribes to all four events via hooks in `~/.claude/settings.json` (`PermissionRequest`, `Notification`, `Stop`, `PostToolUseFailure`).
-- Codex subscribes to `PermissionRequest` and `Stop` via `~/.codex/hooks.json`, mapped to `permission_required` and `run_completed` respectively. `input_required` and `run_failed` have no corresponding Codex hook yet, so they are not supported.
-- ZCode subscribes to `SessionStart`, `PermissionRequest`, `PostToolUseFailure`, and `Stop` via `~/.zcode/cli/config.json`, mapped to `session_start`, `permission_required`, `run_failed`, and `run_completed`. ZCode has no `Notification` event (so no `input_required`), and its hook schema is strict — an unknown event name will cause the whole hooks config to be silently dropped.
-- Grok subscribes to `SessionStart`, `Notification`, `Stop`, `StopFailure`, and `PostToolUseFailure` via `~/.grok/hooks/agent-notify.json`. There is no dedicated `PermissionRequest` event; `Notification`s with permission/approval semantics map to `permission_required` (marked *), others map to `input_required`. `StopFailure` / `PostToolUseFailure` map to `run_failed`.
+- Claude Code subscribes via hooks in `~/.claude/settings.json`: `PermissionRequest`, `Notification`, `Stop`, `PostToolUseFailure`, and `SessionStart`.
+- Codex subscribes via `~/.codex/hooks.json`: `PermissionRequest` and `Stop` (mapped to `permission_required` / `run_completed`), plus `SessionStart`. `input_required` and `run_failed` have no corresponding Codex hook yet, so they are not supported.
+- ZCode subscribes via `~/.zcode/cli/config.json`: `SessionStart`, `PermissionRequest`, `PostToolUseFailure`, and `Stop`, mapped to `permission_required`, `run_failed`, and `run_completed`. ZCode has no `Notification` event (so no `input_required`), and its hook schema is strict — an unknown event name will cause the whole hooks config to be silently dropped.
+- Grok subscribes via `~/.grok/hooks/agent-notify.json`: `SessionStart`, `Notification`, `Stop`, `StopFailure`, and `PostToolUseFailure`. There is no dedicated `PermissionRequest` event; `Notification`s with permission/approval semantics map to `permission_required` (marked *), others map to `input_required`. `StopFailure` / `PostToolUseFailure` map to `run_failed`.
+- **`SessionStart` does not produce a notification.** It is subscribed on every agent solely to capture the terminal window at session start, which powers Linux window-level [Click-to-Focus](#click-to-focus). On macOS/Windows the SessionStart hook is a no-op.
 
 ### Supported Platforms
 
@@ -67,6 +67,18 @@ Notes:
 | macOS | amd64 / arm64 | ✅ |
 | Linux | amd64 / arm64 | ✅ |
 | Windows | amd64 / arm64 | ✅ |
+
+### Click-to-Focus
+
+System notifications are clickable — clicking one brings you back to the terminal / window where the agent is running. Behavior differs by platform:
+
+- **macOS** — App-level by default (activates the agent's terminal/IDE app). For window-level focus (return to the exact window even when several are open), set `AGENT_NOTIFY_FOCUS_PRECISION=window` in your login shell environment (e.g. `~/.zshrc`); this uses a bundled helper and requires Accessibility permission. Unset stays app-level.
+- **Linux (X11)** — Window-level. The exact terminal window is captured at session start (via the `SessionStart` hook) and re-focused on click, so it distinguishes sibling windows of single-process terminals (deepin-terminal, GNOME Terminal, etc.). Native Wayland windows can't be targeted.
+- **Windows** — Returns to the terminal window via a bundled helper.
+
+> **`AGENT_NOTIFY_FOCUS_PRECISION`** accepts `window` (window-level) or `app` (app-level — the default). Values are case-insensitive and whitespace-trimmed; anything unset or unrecognized falls back to `app`. This variable **only affects macOS** — Linux is always window-level, and Windows uses its own helper.
+
+Click-to-focus is enabled by default for the System channel; the target app/window is detected automatically from the hook's environment and process tree.
 
 
 

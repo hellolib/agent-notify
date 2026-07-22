@@ -42,7 +42,6 @@ npx agent-notify
 
 | 事件 | 说明 | Claude Code | Codex | ZCode | Grok |
 |------|------|:---:|:---:|:---:|:----:|
-| `session_start` | Agent 新会话开始 | — | — | ✅ |  ✅  |
 | `permission_required` | Agent 需要授权（如执行命令） | ✅ | ✅ | ✅ |  ✅  |
 | `input_required` | Agent 等待用户输入 | ✅ | — | — |  ✅  |
 | `run_completed` | 任务执行完成 | ✅ | ✅ | ✅ |  ✅  |
@@ -50,10 +49,11 @@ npx agent-notify
 
 说明：
 
-- Claude Code 通过 `~/.claude/settings.json` 的 hooks 订阅四个事件（`PermissionRequest`、`Notification`、`Stop`、`PostToolUseFailure`）。
-- Codex 通过 `~/.codex/hooks.json` 订阅 `PermissionRequest` 与 `Stop`，分别映射到 `permission_required` 与 `run_completed`。`input_required` 与 `run_failed` Codex 目前没有对应 hook，因此暂不支持。
-- ZCode 通过 `~/.zcode/cli/config.json` 订阅 `SessionStart`、`PermissionRequest`、`PostToolUseFailure` 和 `Stop`，分别映射到 `session_start`、`permission_required`、`run_failed` 和 `run_completed`。ZCode 没有 `Notification` 事件（因此不支持 `input_required`），且其 hook 配置格式较为严格——无法识别的事件名称会导致整个 hooks 配置被静默丢弃。
+- Claude Code 通过 `~/.claude/settings.json` 的 hooks 订阅：`PermissionRequest`、`Notification`、`Stop`、`PostToolUseFailure`、`SessionStart`。
+- Codex 通过 `~/.codex/hooks.json` 订阅 `PermissionRequest`、`Stop`（映射到 `permission_required` / `run_completed`）以及 `SessionStart`。`input_required` 与 `run_failed` Codex 目前没有对应 hook，因此暂不支持。
+- ZCode 通过 `~/.zcode/cli/config.json` 订阅 `SessionStart`、`PermissionRequest`、`PostToolUseFailure`、`Stop`，映射到 `permission_required`、`run_failed`、`run_completed`。ZCode 没有 `Notification` 事件（因此不支持 `input_required`），且其 hook 配置格式较为严格——无法识别的事件名称会导致整个 hooks 配置被静默丢弃。
 - Grok 通过 `~/.grok/hooks/agent-notify.json` 订阅 `SessionStart`、`Notification`、`Stop`、`StopFailure`、`PostToolUseFailure`。Grok 没有独立的 `PermissionRequest` 事件，带 permission/approval 语义的 `Notification` 会映射为 `permission_required`（表中 *）；其它通知映射为 `input_required`。`StopFailure` / `PostToolUseFailure` 映射为 `run_failed`。
+- **`SessionStart` 不产生任何通知。** 它在所有 agent 上被订阅，仅用于在会话启动时捕获终端窗口，为 Linux 的窗口级点击聚焦提供支持（见下方「点击聚焦」一节）；在 macOS/Windows 上该 hook 为空操作。
 
 ### 支持的平台
 
@@ -62,6 +62,18 @@ npx agent-notify
 | macOS | amd64 / arm64 | ✅ |
 | Linux | amd64 / arm64 | ✅ |
 | Windows | amd64 / arm64 | ✅ |
+
+### 点击聚焦（Click-to-Focus）
+
+系统通知可点击——点击后会跳回运行 agent 的终端 / 窗口。各平台行为不同：
+
+- **macOS** — 默认应用级（激活 agent 所在的终端/IDE 应用）。若要窗口级（多窗口时也精确跳回那一个），在登录 shell 环境（如 `~/.zshrc`）里设置 `AGENT_NOTIFY_FOCUS_PRECISION=window`；这会用到内置 helper 并需要「辅助功能」权限。不设置则保持应用级。
+- **Linux（X11）** — 窗口级。在会话启动时（通过 `SessionStart` hook）捕获精确的终端窗口，点击时跳回，因此能区分单进程多窗口终端（deepin-terminal、GNOME Terminal 等）的兄弟窗口。原生 Wayland 窗口无法定位。
+- **Windows** — 通过内置 helper 跳回终端窗口。
+
+> **`AGENT_NOTIFY_FOCUS_PRECISION`** 接受 `window`（窗口级）或 `app`（应用级，默认值）。取值不区分大小写、会去除首尾空白；未设置或无法识别的值都回退为 `app`。该变量**仅对 macOS 生效**——Linux 始终是窗口级，Windows 用自己的 helper。
+
+系统渠道默认开启点击聚焦；目标应用/窗口会从 hook 的环境变量与进程树自动识别。
 
 ## 安装说明
 
