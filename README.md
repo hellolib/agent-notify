@@ -2,7 +2,7 @@
 
 # Agent Notify
 
-<p align="center"><b>Stop babysitting your AI coding agent.</b><br/>Notifies you when your agent needs you</p>
+<p align="center"><b>Notifies you when your agent needs you</b>
 
 [![Go Version](https://img.shields.io/badge/Go-%3E%3D1.25-blue.svg)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -18,6 +18,9 @@ Agent Notify hooks into the lifecycle events of AI coding agents (Claude Code, C
 
 Supported delivery channels: **OS-native system notifications**, **Feishu/Lark**, **WeChat Work (企业微信)**, **DingTalk (钉钉)**, **Bark (iOS)**, and **ntfy**.
 
+<p align="center">
+  <img src="assist/demo.gif" alt="Agent Notify demo" width="800">
+</p>
 
 ## Quick Start
 

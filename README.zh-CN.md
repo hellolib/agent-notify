@@ -2,7 +2,7 @@
 
 # Agent Notify
 
-<p align="center"><b>别再盯着 AI Agent 跑了</b><br/>在 Agent 需要你时通知你</p>
+<p align="center"><b>在 Agent 需要你时通知你</b>
 
 [![Go Version](https://img.shields.io/badge/Go-%3E%3D1.25-blue.svg)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -16,6 +16,9 @@
 
 一个面向 AI Agent 的通知配置工具。支持将 Claude Code、Codex、ZCode (Z.ai)、Grok 等 Agent 的事件通知推送到飞书、企业微信、钉钉、Bark、ntfy 和系统通知。
 
+<p align="center">
+  <img src="assist/demo.gif" alt="Agent Notify 演示" width="800">
+</p>
 
 ## 快速开始
 
