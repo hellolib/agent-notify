@@ -12,6 +12,7 @@ import (
 func TestDefaultConfigUsesAgentScopedNotifyConfig(t *testing.T) {
 	cfg := Default()
 	allEvents := []string{"permission_required", "input_required", "run_completed", "run_failed"}
+	codexEvents := []string{"permission_required", "input_required", "run_completed"}
 
 	if cfg.Version != 1 {
 		t.Fatalf("Version = %d, want 1", cfg.Version)
@@ -53,6 +54,9 @@ func TestDefaultConfigUsesAgentScopedNotifyConfig(t *testing.T) {
 	}
 	if cfg.Notify.Codex.Channels.Bark.Enabled {
 		t.Fatal("Codex bark should be disabled by default")
+	}
+	if !reflect.DeepEqual(cfg.Notify.Codex.Events, codexEvents) {
+		t.Fatalf("Codex events = %#v, want %#v", cfg.Notify.Codex.Events, codexEvents)
 	}
 }
 
@@ -230,6 +234,9 @@ agent:
   grok:
     enabled: true
     install_scope: user
+  codex:
+    enabled: true
+    install_scope: user
 notify:
   claude_code:
     channels:
@@ -244,6 +251,10 @@ notify:
       bark:
         enabled: true
         webhook_url: https://api.day.app/key
+  codex:
+    channels:
+      system:
+        enabled: true
 behavior:
   dedupe_seconds: 60
   send_timeout_seconds: 5
@@ -267,12 +278,48 @@ behavior:
 	if len(got.Notify.Grok.Events) == 0 {
 		t.Fatal("Grok events should be backfilled when channels are enabled")
 	}
+	wantCodexEvents := []string{"permission_required", "input_required", "run_completed"}
+	if !reflect.DeepEqual(got.Notify.Codex.Events, wantCodexEvents) {
+		t.Fatalf("Codex events = %#v, want backfilled defaults %#v", got.Notify.Codex.Events, wantCodexEvents)
+	}
 	// Bark must not replace wechat during load.
 	if !got.Notify.Grok.Channels.Wechat.Enabled {
 		t.Fatal("Grok wechat must not be lost when bark is also enabled")
 	}
 	if !got.Notify.Grok.Channels.Bark.Enabled {
 		t.Fatal("Grok bark should remain enabled alongside wechat")
+	}
+}
+
+func TestLoadPreservesExplicitCodexEventsWithoutMigration(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+
+	configYAML := []byte(`version: 1
+agent:
+  codex:
+    enabled: true
+    install_scope: user
+notify:
+  codex:
+    events:
+      - permission_required
+      - run_completed
+    channels:
+      system:
+        enabled: true
+`)
+	if err := os.WriteFile(path, configYAML, 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	got, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	want := []string{"permission_required", "run_completed"}
+	if !reflect.DeepEqual(got.Notify.Codex.Events, want) {
+		t.Fatalf("Codex explicit events = %#v, want unchanged %#v", got.Notify.Codex.Events, want)
 	}
 }
 

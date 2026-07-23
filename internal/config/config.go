@@ -139,8 +139,8 @@ type BehaviorConfig struct {
 
 func Default() Config {
 	allEvents := []string{"permission_required", "input_required", "run_completed", "run_failed"}
-	// Codex hooks 当前可靠支持的两个事件
-	codexEvents := []string{"permission_required", "run_completed"}
+	// Codex PreToolUse can surface request_user_input as input_required.
+	codexEvents := []string{"permission_required", "input_required", "run_completed"}
 	// ZCode hooks 支持的事件：与 Claude Code 基本一致，但没有 input_required
 	// （ZCode 没有 Notification 事件）。session_start 仅用于 Linux 点击聚焦的窗口
 	// 捕获，不作为通知事件，故不出现在这里。

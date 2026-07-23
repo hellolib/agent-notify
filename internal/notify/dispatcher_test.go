@@ -70,6 +70,51 @@ func TestDispatcherSendAllDedupeIsPerAgentEventSessionAndSender(t *testing.T) {
 	}
 }
 
+func TestDispatcherSendAllDedupeIDSeparatesPromptsInOneSession(t *testing.T) {
+	store := state.NewStore(filepath.Join(t.TempDir(), "state.json"))
+	sender := &fakeSender{name: "feishu"}
+	dispatcher := NewDispatcher(store, 60*time.Second, sender)
+
+	first := Message{
+		Agent:     "codex",
+		Event:     "input_required",
+		SessionID: "sess-1",
+		DedupeID:  "call-1",
+	}
+	second := first
+	second.DedupeID = "call-2"
+	if err := dispatcher.SendAll(context.Background(), first); err != nil {
+		t.Fatalf("first SendAll() error = %v, want nil", err)
+	}
+	if err := dispatcher.SendAll(context.Background(), second); err != nil {
+		t.Fatalf("second SendAll() error = %v, want nil", err)
+	}
+	if sender.calls != 2 {
+		t.Fatalf("sender calls = %d, want 2 for distinct DedupeID values", sender.calls)
+	}
+}
+
+func TestDispatcherSendAllDedupeIDStillDeduplicatesSamePrompt(t *testing.T) {
+	store := state.NewStore(filepath.Join(t.TempDir(), "state.json"))
+	sender := &fakeSender{name: "feishu"}
+	dispatcher := NewDispatcher(store, 60*time.Second, sender)
+	msg := Message{
+		Agent:     "codex",
+		Event:     "input_required",
+		SessionID: "sess-1",
+		DedupeID:  "call-1",
+	}
+	if err := dispatcher.SendAll(context.Background(), msg); err != nil {
+		t.Fatalf("first SendAll() error = %v, want nil", err)
+	}
+	if err := dispatcher.SendAll(context.Background(), msg); err != nil {
+		t.Fatalf("second SendAll() error = %v, want nil", err)
+	}
+	if sender.calls != 1 {
+		t.Fatalf("sender calls = %d, want 1 for duplicate DedupeID", sender.calls)
+	}
+}
+
 func TestDispatcherSendAllRetriesOnlyFailedSendersAfterPartialFailure(t *testing.T) {
 	store := state.NewStore(filepath.Join(t.TempDir(), "state.json"))
 	fail := &fakeSender{name: "remote", err: errors.New("boom")}

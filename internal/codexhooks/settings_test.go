@@ -17,7 +17,7 @@ func TestBuildHookSettings_RegistersManagedEvents(t *testing.T) {
 		t.Fatalf("hooks type = %T, want map[string]any", got["hooks"])
 	}
 
-	for _, event := range []string{"SessionStart", "PermissionRequest", "Stop"} {
+	for _, event := range []string{"SessionStart", "PermissionRequest", "PreToolUse", "Stop"} {
 		items, ok := hooks[event].([]map[string]any)
 		if !ok || len(items) != 1 {
 			t.Fatalf("%s entries missing or invalid: %v", event, hooks[event])
@@ -32,10 +32,13 @@ func TestBuildHookSettings_RegistersManagedEvents(t *testing.T) {
 		if entryHooks[0]["type"] != "command" {
 			t.Fatalf("%s type = %v, want command", event, entryHooks[0]["type"])
 		}
+		if event == "PreToolUse" && items[0]["matcher"] != requestUserInputMatcher {
+			t.Fatalf("PreToolUse matcher = %v, want %q", items[0]["matcher"], requestUserInputMatcher)
+		}
 	}
 
 	// 不应注册 Codex 不支持的事件（SessionStart 现在仅用于 Linux 聚焦捕获，已托管）
-	for _, unsupported := range []string{"Notification", "PostToolUseFailure", "UserPromptSubmit", "PreToolUse", "PostToolUse"} {
+	for _, unsupported := range []string{"Notification", "PostToolUseFailure", "UserPromptSubmit", "PostToolUse"} {
 		if _, exists := hooks[unsupported]; exists {
 			t.Fatalf("hooks should not contain %s for Codex", unsupported)
 		}
@@ -67,10 +70,171 @@ func TestInstall_MergesExistingHooks(t *testing.T) {
 	if !ok {
 		t.Fatal("hooks key missing or wrong type")
 	}
-	for _, key := range []string{"SessionStart", "PermissionRequest", "Stop"} {
+	for _, key := range []string{"SessionStart", "PermissionRequest", "PreToolUse", "Stop"} {
 		if _, exists := hooks[key]; !exists {
 			t.Fatalf("hooks missing key %q after install", key)
 		}
+	}
+}
+
+func TestInstall_PreToolUseUsesExactMatcherAndPreservesCustomHook(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hooks.json")
+	existing := `{
+  "hooks": {
+    "PreToolUse": [
+      {"matcher": "^shell$", "hooks": [{"type": "command", "command": "echo user-shell"}]}
+    ]
+  }
+}`
+	if err := os.WriteFile(path, []byte(existing), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Install(path, "/tmp/agent-notify"); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+
+	got := readSettingsForTest(t, path)
+	hooks := got["hooks"].(map[string]any)
+	entries := hooks["PreToolUse"].([]any)
+	if len(entries) != 2 {
+		t.Fatalf("PreToolUse entry count = %d, want 2 (user + agent-notify)", len(entries))
+	}
+
+	var managedMatcher string
+	for _, raw := range entries {
+		entry, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if containsSubstring(collectCommandsForTest([]any{entry}), hookCommandMarker) {
+			managedMatcher, _ = entry["matcher"].(string)
+		}
+	}
+	if managedMatcher != requestUserInputMatcher {
+		t.Fatalf("managed PreToolUse matcher = %q, want %q", managedMatcher, requestUserInputMatcher)
+	}
+	commands := collectCommandsForTest(entries)
+	if !containsString(commands, "echo user-shell") {
+		t.Fatalf("custom PreToolUse hook was lost: %v", commands)
+	}
+}
+
+func TestInstall_UpgradesLegacyManagedHooksWithPreToolUse(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hooks.json")
+	existing := `{
+  "hooks": {
+    "SessionStart": [{"hooks": [{"type": "command", "command": "/tmp/agent-notify handle-codex-hook"}]}],
+    "PermissionRequest": [{"hooks": [{"type": "command", "command": "/tmp/agent-notify handle-codex-hook"}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "/tmp/agent-notify handle-codex-hook"}]}]
+  }
+}`
+	if err := os.WriteFile(path, []byte(existing), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Install(path, "/tmp/agent-notify"); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+
+	got := readSettingsForTest(t, path)
+	hooks := got["hooks"].(map[string]any)
+	entries := hooks["PreToolUse"].([]any)
+	if len(entries) != 1 {
+		t.Fatalf("PreToolUse entry count = %d, want 1", len(entries))
+	}
+	entry := entries[0].(map[string]any)
+	if entry["matcher"] != requestUserInputMatcher {
+		t.Fatalf("PreToolUse matcher = %v, want %q", entry["matcher"], requestUserInputMatcher)
+	}
+}
+
+func TestInstall_RepairsExistingManagedPreToolUseMatcher(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hooks.json")
+	existing := `{
+  "hooks": {
+    "PreToolUse": [
+      {"matcher": ".*", "hooks": [{"type": "command", "command": "/tmp/agent-notify handle-codex-hook"}]},
+      {"matcher": "^shell$", "hooks": [{"type": "command", "command": "echo user-shell"}]}
+    ]
+  }
+}`
+	if err := os.WriteFile(path, []byte(existing), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Install(path, "/tmp/agent-notify"); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+
+	got := readSettingsForTest(t, path)
+	hooks := got["hooks"].(map[string]any)
+	entries := hooks["PreToolUse"].([]any)
+	if len(entries) != 2 {
+		t.Fatalf("PreToolUse entry count = %d, want 2", len(entries))
+	}
+	var managedMatcher, customMatcher any
+	for _, raw := range entries {
+		entry := raw.(map[string]any)
+		commands := collectCommandsForTest([]any{entry})
+		if containsSubstring(commands, hookCommandMarker) {
+			managedMatcher = entry["matcher"]
+		} else {
+			customMatcher = entry["matcher"]
+		}
+	}
+	if managedMatcher != requestUserInputMatcher {
+		t.Fatalf("managed matcher = %v, want %q", managedMatcher, requestUserInputMatcher)
+	}
+	if customMatcher != "^shell$" {
+		t.Fatalf("custom matcher = %v, want ^shell$", customMatcher)
+	}
+}
+
+func TestInstall_SplitsMixedManagedAndCustomPreToolUseHooks(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hooks.json")
+	existing := `{
+  "hooks": {
+    "PreToolUse": [
+      {"matcher": ".*", "hooks": [
+        {"type": "command", "command": "echo user"},
+        {"type": "command", "command": "/tmp/agent-notify handle-codex-hook"}
+      ]}
+    ]
+  }
+}`
+	if err := os.WriteFile(path, []byte(existing), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Install(path, "/tmp/agent-notify"); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+
+	got := readSettingsForTest(t, path)
+	hooks := got["hooks"].(map[string]any)
+	entries := hooks["PreToolUse"].([]any)
+	if len(entries) != 2 {
+		t.Fatalf("PreToolUse entry count = %d, want split custom + managed entries", len(entries))
+	}
+	var custom, managed map[string]any
+	for _, raw := range entries {
+		entry := raw.(map[string]any)
+		if containsSubstring(collectCommandsForTest([]any{entry}), hookCommandMarker) {
+			managed = entry
+		} else {
+			custom = entry
+		}
+	}
+	if managed == nil || managed["matcher"] != requestUserInputMatcher {
+		t.Fatalf("managed entry = %#v, want exact matcher", managed)
+	}
+	if custom == nil || custom["matcher"] != ".*" || !containsString(collectCommandsForTest([]any{custom}), "echo user") {
+		t.Fatalf("custom entry was changed or lost: %#v", custom)
 	}
 }
 
@@ -96,6 +260,9 @@ func TestInstall_PreservesUserHooks(t *testing.T) {
   "hooks": {
     "Stop": [
       {"hooks": [{"type": "command", "command": "echo user-stop"}]}
+    ],
+    "PreToolUse": [
+      {"matcher": "^shell$", "hooks": [{"type": "command", "command": "echo user-shell"}]}
     ]
   }
 }`
@@ -163,6 +330,9 @@ func TestUninstall_RemovesOnlyManagedHooks(t *testing.T) {
   "hooks": {
     "Stop": [
       {"hooks": [{"type": "command", "command": "echo user-stop"}]}
+    ],
+    "PreToolUse": [
+      {"matcher": "^shell$", "hooks": [{"type": "command", "command": "echo user-shell"}]}
     ]
   }
 }`
@@ -175,6 +345,9 @@ func TestUninstall_RemovesOnlyManagedHooks(t *testing.T) {
 	}
 	if err := Uninstall(path); err != nil {
 		t.Fatalf("Uninstall() error = %v", err)
+	}
+	if err := Uninstall(path); err != nil {
+		t.Fatalf("second Uninstall() error = %v", err)
 	}
 
 	got := readSettingsForTest(t, path)
@@ -196,6 +369,18 @@ func TestUninstall_RemovesOnlyManagedHooks(t *testing.T) {
 	}
 	if containsSubstring(commands, hookCommandMarker) {
 		t.Fatalf("agent-notify hook still present after uninstall: %v", commands)
+	}
+
+	preToolEntries, ok := hooks["PreToolUse"].([]any)
+	if !ok || len(preToolEntries) != 1 {
+		t.Fatalf("PreToolUse should retain 1 user hook entry, got %v", hooks["PreToolUse"])
+	}
+	preToolEntry := preToolEntries[0].(map[string]any)
+	if preToolEntry["matcher"] != "^shell$" {
+		t.Fatalf("custom PreToolUse matcher changed to %v", preToolEntry["matcher"])
+	}
+	if commands := collectCommandsForTest(preToolEntries); !containsString(commands, "echo user-shell") {
+		t.Fatalf("custom PreToolUse hook lost after uninstall: %v", commands)
 	}
 }
 

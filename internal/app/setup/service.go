@@ -117,10 +117,11 @@ func claudeEventOptionsFn() []PromptOption {
 }
 
 // codexEventOptionsFn returns event options for Codex.
-// Only PermissionRequest → permission_required and Stop → run_completed are reliably supported.
+// PreToolUse(request_user_input) maps to input_required.
 func codexEventOptionsFn() []PromptOption {
 	return []PromptOption{
 		{Label: i18n.T("event.permission_required"), Value: "permission_required"},
+		{Label: i18n.T("event.input_required"), Value: "input_required"},
 		{Label: i18n.T("event.run_completed"), Value: "run_completed"},
 	}
 }

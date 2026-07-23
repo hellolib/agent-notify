@@ -409,12 +409,12 @@ func TestRunInitInstallsCodexHookConfig(t *testing.T) {
 		prepareFeishuCLI = oldPrepare
 	}()
 
-	// Codex init: agent → channels → events (只有 2 个事件可选)
+	// Codex init: agent → channels → events
 	useFakePrompter(t, &fakePrompter{
 		selects: []string{"codex"},
 		multi: [][]string{
 			{"feishu", "system"},
-			{"permission_required", "run_completed"},
+			{"permission_required", "input_required", "run_completed"},
 		},
 		inputs: []string{"/tmp/agent-notify"},
 	})
@@ -430,7 +430,7 @@ func TestRunInitInstallsCodexHookConfig(t *testing.T) {
 		t.Fatalf("ReadFile() error = %v", err)
 	}
 	got := string(data)
-	for _, want := range []string{`"PermissionRequest"`, `"Stop"`, "handle-codex-hook"} {
+	for _, want := range []string{`"PermissionRequest"`, `"PreToolUse"`, `"matcher": "^request_user_input$"`, `"Stop"`, "handle-codex-hook"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("hooks.json = %q, want substring %q", got, want)
 		}
@@ -439,7 +439,7 @@ func TestRunInitInstallsCodexHookConfig(t *testing.T) {
 		t.Fatalf("stdout = %q, want hooks.json path", stdout.String())
 	}
 
-	// Verify Codex notify config has both channels enabled with 2 events
+	// Verify Codex notify config has both channels enabled with all supported events.
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
@@ -447,7 +447,7 @@ func TestRunInitInstallsCodexHookConfig(t *testing.T) {
 	if !cfg.Notify.Codex.Channels.Feishu.Enabled || !cfg.Notify.Codex.Channels.System.Enabled {
 		t.Fatalf("got %+v, want both channels enabled for Codex", cfg.Notify.Codex)
 	}
-	expectedEvents := []string{"permission_required", "run_completed"}
+	expectedEvents := []string{"permission_required", "input_required", "run_completed"}
 	if !reflect.DeepEqual(cfg.Notify.Codex.Events, expectedEvents) {
 		t.Fatalf("Codex events = %#v, want %#v", cfg.Notify.Codex.Events, expectedEvents)
 	}

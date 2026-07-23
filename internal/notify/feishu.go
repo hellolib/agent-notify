@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -144,6 +145,15 @@ func (s *FeishuSender) buildCard(msg Message) map[string]any {
 			},
 		},
 	}
+	// request_user_input carries structured questions in addition to the
+	// textual body.  Render those questions explicitly so a remote recipient
+	// can see the same choices as the Codex terminal.  The button elements are
+	// deliberately inert (there is no action/value/behaviors field): Codex
+	// hooks cannot accept a UserInputAnswer yet, so the recipient must answer
+	// in the terminal.
+	if len(msg.Questions) > 0 {
+		elements = appendQuestionElements(elements, msg.Questions)
+	}
 	if msg.Workspace != "" && !isCodex {
 		elements = append(elements, map[string]any{
 			"tag": "div",
@@ -181,6 +191,87 @@ func (s *FeishuSender) buildCard(msg Message) map[string]any {
 		},
 		"elements": elements,
 	}
+}
+
+// appendQuestionElements appends a visual, non-interactive rendering of an
+// input-required prompt.  Keeping options as ordinary button elements (and
+// not putting them in an action group) is intentional: an Feishu card must
+// not imply that clicking a choice submits an answer when the hook has no
+// callback path.
+func appendQuestionElements(elements []any, questions []Question) []any {
+	elements = append(elements, map[string]any{"tag": "hr"})
+
+	for index, question := range questions {
+		heading := fmt.Sprintf("**问题 %d**", index+1)
+		if question.Header != "" {
+			heading += " · " + question.Header
+		}
+		if question.IsSecret {
+			heading += " 🔒 敏感输入"
+		}
+
+		questionText := strings.TrimSpace(question.Question)
+		if questionText == "" {
+			questionText = "（未提供问题文本）"
+		}
+		elements = append(elements, map[string]any{
+			"tag": "div",
+			"text": map[string]any{
+				"tag":     "lark_md",
+				"content": heading + "\n" + questionText,
+			},
+		})
+
+		for _, option := range question.Options {
+			label := option.Label
+			if strings.TrimSpace(label) == "" {
+				label = "未命名选项"
+			}
+			// A button without action/value/behaviors is purely visual.  Keep
+			// the label in plain text so Feishu does not interpret user input
+			// as markdown.
+			elements = append(elements, map[string]any{
+				"tag": "button",
+				"text": map[string]any{
+					"tag":     "plain_text",
+					"content": label,
+				},
+				"type": "default",
+			})
+			if description := strings.TrimSpace(option.Description); description != "" {
+				elements = append(elements, map[string]any{
+					"tag": "div",
+					"text": map[string]any{
+						"tag":     "lark_md",
+						"content": "　" + description,
+					},
+				})
+			}
+		}
+
+		if question.IsOther {
+			elements = append(elements, map[string]any{
+				"tag": "button",
+				"text": map[string]any{
+					"tag":     "plain_text",
+					"content": "其他（自由输入）",
+				},
+				"type": "default",
+			})
+		}
+	}
+
+	elements = append(elements, map[string]any{
+		"tag": "note",
+		"elements": []any{
+			map[string]any{
+				"tag":     "plain_text",
+				"content": "请回到 Codex 终端提交；当前版本不支持卡片回传",
+			},
+		},
+	})
+
+	return elements
 }
 
 // getHeaderColor returns the header color based on event type

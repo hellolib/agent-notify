@@ -28,7 +28,7 @@ func (d *Dispatcher) SendAll(ctx context.Context, msg Message) error {
 	var errs []string
 	for _, sender := range d.senders {
 		now := time.Now()
-		key := fmt.Sprintf("%s:%s:%s:%s", msg.Agent, msg.Event, msg.SessionID, sender.Name())
+		key := sendDedupeKey(msg, sender.Name())
 		allow, err := d.store.ReserveSend(key, d.window, now)
 		if err != nil {
 			return err
@@ -51,4 +51,15 @@ func (d *Dispatcher) SendAll(ctx context.Context, msg Message) error {
 	}
 
 	return errors.New(strings.Join(errs, "; "))
+}
+
+// sendDedupeKey returns the stable per-channel deduplication key.  Keep the
+// legacy shape when DedupeID is empty so state written by older versions keeps
+// working; an explicit ID gets its own component to distinguish multiple
+// prompts in one agent session.
+func sendDedupeKey(msg Message, senderName string) string {
+	if msg.DedupeID == "" {
+		return fmt.Sprintf("%s:%s:%s:%s", msg.Agent, msg.Event, msg.SessionID, senderName)
+	}
+	return fmt.Sprintf("%s:%s:%s:%s:%s", msg.Agent, msg.Event, msg.SessionID, msg.DedupeID, senderName)
 }

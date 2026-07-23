@@ -48,14 +48,15 @@ npx agent-notify
 | Event | Description | Claude Code | Codex | ZCode | Grok |
 |------|------|:---:|:---:|:---:|:----:|
 | `permission_required` | Agent needs authorization (e.g. to run a command) | ✅ | ✅ | ✅ |  ✅  |
-| `input_required` | Agent is waiting for user input | ✅ | — | — |  ✅  |
+| `input_required` | Agent is waiting for user input | ✅ | ✅ | — |  ✅  |
 | `run_completed` | Task finished | ✅ | ✅ | ✅ |  ✅  |
 | `run_failed` | Task failed | ✅ | — | ✅ |  ✅  |
 
 Notes:
 
 - Claude Code subscribes via hooks in `~/.claude/settings.json`: `PermissionRequest`, `Notification`, `Stop`, `PostToolUseFailure`, and `SessionStart`.
-- Codex subscribes via `~/.codex/hooks.json`: `PermissionRequest` and `Stop` (mapped to `permission_required` / `run_completed`), plus `SessionStart`. `input_required` and `run_failed` have no corresponding Codex hook yet, so they are not supported.
+- Codex subscribes via `~/.codex/hooks.json`: `PermissionRequest`, `PreToolUse` (with the exact `^request_user_input$` matcher), and `Stop` (mapped to `permission_required`, `input_required`, and `run_completed`), plus `SessionStart`. The `input_required` hook requires Codex `>= 0.144.0`; `run_failed` has no corresponding Codex hook yet.
+- **Codex `input_required` is a notification-only MVP.** The Feishu card includes every question, option label, and option description, but its visual option buttons are intentionally non-interactive. Return to the Codex terminal to submit the answer; clicking a card cannot send an answer back to Codex yet.
 - ZCode subscribes via `~/.zcode/cli/config.json`: `SessionStart`, `PermissionRequest`, `PostToolUseFailure`, and `Stop`, mapped to `permission_required`, `run_failed`, and `run_completed`. ZCode has no `Notification` event (so no `input_required`), and its hook schema is strict — an unknown event name will cause the whole hooks config to be silently dropped.
 - Grok subscribes via `~/.grok/hooks/agent-notify.json`: `SessionStart`, `Notification`, `Stop`, `StopFailure`, and `PostToolUseFailure`. There is no dedicated `PermissionRequest` event; `Notification`s with permission/approval semantics map to `permission_required` (marked *), others map to `input_required`. `StopFailure` / `PostToolUseFailure` map to `run_failed`.
 - **`SessionStart` does not produce a notification.** It is subscribed on every agent solely to capture the terminal window at session start, which powers Linux window-level [Click-to-Focus](#click-to-focus). On macOS/Windows the SessionStart hook is a no-op.
@@ -92,7 +93,7 @@ On first run, the launcher downloads the platform-specific binary matching the c
 
 On every subsequent run it checks the local binary version: it downloads if missing, updates if outdated, and otherwise runs directly. The launcher never persistently modifies `PATH` — it always executes via an absolute path.
 
-> **Note**: Codex integrates through the official hooks system in `~/.codex/hooks.json` and currently subscribes only to `PermissionRequest` and `Stop`. After first install, run `/hooks` inside Codex to complete the trust review.
+> **Note**: Codex `>= 0.144.0` integrates through the official hooks system in `~/.codex/hooks.json` and subscribes to `PermissionRequest`, `PreToolUse` (matching only `request_user_input`), and `Stop`. After installing or updating the hook, run `/hooks` inside Codex to complete the trust review.
 >
 > **Grok**: Writes `~/.grok/hooks/agent-notify.json`. Global hooks are always trusted; project hooks (`.grok/hooks/`) require `/hooks-trust` or `--trust`. After install, run `/hooks` (or `Ctrl+L`) inside Grok to confirm they loaded.
 
@@ -100,6 +101,8 @@ On every subsequent run it checks the local binary version: it downloads if miss
 > You don't need to edit config files by hand — this section is for reference only.
 
 Agent Notify's own config lives at `~/.agent-notify/config.yaml`. **New installs start with all agents and channels disabled** — run `npx agent-notify` (setup wizard) once to enable the agents and channels you want. This avoids showing unconfigured agents as ready in view/doctor after a partial setup. Existing config files are left unchanged.
+
+For Codex `input_required` notifications, use Codex `>= 0.144.0`. New installs include `input_required` in the Codex event choices. An existing configuration with an explicit `notify.codex.events` list is not migrated automatically; run the setup wizard again and select **Agent is waiting for user input** to opt in. The notification shows the questions and options, but answers must still be submitted in the Codex terminal.
 
 Agent integration config locations:
 

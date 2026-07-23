@@ -207,6 +207,19 @@ func TestService_CodexIntegration(t *testing.T) {
 	}
 }
 
+func TestCodexEventOptionsIncludeInputRequired(t *testing.T) {
+	options := codexEventOptionsFn()
+	want := []string{"permission_required", "input_required", "run_completed"}
+	if len(options) != len(want) {
+		t.Fatalf("Codex event option count = %d, want %d", len(options), len(want))
+	}
+	for i, value := range want {
+		if options[i].Value != value {
+			t.Fatalf("Codex event option %d = %q, want %q", i, options[i].Value, value)
+		}
+	}
+}
+
 func TestService_UsesInjectedConfigLoader(t *testing.T) {
 	loader := &mockConfigLoader{
 		defaultPath: "/tmp/injected-config.yaml",

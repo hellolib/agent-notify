@@ -13,13 +13,20 @@ import (
 // hookCommandMarker 用于识别本插件写入的 Codex hook。
 const hookCommandMarker = "handle-codex-hook"
 
+// requestUserInputMatcher limits the PreToolUse hook to Codex's interactive
+// question tool. Without this matcher every tool call would start a notifier
+// process, even though only request_user_input can produce input_required.
+const requestUserInputMatcher = "^request_user_input$"
+
 // managedEvents 是本插件托管的 Codex 事件列表。
-// PermissionRequest / Stop 对应项目里的 permission_required / run_completed。
+// PermissionRequest / PreToolUse(request_user_input) / Stop 对应项目里的
+// permission_required / input_required / run_completed。
 // SessionStart 仅用于 Linux 点击聚焦的窗口捕获（见 agenthooks.Dispatch），
 // 不产生任何通知；其它平台收到即 no-op。
 var managedEvents = []string{
 	"SessionStart",
 	"PermissionRequest",
+	"PreToolUse",
 	"Stop",
 }
 
@@ -28,22 +35,24 @@ func BuildHookSettings(binaryPath string) map[string]any {
 	binaryPath = common.ResolveBinaryPath(binaryPath)
 	command := binaryPath + " " + hookCommandMarker
 
-	buildEntry := func() []map[string]any {
-		return []map[string]any{
-			{
-				"hooks": []map[string]any{
-					{
-						"type":    "command",
-						"command": command,
-					},
+	buildEntry := func(event string) []map[string]any {
+		entry := map[string]any{
+			"hooks": []map[string]any{
+				{
+					"type":    "command",
+					"command": command,
 				},
 			},
 		}
+		if event == "PreToolUse" {
+			entry["matcher"] = requestUserInputMatcher
+		}
+		return []map[string]any{entry}
 	}
 
 	hooks := map[string]any{}
 	for _, event := range managedEvents {
-		hooks[event] = buildEntry()
+		hooks[event] = buildEntry(event)
 	}
 	return map[string]any{"hooks": hooks}
 }
@@ -65,18 +74,30 @@ func Install(path string, binaryPath string) error {
 	}
 
 	for _, event := range managedEvents {
+		entries := common.ToAnySlice(hooks[event])
+		if event == "PreToolUse" {
+			var found bool
+			entries, found = repairManagedPreToolUseMatcher(entries)
+			if found {
+				hooks[event] = entries
+				continue
+			}
+		}
 		if common.EventHasManagedHook(hooks, event, hookCommandMarker) {
 			continue
 		}
-		entries := common.ToAnySlice(hooks[event])
-		entries = append(entries, map[string]any{
+		entry := map[string]any{
 			"hooks": []any{
 				map[string]any{
 					"type":    "command",
 					"command": command,
 				},
 			},
-		})
+		}
+		if event == "PreToolUse" {
+			entry["matcher"] = requestUserInputMatcher
+		}
+		entries = append(entries, entry)
 		hooks[event] = entries
 	}
 	settings["hooks"] = hooks
@@ -92,6 +113,68 @@ func Install(path string, binaryPath string) error {
 	}
 
 	return nil
+}
+
+// repairManagedPreToolUseMatcher upgrades existing agent-notify PreToolUse
+// entries and returns the normalized entries plus whether a managed command
+// was found. Older or manually edited installations may have the managed
+// command without the exact matcher; keeping that broad entry would launch
+// agent-notify for every tool call even though the handler only consumes
+// request_user_input.
+//
+// A user can place multiple hooks in one matcher group. If such a group also
+// contains our command, split the managed hook into its own exact-matcher
+// group instead of changing the user's matcher.
+func repairManagedPreToolUseMatcher(entries []any) ([]any, bool) {
+	if len(entries) == 0 {
+		return entries, false
+	}
+
+	normalized := make([]any, 0, len(entries)+1)
+	found := false
+	for _, raw := range entries {
+		entry, ok := raw.(map[string]any)
+		if !ok {
+			normalized = append(normalized, raw)
+			continue
+		}
+
+		var managed, user []any
+		for _, hook := range common.ToAnySlice(entry["hooks"]) {
+			if common.IsManagedHook(hook, hookCommandMarker) {
+				managed = append(managed, hook)
+			} else {
+				user = append(user, hook)
+			}
+		}
+		if len(managed) == 0 {
+			normalized = append(normalized, raw)
+			continue
+		}
+
+		found = true
+		if len(user) > 0 {
+			// Keep the user's original matcher and all non-hook fields on the
+			// original entry; only our command moves to the exact group.
+			entry["hooks"] = user
+			normalized = append(normalized, entry)
+
+			managedEntry := make(map[string]any, len(entry)+1)
+			for key, value := range entry {
+				if key != "hooks" && key != "matcher" {
+					managedEntry[key] = value
+				}
+			}
+			managedEntry["matcher"] = requestUserInputMatcher
+			managedEntry["hooks"] = managed
+			normalized = append(normalized, managedEntry)
+			continue
+		}
+
+		entry["matcher"] = requestUserInputMatcher
+		normalized = append(normalized, entry)
+	}
+	return normalized, found
 }
 
 // IsInstalled 检查 hooks.json 中是否已挂载 agent-notify 的 hook。

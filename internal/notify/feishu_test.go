@@ -206,3 +206,103 @@ func TestBuildCardOmitsWorkspaceForCodexNotification(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildCardRendersQuestionsAndInertOptions(t *testing.T) {
+	sender := &FeishuSender{}
+	card := sender.buildCard(Message{
+		Agent: "codex",
+		Event: "input_required",
+		Title: "Codex 等待输入",
+		Body:  "请选择配置",
+		Questions: []Question{
+			{
+				ID:       "environment",
+				Header:   "环境",
+				Question: "使用哪个环境？🌏",
+				Options: []QuestionOption{
+					{Label: "生产", Description: "面向真实用户"},
+					{Label: "测试", Description: "仅用于验证"},
+				},
+				IsOther:  true,
+				IsSecret: false,
+			},
+			{
+				Header:   "密钥",
+				Question: "请输入令牌",
+				IsSecret: true,
+			},
+		},
+	})
+
+	elements, ok := card["elements"].([]any)
+	if !ok {
+		t.Fatal("card elements should be a slice")
+	}
+
+	var foundQuestion, foundHeader, foundSecret, foundOther bool
+	var labels, descriptions []string
+	for _, raw := range elements {
+		el, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		text, _ := el["text"].(map[string]any)
+		content, _ := text["content"].(string)
+		if contains(content, "使用哪个环境？🌏") {
+			foundQuestion = true
+		}
+		if contains(content, "环境") {
+			foundHeader = true
+		}
+		if contains(content, "敏感输入") {
+			foundSecret = true
+		}
+		if el["tag"] == "button" {
+			labels = append(labels, content)
+			if _, exists := el["action"]; exists {
+				t.Fatalf("visual option button must not contain action: %#v", el)
+			}
+			if _, exists := el["value"]; exists {
+				t.Fatalf("visual option button must not contain value: %#v", el)
+			}
+			if _, exists := el["behaviors"]; exists {
+				t.Fatalf("visual option button must not contain behaviors: %#v", el)
+			}
+		}
+		if el["tag"] == "note" {
+			noteElements, _ := el["elements"].([]any)
+			for _, noteRaw := range noteElements {
+				note, _ := noteRaw.(map[string]any)
+				noteContent, _ := note["content"].(string)
+				if contains(noteContent, "请回到 Codex 终端提交") {
+					foundOther = true // instruction is present; checked below with option labels
+				}
+			}
+		}
+		if el["tag"] == "div" && contains(content, "面向真实用户") {
+			descriptions = append(descriptions, content)
+		}
+	}
+
+	if !foundQuestion || !foundHeader || !foundSecret {
+		t.Fatalf("question card fields missing: question=%v header=%v secret=%v", foundQuestion, foundHeader, foundSecret)
+	}
+	if !foundOther {
+		t.Fatal("card should include the Codex terminal submission instruction")
+	}
+	for _, want := range []string{"生产", "测试", "其他（自由输入）"} {
+		matched := false
+		for _, label := range labels {
+			if contains(label, want) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			t.Errorf("card button labels = %#v, missing %q", labels, want)
+		}
+	}
+	if len(descriptions) != 1 || !contains(descriptions[0], "面向真实用户") {
+		t.Fatalf("card option descriptions = %#v, want production description", descriptions)
+	}
+}
