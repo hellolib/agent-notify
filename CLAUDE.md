@@ -70,7 +70,7 @@ type Integration interface {
 
 `session_start`, `permission_required`, `input_required`, `run_completed`, `run_failed` — Claude Code supports the four standard events; Codex supports `permission_required`, `input_required` (via a `PreToolUse` hook matching only `request_user_input`), and `run_completed`; ZCode supports `session_start`, `permission_required`, `run_completed`, and `run_failed` (no `input_required` — ZCode has no `Notification` event); Grok supports `session_start`, `permission_required` (via Notification), `input_required`, `run_completed`, and `run_failed`.
 
-Codex `input_required` support requires Codex `>= 0.144.0`. The hook preserves all `request_user_input` questions and options for notification rendering. Feishu renders option labels/descriptions as non-interactive visual buttons; the answer must be submitted in the Codex terminal because hook callbacks cannot currently submit a `UserInputAnswer`.
+Codex `input_required` support requires Codex `>= 0.144.0`. The hook preserves all `request_user_input` questions and options for notification rendering. Feishu renders option labels/descriptions as read-only text; the answer must be submitted in the Codex terminal.
 
 ZCode integration notes: config lives at `~/.zcode/cli/config.json`, hooks are nested under `hooks.events.<Event>` (not `hooks.<Event>` like Claude Code) and require `hooks.enabled: true`. The ZCode hook schema is strict — an unrecognized event name silently invalidates the whole config. stdin payload uses both `hook_event_name` (snake_case) and `hookEventName` (camelCase); the parser accepts either.
 

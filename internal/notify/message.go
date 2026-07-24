@@ -13,9 +13,9 @@ type QuestionOption struct {
 
 // Question describes one question in an input-required notification.
 //
-// ID, IsOther and IsSecret are kept even for channels that do not currently
-// support submitting an answer.  Preserving them lets those channels make a
-// useful visual distinction and leaves room for a future answer callback.
+// ID, IsOther and IsSecret are kept even for channels that do not submit an
+// answer. Preserving them lets those channels render the prompt faithfully
+// while leaving answer handling to the agent's native UI.
 type Question struct {
 	ID       string           `json:"id,omitempty"`
 	Header   string           `json:"header,omitempty"`

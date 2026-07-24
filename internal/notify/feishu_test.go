@@ -3,6 +3,7 @@ package notify
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -74,6 +75,9 @@ func TestFeishuSenderSendUsesCLIConfigAndCreator(t *testing.T) {
 	if messenger.sentCard == nil {
 		t.Fatal("sentCard is nil, want card")
 	}
+	if got := messenger.sentCard["schema"]; got != "2.0" {
+		t.Fatalf("card schema = %#v, want 2.0", got)
+	}
 	// Verify card has header with title
 	header, ok := messenger.sentCard["header"].(map[string]any)
 	if !ok {
@@ -111,11 +115,7 @@ func TestBuildCardContainsBody(t *testing.T) {
 
 	card := sender.buildCard(msg)
 
-	// 验证 card 结构
-	elements, ok := card["elements"].([]any)
-	if !ok {
-		t.Fatal("card elements should be a slice")
-	}
+	elements := cardBodyElements(t, card)
 
 	// 查找包含 Body 的元素
 	found := false
@@ -150,27 +150,20 @@ func TestBuildCardFooterDoesNotHardcodeClaudeCode(t *testing.T) {
 	sender := &FeishuSender{}
 	card := sender.buildCard(Message{Event: "run_completed", Title: "Codex 运行完成", Body: "done"})
 
-	elements, ok := card["elements"].([]any)
-	if !ok {
-		t.Fatal("card elements should be a slice")
-	}
+	elements := cardBodyElements(t, card)
 
 	foundClaudeCode := false
 	for _, el := range elements {
 		elMap, ok := el.(map[string]any)
-		if !ok || elMap["tag"] != "note" {
-			continue
-		}
-		noteElements, ok := elMap["elements"].([]any)
 		if !ok {
 			continue
 		}
-		for _, noteEl := range noteElements {
-			noteMap, ok := noteEl.(map[string]any)
-			if !ok {
-				continue
-			}
-			content, _ := noteMap["content"].(string)
+		content, _ := elMap["content"].(string)
+		if contains(content, "Claude Code") {
+			foundClaudeCode = true
+		}
+		if text, ok := elMap["text"].(map[string]any); ok {
+			content, _ := text["content"].(string)
 			if contains(content, "Claude Code") {
 				foundClaudeCode = true
 			}
@@ -186,10 +179,7 @@ func TestBuildCardOmitsWorkspaceForCodexNotification(t *testing.T) {
 	sender := &FeishuSender{}
 	card := sender.buildCard(Message{Event: "run_completed", Title: "运行完成", Body: "done", Workspace: "/tmp/project", Agent: "codex"})
 
-	elements, ok := card["elements"].([]any)
-	if !ok {
-		t.Fatal("card elements should be a slice")
-	}
+	elements := cardBodyElements(t, card)
 
 	for _, el := range elements {
 		elMap, ok := el.(map[string]any)
@@ -207,7 +197,7 @@ func TestBuildCardOmitsWorkspaceForCodexNotification(t *testing.T) {
 	}
 }
 
-func TestBuildCardRendersQuestionsAndInertOptions(t *testing.T) {
+func TestBuildCardRendersQuestionsAsReadOnlyText(t *testing.T) {
 	sender := &FeishuSender{}
 	card := sender.buildCard(Message{
 		Agent: "codex",
@@ -234,17 +224,20 @@ func TestBuildCardRendersQuestionsAndInertOptions(t *testing.T) {
 		},
 	})
 
-	elements, ok := card["elements"].([]any)
-	if !ok {
-		t.Fatal("card elements should be a slice")
-	}
+	elements := cardBodyElements(t, card)
 
-	var foundQuestion, foundHeader, foundSecret, foundOther bool
-	var labels, descriptions []string
+	var foundQuestion, foundHeader, foundSecret, foundFooter bool
+	var optionContents []string
 	for _, raw := range elements {
 		el, ok := raw.(map[string]any)
 		if !ok {
 			continue
+		}
+		if el["tag"] == "button" {
+			t.Fatalf("read-only question card must not contain buttons: %#v", el)
+		}
+		if _, exists := el["behaviors"]; exists {
+			t.Fatalf("read-only question card must not contain callback behaviors: %#v", el)
 		}
 		text, _ := el["text"].(map[string]any)
 		content, _ := text["content"].(string)
@@ -257,52 +250,55 @@ func TestBuildCardRendersQuestionsAndInertOptions(t *testing.T) {
 		if contains(content, "敏感输入") {
 			foundSecret = true
 		}
-		if el["tag"] == "button" {
-			labels = append(labels, content)
-			if _, exists := el["action"]; exists {
-				t.Fatalf("visual option button must not contain action: %#v", el)
-			}
-			if _, exists := el["value"]; exists {
-				t.Fatalf("visual option button must not contain value: %#v", el)
-			}
-			if _, exists := el["behaviors"]; exists {
-				t.Fatalf("visual option button must not contain behaviors: %#v", el)
-			}
+		if el["tag"] == "div" && strings.HasPrefix(content, "• ") {
+			optionContents = append(optionContents, content)
 		}
-		if el["tag"] == "note" {
-			noteElements, _ := el["elements"].([]any)
-			for _, noteRaw := range noteElements {
-				note, _ := noteRaw.(map[string]any)
-				noteContent, _ := note["content"].(string)
-				if contains(noteContent, "请回到 Codex 终端提交") {
-					foundOther = true // instruction is present; checked below with option labels
-				}
+		if el["tag"] == "markdown" {
+			markdownContent, _ := el["content"].(string)
+			if contains(markdownContent, "请回到 Codex 终端提交") {
+				foundFooter = true
 			}
-		}
-		if el["tag"] == "div" && contains(content, "面向真实用户") {
-			descriptions = append(descriptions, content)
 		}
 	}
 
 	if !foundQuestion || !foundHeader || !foundSecret {
 		t.Fatalf("question card fields missing: question=%v header=%v secret=%v", foundQuestion, foundHeader, foundSecret)
 	}
-	if !foundOther {
+	if !foundFooter {
 		t.Fatal("card should include the Codex terminal submission instruction")
 	}
 	for _, want := range []string{"生产", "测试", "其他（自由输入）"} {
 		matched := false
-		for _, label := range labels {
-			if contains(label, want) {
+		for _, optionContent := range optionContents {
+			if contains(optionContent, want) {
 				matched = true
 				break
 			}
 		}
 		if !matched {
-			t.Errorf("card button labels = %#v, missing %q", labels, want)
+			t.Errorf("card option text = %#v, missing %q", optionContents, want)
 		}
 	}
-	if len(descriptions) != 1 || !contains(descriptions[0], "面向真实用户") {
-		t.Fatalf("card option descriptions = %#v, want production description", descriptions)
+	if len(optionContents) != 3 || !contains(optionContents[0], "面向真实用户") || !contains(optionContents[1], "仅用于验证") {
+		t.Fatalf("card option text = %#v, want labels and descriptions", optionContents)
 	}
+}
+
+func cardBodyElements(t *testing.T, card map[string]any) []any {
+	t.Helper()
+	if got := card["schema"]; got != "2.0" {
+		t.Fatalf("card schema = %#v, want 2.0", got)
+	}
+	if _, exists := card["elements"]; exists {
+		t.Fatal("Card 2.0 must not use a top-level elements field")
+	}
+	body, ok := card["body"].(map[string]any)
+	if !ok {
+		t.Fatalf("card body = %#v, want object", card["body"])
+	}
+	elements, ok := body["elements"].([]any)
+	if !ok {
+		t.Fatalf("card body elements = %#v, want slice", body["elements"])
+	}
+	return elements
 }

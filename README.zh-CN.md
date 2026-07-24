@@ -51,7 +51,7 @@ npx agent-notify
 
 - Claude Code 通过 `~/.claude/settings.json` 的 hooks 订阅：`PermissionRequest`、`Notification`、`Stop`、`PostToolUseFailure`、`SessionStart`。
 - Codex 通过 `~/.codex/hooks.json` 订阅 `PermissionRequest`、`PreToolUse`（仅精确匹配 `^request_user_input$`）、`Stop`（映射到 `permission_required`、`input_required`、`run_completed`）以及 `SessionStart`。`input_required` 需要 Codex `>= 0.144.0`；`run_failed` 目前没有对应的 Codex hook。
-- **Codex 的 `input_required` 当前是仅通知 MVP。** 飞书卡片会展示全部问题、选项 label 和 description，但视觉选项按钮刻意不带交互 action。请回到 Codex 终端提交答案；点击卡片暂时不能把答案回传给 Codex。
+- **Codex 的 `input_required` 当前是仅通知 MVP。** 飞书卡片会以只读文本展示全部问题、选项 label 和 description。请回到 Codex 终端提交答案；卡片不会把答案回传给 Codex，因此不需要订阅飞书卡片回调。
 - ZCode 通过 `~/.zcode/cli/config.json` 订阅 `SessionStart`、`PermissionRequest`、`PostToolUseFailure`、`Stop`，映射到 `permission_required`、`run_failed`、`run_completed`。ZCode 没有 `Notification` 事件（因此不支持 `input_required`），且其 hook 配置格式较为严格——无法识别的事件名称会导致整个 hooks 配置被静默丢弃。
 - Grok 通过 `~/.grok/hooks/agent-notify.json` 订阅 `SessionStart`、`Notification`、`Stop`、`StopFailure`、`PostToolUseFailure`。Grok 没有独立的 `PermissionRequest` 事件，带 permission/approval 语义的 `Notification` 会映射为 `permission_required`（表中 *）；其它通知映射为 `input_required`。`StopFailure` / `PostToolUseFailure` 映射为 `run_failed`。
 - **`SessionStart` 不产生任何通知。** 它在所有 agent 上被订阅，仅用于在会话启动时捕获终端窗口，为 Linux 的窗口级点击聚焦提供支持（见下方「点击聚焦」一节）；在 macOS/Windows 上该 hook 为空操作。

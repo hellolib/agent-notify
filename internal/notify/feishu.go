@@ -84,7 +84,7 @@ func (s *FeishuSender) Send(ctx context.Context, msg Message) error {
 	return messenger.SendCard(ctx, creatorOpenID, card)
 }
 
-// buildCard creates a rich interactive card for Feishu notification
+// buildCard creates a rich, read-only card for a Feishu notification.
 func (s *FeishuSender) buildCard(msg Message) map[string]any {
 	// Event emoji mapping
 	eventEmoji := map[string]string{
@@ -117,6 +117,11 @@ func (s *FeishuSender) buildCard(msg Message) map[string]any {
 		footerText = "🤖 Codex Agent Notify"
 	}
 
+	// Card 2.0 keeps all body components under body.elements. The previous
+	// implementation emitted a Card 1.0 root (with a top-level elements field)
+	// and placed the question options directly in it, which made the Feishu
+	// client render them as ordinary text. Keep the Card 2.0 envelope even
+	// though this notification is intentionally read-only.
 	elements := []any{
 		map[string]any{
 			"tag": "div",
@@ -146,11 +151,10 @@ func (s *FeishuSender) buildCard(msg Message) map[string]any {
 		},
 	}
 	// request_user_input carries structured questions in addition to the
-	// textual body.  Render those questions explicitly so a remote recipient
-	// can see the same choices as the Codex terminal.  The button elements are
-	// deliberately inert (there is no action/value/behaviors field): Codex
-	// hooks cannot accept a UserInputAnswer yet, so the recipient must answer
-	// in the terminal.
+	// textual body. Render those questions explicitly so a remote recipient
+	// can see the same choices as the Codex terminal. The options are plain
+	// text on purpose: this hook only notifies; the answer is submitted in the
+	// Codex terminal.
 	if len(msg.Questions) > 0 {
 		elements = appendQuestionElements(elements, msg.Questions)
 	}
@@ -168,19 +172,16 @@ func (s *FeishuSender) buildCard(msg Message) map[string]any {
 			"tag": "hr",
 		},
 		map[string]any{
-			"tag": "note",
-			"elements": []any{
-				map[string]any{
-					"tag":     "plain_text",
-					"content": footerText,
-				},
-			},
+			"tag":     "markdown",
+			"content": fmt.Sprintf("<font color='grey'>%s</font>", footerText),
 		},
 	)
 
 	return map[string]any{
+		"schema": "2.0",
 		"config": map[string]any{
-			"wide_screen_mode": true,
+			"update_multi": true,
+			"width_mode":   "default",
 		},
 		"header": map[string]any{
 			"title": map[string]any{
@@ -189,15 +190,19 @@ func (s *FeishuSender) buildCard(msg Message) map[string]any {
 			},
 			"template": s.getHeaderColor(msg.Event),
 		},
-		"elements": elements,
+		"body": map[string]any{
+			"direction":        "vertical",
+			"padding":          "12px 12px 20px 12px",
+			"vertical_spacing": "medium",
+			"elements":         elements,
+		},
 	}
 }
 
-// appendQuestionElements appends a visual, non-interactive rendering of an
-// input-required prompt.  Keeping options as ordinary button elements (and
-// not putting them in an action group) is intentional: an Feishu card must
-// not imply that clicking a choice submits an answer when the hook has no
-// callback path.
+// appendQuestionElements appends a read-only rendering of an input-required
+// prompt. It deliberately uses plain-text divs instead of interactive
+// buttons: agent-notify has no card callback contract, and Codex answers are
+// submitted in the terminal.
 func appendQuestionElements(elements []any, questions []Question) []any {
 	elements = append(elements, map[string]any{"tag": "hr"})
 
@@ -223,52 +228,37 @@ func appendQuestionElements(elements []any, questions []Question) []any {
 		})
 
 		for _, option := range question.Options {
-			label := option.Label
+			label := strings.TrimSpace(option.Label)
 			if strings.TrimSpace(label) == "" {
 				label = "未命名选项"
 			}
-			// A button without action/value/behaviors is purely visual.  Keep
-			// the label in plain text so Feishu does not interpret user input
-			// as markdown.
+			content := "• " + label
+			if description := strings.TrimSpace(option.Description); description != "" {
+				content += "： " + description
+			}
 			elements = append(elements, map[string]any{
-				"tag": "button",
+				"tag": "div",
 				"text": map[string]any{
 					"tag":     "plain_text",
-					"content": label,
+					"content": content,
 				},
-				"type": "default",
 			})
-			if description := strings.TrimSpace(option.Description); description != "" {
-				elements = append(elements, map[string]any{
-					"tag": "div",
-					"text": map[string]any{
-						"tag":     "lark_md",
-						"content": "　" + description,
-					},
-				})
-			}
 		}
 
 		if question.IsOther {
 			elements = append(elements, map[string]any{
-				"tag": "button",
+				"tag": "div",
 				"text": map[string]any{
 					"tag":     "plain_text",
-					"content": "其他（自由输入）",
+					"content": "• 其他（自由输入）：请回到 Codex 终端输入",
 				},
-				"type": "default",
 			})
 		}
 	}
 
 	elements = append(elements, map[string]any{
-		"tag": "note",
-		"elements": []any{
-			map[string]any{
-				"tag":     "plain_text",
-				"content": "请回到 Codex 终端提交；当前版本不支持卡片回传",
-			},
-		},
+		"tag":     "markdown",
+		"content": "<font color='grey'>请回到 Codex 终端提交答案；当前版本不支持卡片回传</font>",
 	})
 
 	return elements
