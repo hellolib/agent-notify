@@ -10,6 +10,7 @@ import (
 	"github.com/hellolib/agent-notify/internal/linuxfocus"
 	"github.com/hellolib/agent-notify/internal/notify"
 	"github.com/hellolib/agent-notify/internal/state"
+	"github.com/hellolib/agent-notify/internal/winfocus"
 )
 
 func Dispatch(ctx context.Context, cfg config.Config, statePath, logPath string, msg notify.Message) error {
@@ -18,7 +19,7 @@ func Dispatch(ctx context.Context, cfg config.Config, statePath, logPath string,
 	// Windows 上 hook stdin 偶发把路径中的中文变成 '?'；用 env / Getwd 纠正
 	msg.Workspace = notify.ResolveWorkspace(msg.Workspace)
 
-	// session_start 是纯副作用事件：仅在 Linux 捕获点击聚焦的目标窗口并缓存，
+	// session_start 是纯副作用事件：仅在 Linux / macOS / Windows 捕获点击聚焦的目标窗口并缓存，
 	// 永不产生通知，也不受任何 agent 的事件配置控制。其它平台直接返回。
 	if msg.Event == "session_start" {
 		captureFocusWindow(ctx, statePath, logPath, msg)
@@ -26,14 +27,11 @@ func Dispatch(ctx context.Context, cfg config.Config, statePath, logPath string,
 	}
 
 	// 非 session_start：若命中 SessionStart 缓存，填充精确窗口供点击聚焦复用。
-	// Linux 存的是 X11 window id（→ FocusWindowID）；macOS 存的是 mac-focus-helper
-	// --capture 的 JSON 快照（→ FocusCapture）。
+	// Linux 存的是 X11 window id（→ FocusWindowID）；macOS / Windows 存的是窗口快照
+	// JSON（→ FocusCapture）：mac 是 mac-focus-helper --capture 的输出，Windows 是
+	// winfocus 的 {"hwnd","title"}。
 	if data, ok := state.NewFocusStore(state.FocusWindowsPath(statePath)).Load(msg.SessionID); ok {
-		if runtime.GOOS == "darwin" {
-			msg.FocusCapture = data
-		} else {
-			msg.FocusWindowID = data
-		}
+		applyFocusCache(&msg, runtime.GOOS, data)
 	}
 
 	store := state.NewStore(statePath)
@@ -54,10 +52,20 @@ func Dispatch(ctx context.Context, cfg config.Config, statePath, logPath string,
 	return nil
 }
 
-// captureFocusWindow 在 SessionStart 时刻抓取“启动本 agent 的那个窗口”并按 session 缓存，
+func applyFocusCache(msg *notify.Message, goos, data string) {
+	switch goos {
+	case "darwin", "windows":
+		msg.FocusCapture = data
+	case "linux":
+		msg.FocusWindowID = data
+	}
+}
+
+// captureFocusWindow 在 SessionStart 时刻抓取"启动本 agent 的那个窗口"并按 session 缓存，
 // 供后续事件（permission/input/completed…）点击聚焦复用，避免发通知时用户已切走导致抓错窗口。
-// Linux 用 EWMH 抓 active window（经 PID 祖先校验）；macOS 用 mac-focus-helper --capture 走进程树定位。
-// 抓取失败（如焦点在别的应用、helper 缺失）时不覆盖已有缓存。其它平台不做。
+// Linux 用 EWMH 抓 active window（经 PID 祖先校验）；macOS 用 mac-focus-helper --capture 走进程树定位；
+// Windows 用 winfocus 抓前台窗（经 PID 祖先校验）。抓取失败（如焦点在别的应用、helper 缺失）时
+// 不覆盖已有缓存。其它平台不做。
 func captureFocusWindow(ctx context.Context, statePath, logPath string, msg notify.Message) {
 	if msg.SessionID == "" {
 		return
@@ -72,6 +80,12 @@ func captureFocusWindow(ctx context.Context, statePath, logPath string, msg noti
 		windowData = windowID
 	case "darwin":
 		capture, err := notify.CaptureMacWindow()
+		if err != nil || capture == "" {
+			return
+		}
+		windowData = capture
+	case "windows":
+		capture, err := winfocus.Capture()
 		if err != nil || capture == "" {
 			return
 		}

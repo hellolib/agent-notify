@@ -8,11 +8,14 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/hellolib/agent-notify/internal/winfocus"
 	"github.com/hellolib/toast"
 )
 
 // RunFocusProbe 在当前终端跑一遍 send 解析并打印诊断，再拼上 helper 日志尾部。
 func RunFocusProbe(out io.Writer) error {
+	// 先打印 SessionStart 会抓到的前台窗（免点击即可核对「在哪个 WT 窗口跑就抓哪扇」）。
+	fmt.Fprint(out, winfocus.Probe())
 	_, diag, err := toast.PrepareFocusActivationVerbose(os.Getppid(), "")
 	if err != nil {
 		fmt.Fprintf(out, "focus probe: %v\n", err)

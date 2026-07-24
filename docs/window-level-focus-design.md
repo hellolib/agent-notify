@@ -206,11 +206,11 @@ macOS TCC 对辅助功能按**进程树归属**算账：在 VS Code / GoLand 等
 
 | 平台 | 通知 | 窗口句柄固化时机 | 激活机制 | 精度开关 |
 |------|------|------------------|----------|----------|
-| macOS | terminal-notifier（回退 osascript） | **发通知时** `mac-focus-helper --capture` | 点击 → helper `CGWindowList` 定位 + AX raise | `AGENT_NOTIFY_FOCUS_PRECISION=window`（默认 app） |
+| macOS | terminal-notifier（回退 osascript） | **会话启动时（SessionStart）** `mac-focus-helper --capture`，按 session_id 存 `focus-windows.json`；漏抓时发送时兜底 capture | 点击 → helper `CGWindowList` 定位 + AX raise | `AGENT_NOTIFY_FOCUS_PRECISION=window`（默认 app） |
 | Linux/X11 | D-Bus Notify（回退 notify-send） | **会话启动时（SessionStart）** `CaptureActiveWindow`，按 session_id 存 `focus-windows.json` | 点击 → `linux-notify-wait` → EWMH `_NET_ACTIVE_WINDOW` | 恒为窗口级（无开关，缓存命中即精确） |
-| Windows | WinRT Toast | **发通知时** `toast.PrepareFocusActivation(ppid)` → `anfocus:<pid>[:<hwnd>]` | 点击 → 协议拉起独立 `toast-focus-helper.exe` → HWND/PID 定位 + SetForegroundWindow | 恒为窗口级 |
+| Windows | WinRT Toast | **会话启动时（SessionStart）** `winfocus.Capture` 抓前台 HWND + 标题指纹，按 session_id 存 `focus-windows.json`；发送时复核后写入 `anfocus:<pid>:<hwnd>` | 点击 → 协议拉起独立 `toast-focus-helper.exe` → HWND/PID 定位 + SetForegroundWindow | 恒为窗口级 |
 
-> **关键差异（新）**：mac / Windows 在**发通知瞬间**抓当前窗口；Linux 改为在 **SessionStart 抓一次并按 session 缓存复用**（见 §5.2）。因此 Linux 不受「发通知时用户已切走」影响，且能区分单进程多窗口终端（deepin-terminal 等）的兄弟窗口——这是 §4「同 PID 多窗歧义」在 Linux 上的实际解法。
+> **关键差异（新）**：Linux / macOS / Windows 都优先在 **SessionStart 抓一次并按 session 缓存复用**。Linux 读 `_NET_ACTIVE_WINDOW`；macOS 存 `mac-focus-helper --capture` JSON；Windows 读真实前台 `HWND` 并保存标题指纹。这样不受「发通知时用户已切走」影响，也绕开同进程多窗口宿主（Windows Terminal / VS Code / deepin-terminal 等）的 PID→窗口一对多歧义。
 
 ### 6.1 兜底 / 降级矩阵（窗口定位失败自动降级）
 
@@ -237,15 +237,16 @@ macOS TCC 对辅助功能按**进程树归属**算账：在 VS Code / GoLand 等
 | D-Bus 不可用 | `notify-send`（无点击聚焦） |
 | SessionStart 时焦点非本终端 | `CaptureActiveWindow` 的 PID 祖先校验拒绝 → 不写缓存（保留上次正确值，防污染） |
 
-**Windows**（`windows_toast_windows.go` + `hellolib/toast`）：
+**Windows**（`windows_toast_windows.go` + `internal/winfocus` + `hellolib/toast`）：
 
 | 条件 | 降级行为 |
 |------|----------|
-| `PrepareFocusActivation` 成功 | toast 带 `anfocus:` 协议参数，点击拉起 helper |
+| 命中 SessionStart 缓存，且发送时 HWND 仍可用、标题指纹兼容（去前导 spinner/符号、忽略大小写、允许 `claude` ↔ `Claude Code`） | `toast.FocusActivationForWindow` 直接把缓存 HWND 写入 `anfocus:`，点击精确激活该窗口 |
+| 无缓存 / SessionStart 捕获失败（前台窗不在祖先链、无标题等） | `PrepareFocusActivationVerbose` 发通知时按进程树反查（旧行为，多窗可能不精确） |
+| 缓存 HWND 已失效，或 HWND 被回收复用导致标题指纹不符 | 拒用缓存 → `PrepareFocusActivationVerbose` 兜底，避免把陌生窗口当作精确窗口聚焦 |
 | 点击时保存的 HWND 失效 | helper 按 PID 重新找窗 |
 | `SetForegroundWindow` 被前台锁拒绝 | best-effort（`AttachThreadInput` 等手法） |
-| `PrepareFocusActivation` 失败 | 不加协议参数 → 纯 Toast（无点击聚焦） |
-| helper 未安装 / 找不到 | 协议点击无响应 → Toast 仍展示 |
+| helper 未安装 / 找不到 / 协议注册失败 | 不加协议参数或协议点击无响应；Toast 仍展示 |
 
 `click_to_focus: false` 时三平台均不挂任何激活逻辑。
 
@@ -255,7 +256,7 @@ macOS TCC 对辅助功能按**进程树归属**算账：在 VS Code / GoLand 等
 |------|--------|------|
 | macOS | `mac-focus-helper` 文件是否存在（`detectMacFocusHelper`） | 不探 AX 授权（纯 Go 无 cgo），helper 运行时自降级 |
 | Linux | `DISPLAY` + D-Bus session bus（`detectLinuxFocusSupport`） | X11 会话判定；Wayland 原生不支持 |
-| Windows | `toast.FindFocusHelper()` + `--focus-probe` | 可跑 send 解析诊断 + 尾读 helper 日志 |
+| Windows | `toast.FindFocusHelper()` + `--focus-probe` | 可跑 SessionStart 前台窗捕获诊断、send 解析诊断 + 尾读 helper 日志 |
 
 配置：
 

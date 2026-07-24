@@ -12,6 +12,10 @@ type windowsToastRequest struct {
 	ClickToFocus bool
 	FocusDebug   bool
 	LogPath      string
+	// FocusCapture 是 SessionStart 缓存的窗口快照 JSON（winfocus {"hwnd","title"}）；
+	// 命中且复核通过时用它拼 anfocus:，否则退回进程树兜底。macOS / Windows 发送端分别
+	// 消费自己的快照格式。
+	FocusCapture string
 }
 
 type windowsToastFunc func(ctx context.Context, req windowsToastRequest) error
@@ -42,6 +46,7 @@ func (s *WindowsSender) Send(ctx context.Context, msg Message) error {
 		ClickToFocus: s.clickToFocus,
 		FocusDebug:   s.focusDebug,
 		LogPath:      focusHelperLogPath(s.focusDebug),
+		FocusCapture: msg.FocusCapture,
 	})
 }
 

@@ -7,6 +7,27 @@ import (
 	"github.com/hellolib/agent-notify/internal/notify"
 )
 
+func TestApplyFocusCacheRoutesByPlatform(t *testing.T) {
+	cases := []struct {
+		goos        string
+		wantWindow  string
+		wantCapture string
+	}{
+		{"linux", "123", ""},
+		{"darwin", "", "123"},
+		{"windows", "", "123"},
+		{"freebsd", "", ""},
+	}
+	for _, c := range cases {
+		msg := notify.Message{}
+		applyFocusCache(&msg, c.goos, "123")
+		if msg.FocusWindowID != c.wantWindow || msg.FocusCapture != c.wantCapture {
+			t.Fatalf("%s: got FocusWindowID=%q FocusCapture=%q, want %q/%q",
+				c.goos, msg.FocusWindowID, msg.FocusCapture, c.wantWindow, c.wantCapture)
+		}
+	}
+}
+
 func TestBuildSendersUsesClaudeCodeConfigByDefault(t *testing.T) {
 	cfg := config.Default()
 	cfg.Notify.ClaudeCode.Channels.System.Enabled = true
