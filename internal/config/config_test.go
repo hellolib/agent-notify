@@ -358,3 +358,9 @@ func TestEffectiveFocusDebug(t *testing.T) {
 		t.Fatal("env 0 should not enable")
 	}
 }
+
+func TestDefaultConfigDedupeWindowIsTenSeconds(t *testing.T) {
+	if got := Default().Behavior.DedupeSeconds; got != 10 {
+		t.Fatalf("default DedupeSeconds = %d, want 10", got)
+	}
+}

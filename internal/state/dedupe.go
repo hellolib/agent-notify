@@ -61,13 +61,22 @@ func (s *Store) ReserveSend(key string, window time.Duration, now time.Time) (bo
 	return true, nil
 }
 
-func (s *Store) MarkSent(key string, now time.Time) error {
+func (s *Store) MarkSent(key string, window time.Duration, now time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	st, err := s.load()
 	if err != nil {
 		return err
+	}
+
+	// 剔除超出窗口的历史条目：age > window 的键此后永远判定为「可发送」，
+	// 删除与保留对去重结果等价（无损），却能把 map/文件体积限制在最近一个窗口内，
+	// 避免内容进 key 后的无限增长。
+	for k, t := range st.LastSent {
+		if now.Sub(t) > window {
+			delete(st.LastSent, k)
+		}
 	}
 
 	st.LastSent[key] = now
