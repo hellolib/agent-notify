@@ -17,7 +17,7 @@
 一个面向 AI Agent 的通知配置工具。支持将 Claude Code、Codex、ZCode (Z.ai)、Grok 等 Agent 的事件通知推送到飞书、企业微信、钉钉、Bark、ntfy 和系统通知。
 
 <p align="center">
-  <img src="assist/demo.gif" alt="Agent Notify 演示" width="800">
+  <img src="assist/demo.gif" alt="Agent Notify 演示" width="700">
 </p>
 
 ## 快速开始

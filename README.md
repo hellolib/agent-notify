@@ -19,7 +19,7 @@ Agent Notify hooks into the lifecycle events of AI coding agents (Claude Code, C
 Supported delivery channels: **OS-native system notifications**, **Feishu/Lark**, **WeChat Work (企业微信)**, **DingTalk (钉钉)**, **Bark (iOS)**, and **ntfy**.
 
 <p align="center">
-  <img src="assist/demo.gif" alt="Agent Notify demo" width="800">
+  <img src="assist/demo.gif" alt="Agent Notify demo" width="700">
 </p>
 
 ## Quick Start

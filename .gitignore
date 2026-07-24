@@ -2,6 +2,8 @@
 .vscode/
 .idea/
 .worktrees/
+.claude/
+.agent/
 node_modules/
 docs/superpowers
 dist/
