@@ -84,18 +84,11 @@ func ParseMessage(data []byte) (notify.Message, error) {
 		}
 		return parseRequestUserInput(p)
 	case "Stop":
-		body := notify.DefaultBody("run_completed")
-		if hint := truncateMessage(strings.TrimSpace(p.LastAssistantMessage), 200); hint != "" {
-			body = hint
-		}
-		return notify.Message{
-			Agent:     "codex",
-			Event:     "run_completed",
-			SessionID: p.SessionID,
-			Workspace: p.CWD,
-			Title:     notify.FormatTitle("codex", "run_completed"),
-			Body:      body,
-		}, nil
+		// Codex Stop means that one agent turn stopped. It also fires when a
+		// planning turn finishes and Codex is waiting for the user to start
+		// execution, so it cannot reliably represent task completion. Treat legacy
+		// Stop subscriptions as a no-op; new installations no longer subscribe.
+		return notify.Message{}, nil
 	default:
 		return notify.Message{}, fmt.Errorf("unsupported hook event: %s", p.HookEventName)
 	}
@@ -218,18 +211,4 @@ func fallbackToolName(name string) string {
 		return "未知工具"
 	}
 	return name
-}
-
-func truncateMessage(msg string, limit int) string {
-	if msg == "" || limit <= 0 {
-		return ""
-	}
-	runes := []rune(msg)
-	if len(runes) <= limit {
-		return msg
-	}
-	if limit <= 3 {
-		return string(runes[:limit])
-	}
-	return string(runes[:limit-3]) + "..."
 }

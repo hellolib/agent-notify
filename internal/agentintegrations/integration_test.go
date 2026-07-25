@@ -3,6 +3,7 @@ package agentintegrations
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -192,8 +193,11 @@ func TestCodexIntegration_Install(t *testing.T) {
 
 		content := string(data)
 		// user content preserved, our hooks added
-		if !containsAll(content, `"someUserKey"`, `"SessionStart"`, `"PermissionRequest"`, `"Stop"`, `handle-codex-hook`) {
+		if !containsAll(content, `"someUserKey"`, `"SessionStart"`, `"PermissionRequest"`, `"PreToolUse"`, `handle-codex-hook`) {
 			t.Errorf("hooks.json missing expected keys, got:\n%s", content)
+		}
+		if strings.Contains(content, `"Stop"`) {
+			t.Errorf("hooks.json should not register Codex Stop, got:\n%s", content)
 		}
 	})
 
@@ -208,8 +212,11 @@ func TestCodexIntegration_Install(t *testing.T) {
 		data, _ := os.ReadFile(settingsPath)
 		content := string(data)
 
-		if !containsAll(content, `"PermissionRequest"`, `"PreToolUse"`, `"matcher": "^request_user_input$"`, `"Stop"`) {
-			t.Errorf("hooks.json should register PermissionRequest, matched PreToolUse, and Stop, got:\n%s", content)
+		if !containsAll(content, `"PermissionRequest"`, `"PreToolUse"`, `"matcher": "^request_user_input$"`) {
+			t.Errorf("hooks.json should register PermissionRequest and matched PreToolUse, got:\n%s", content)
+		}
+		if strings.Contains(content, `"Stop"`) {
+			t.Errorf("hooks.json should not register Codex Stop, got:\n%s", content)
 		}
 		// must NOT register events Codex doesn't support
 		for _, unsupported := range []string{`"Notification"`, `"PostToolUseFailure"`} {

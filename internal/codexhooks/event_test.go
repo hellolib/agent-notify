@@ -3,8 +3,11 @@ package codexhooks
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/hellolib/agent-notify/internal/notify"
 )
 
 func TestParseRequestUserInput(t *testing.T) {
@@ -150,7 +153,7 @@ func TestParsePermissionRequest(t *testing.T) {
 	}
 }
 
-func TestParseStop(t *testing.T) {
+func TestParseStopIsIgnored(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "codex-hooks", "stop.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -160,27 +163,20 @@ func TestParseStop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
-	if msg.Agent != "codex" {
-		t.Fatalf("Agent = %q, want codex", msg.Agent)
-	}
-	if msg.Event != "run_completed" {
-		t.Fatalf("Event = %q, want run_completed", msg.Event)
-	}
-	// last_assistant_message 非空时应作为 Body
-	if !strings.Contains(msg.Body, "cargo build") {
-		t.Fatalf("Body = %q, want last_assistant_message content", msg.Body)
+	if !reflect.DeepEqual(msg, notify.Message{}) {
+		t.Fatalf("ParseMessage() = %#v, want zero message", msg)
 	}
 }
 
-func TestParseStopFallsBackToDefaultBody(t *testing.T) {
-	raw := []byte(`{"hook_event_name":"Stop","session_id":"s","cwd":"/tmp","last_assistant_message":""}`)
+func TestParsePlanModeStopIsIgnored(t *testing.T) {
+	raw := []byte(`{"hook_event_name":"Stop","permission_mode":"plan","session_id":"s","cwd":"/tmp","last_assistant_message":"plan ready"}`)
 
 	msg, err := ParseMessage(raw)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
-	if msg.Body == "" {
-		t.Fatal("Body should fall back to default when last_assistant_message empty")
+	if !reflect.DeepEqual(msg, notify.Message{}) {
+		t.Fatalf("ParseMessage() = %#v, want zero message", msg)
 	}
 }
 
@@ -342,32 +338,5 @@ func TestParseUnsupportedEvent(t *testing.T) {
 	_, err := ParseMessage(raw)
 	if err == nil {
 		t.Fatal("ParseMessage() expected error for unsupported event")
-	}
-}
-
-func TestTruncateMessage(t *testing.T) {
-	tests := []struct {
-		in    string
-		limit int
-		want  string
-	}{
-		{"", 10, ""},
-		{"short", 0, ""},
-		{"short", -1, ""},
-		{"short", 10, "short"},
-		{"1234567890ab", 10, "1234567..."},
-	}
-	for _, tt := range tests {
-		got := truncateMessage(tt.in, tt.limit)
-		if got != tt.want {
-			t.Fatalf("truncateMessage(%q, %d) = %q, want %q", tt.in, tt.limit, got, tt.want)
-		}
-	}
-}
-
-func TestTruncateMessagePreservesUnicodeRunes(t *testing.T) {
-	got := truncateMessage("你好世界🙂啊", 5)
-	if got != "你好..." {
-		t.Fatalf("truncateMessage() = %q, want %q", got, "你好...")
 	}
 }

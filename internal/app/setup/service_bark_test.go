@@ -24,7 +24,7 @@ func TestService_CodexBarkChannel(t *testing.T) {
 		selectResult: "codex",
 		multiResults: [][]string{
 			{"bark"},
-			{"run_completed"},
+			{"input_required"},
 		},
 		inputResult: wantURL,
 	}

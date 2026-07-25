@@ -12,7 +12,7 @@ import (
 func TestDefaultConfigUsesAgentScopedNotifyConfig(t *testing.T) {
 	cfg := Default()
 	allEvents := []string{"permission_required", "input_required", "run_completed", "run_failed"}
-	codexEvents := []string{"permission_required", "input_required", "run_completed"}
+	codexEvents := []string{"permission_required", "input_required"}
 
 	if cfg.Version != 1 {
 		t.Fatalf("Version = %d, want 1", cfg.Version)
@@ -278,7 +278,7 @@ behavior:
 	if len(got.Notify.Grok.Events) == 0 {
 		t.Fatal("Grok events should be backfilled when channels are enabled")
 	}
-	wantCodexEvents := []string{"permission_required", "input_required", "run_completed"}
+	wantCodexEvents := []string{"permission_required", "input_required"}
 	if !reflect.DeepEqual(got.Notify.Codex.Events, wantCodexEvents) {
 		t.Fatalf("Codex events = %#v, want backfilled defaults %#v", got.Notify.Codex.Events, wantCodexEvents)
 	}

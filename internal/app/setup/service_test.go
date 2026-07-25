@@ -207,9 +207,9 @@ func TestService_CodexIntegration(t *testing.T) {
 	}
 }
 
-func TestCodexEventOptionsIncludeInputRequired(t *testing.T) {
+func TestCodexEventOptionsExcludeUnsupportedCompletion(t *testing.T) {
 	options := codexEventOptionsFn()
-	want := []string{"permission_required", "input_required", "run_completed"}
+	want := []string{"permission_required", "input_required"}
 	if len(options) != len(want) {
 		t.Fatalf("Codex event option count = %d, want %d", len(options), len(want))
 	}

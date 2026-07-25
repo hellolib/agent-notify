@@ -116,13 +116,14 @@ func claudeEventOptionsFn() []PromptOption {
 	}
 }
 
-// codexEventOptionsFn returns event options for Codex.
-// PreToolUse(request_user_input) maps to input_required.
+// codexEventOptionsFn returns event options for Codex. PermissionRequest maps
+// to permission_required and PreToolUse(request_user_input) maps to
+// input_required. Stop is not a completion event: it fires whenever a turn
+// stops, including when a generated plan is waiting to be executed.
 func codexEventOptionsFn() []PromptOption {
 	return []PromptOption{
 		{Label: i18n.T("event.permission_required"), Value: "permission_required"},
 		{Label: i18n.T("event.input_required"), Value: "input_required"},
-		{Label: i18n.T("event.run_completed"), Value: "run_completed"},
 	}
 }
 

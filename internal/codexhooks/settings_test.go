@@ -17,7 +17,7 @@ func TestBuildHookSettings_RegistersManagedEvents(t *testing.T) {
 		t.Fatalf("hooks type = %T, want map[string]any", got["hooks"])
 	}
 
-	for _, event := range []string{"SessionStart", "PermissionRequest", "PreToolUse", "Stop"} {
+	for _, event := range []string{"SessionStart", "PermissionRequest", "PreToolUse"} {
 		items, ok := hooks[event].([]map[string]any)
 		if !ok || len(items) != 1 {
 			t.Fatalf("%s entries missing or invalid: %v", event, hooks[event])
@@ -37,10 +37,11 @@ func TestBuildHookSettings_RegistersManagedEvents(t *testing.T) {
 		}
 	}
 
-	// 不应注册 Codex 不支持的事件（SessionStart 现在仅用于 Linux 聚焦捕获，已托管）
-	for _, unsupported := range []string{"Notification", "PostToolUseFailure", "UserPromptSubmit", "PostToolUse"} {
-		if _, exists := hooks[unsupported]; exists {
-			t.Fatalf("hooks should not contain %s for Codex", unsupported)
+	// Stop is supported by Codex, but it means a turn stopped rather than task
+	// completion, so agent-notify deliberately does not manage it.
+	for _, unmanaged := range []string{"Stop", "Notification", "PostToolUseFailure", "UserPromptSubmit", "PostToolUse"} {
+		if _, exists := hooks[unmanaged]; exists {
+			t.Fatalf("hooks should not contain %s for Codex", unmanaged)
 		}
 	}
 }
@@ -70,10 +71,13 @@ func TestInstall_MergesExistingHooks(t *testing.T) {
 	if !ok {
 		t.Fatal("hooks key missing or wrong type")
 	}
-	for _, key := range []string{"SessionStart", "PermissionRequest", "PreToolUse", "Stop"} {
+	for _, key := range []string{"SessionStart", "PermissionRequest", "PreToolUse"} {
 		if _, exists := hooks[key]; !exists {
 			t.Fatalf("hooks missing key %q after install", key)
 		}
+	}
+	if _, exists := hooks["Stop"]; exists {
+		t.Fatalf("hooks should not contain managed Stop after install: %v", hooks["Stop"])
 	}
 }
 
@@ -121,7 +125,7 @@ func TestInstall_PreToolUseUsesExactMatcherAndPreservesCustomHook(t *testing.T) 
 	}
 }
 
-func TestInstall_UpgradesLegacyManagedHooksWithPreToolUse(t *testing.T) {
+func TestInstall_UpgradesLegacyManagedHooksWithPreToolUseAndRemovesStop(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "hooks.json")
 	existing := `{
@@ -148,6 +152,9 @@ func TestInstall_UpgradesLegacyManagedHooksWithPreToolUse(t *testing.T) {
 	entry := entries[0].(map[string]any)
 	if entry["matcher"] != requestUserInputMatcher {
 		t.Fatalf("PreToolUse matcher = %v, want %q", entry["matcher"], requestUserInputMatcher)
+	}
+	if _, exists := hooks["Stop"]; exists {
+		t.Fatalf("legacy managed Stop should be removed, got %v", hooks["Stop"])
 	}
 }
 
@@ -251,15 +258,20 @@ func TestInstall_CreatesParentDirectories(t *testing.T) {
 	}
 }
 
-// TestInstall_PreservesUserHooks 用户已经在 Stop 事件下挂了自己的 hook，
-// 增量安装应当追加 agent-notify 条目而不是覆盖。
-func TestInstall_PreservesUserHooks(t *testing.T) {
+// TestInstall_RemovesLegacyManagedStopAndPreservesUserHooks covers both a
+// mixed matcher group and an independent user Stop group.
+func TestInstall_RemovesLegacyManagedStopAndPreservesUserHooks(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "hooks.json")
 	existing := `{
   "hooks": {
     "Stop": [
-      {"hooks": [{"type": "command", "command": "echo user-stop"}]}
+      {"matcher": "ignored-by-codex", "statusMessage": "keep me", "hooks": [
+        {"type": "command", "command": "echo mixed-user-stop"},
+        {"type": "command", "command": "/old/agent-notify handle-codex-hook"}
+      ]},
+      {"hooks": [{"type": "command", "command": "/old/agent-notify handle-codex-hook"}]},
+      {"hooks": [{"type": "command", "command": "echo independent-user-stop"}]}
     ],
     "PreToolUse": [
       {"matcher": "^shell$", "hooks": [{"type": "command", "command": "echo user-shell"}]}
@@ -278,15 +290,21 @@ func TestInstall_PreservesUserHooks(t *testing.T) {
 	hooks := got["hooks"].(map[string]any)
 	stopEntries := hooks["Stop"].([]any)
 	if len(stopEntries) != 2 {
-		t.Fatalf("Stop entry count = %d, want 2 (user + agent-notify)", len(stopEntries))
+		t.Fatalf("Stop entry count = %d, want 2 user groups", len(stopEntries))
 	}
 
 	commands := collectCommandsForTest(stopEntries)
-	if !containsString(commands, "echo user-stop") {
-		t.Fatalf("user hook command lost: %v", commands)
+	for _, want := range []string{"echo mixed-user-stop", "echo independent-user-stop"} {
+		if !containsString(commands, want) {
+			t.Fatalf("user hook command %q lost: %v", want, commands)
+		}
 	}
-	if !containsSubstring(commands, hookCommandMarker) {
-		t.Fatalf("agent-notify hook command missing: %v", commands)
+	if containsSubstring(commands, hookCommandMarker) {
+		t.Fatalf("legacy managed Stop still present: %v", commands)
+	}
+	mixed := stopEntries[0].(map[string]any)
+	if mixed["matcher"] != "ignored-by-codex" || mixed["statusMessage"] != "keep me" {
+		t.Fatalf("mixed user Stop metadata changed: %#v", mixed)
 	}
 }
 

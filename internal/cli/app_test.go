@@ -296,13 +296,6 @@ func TestRunDoctorDetectsCodexHookConfig(t *testing.T) {
           {"type": "command", "command": "/tmp/agent-notify handle-codex-hook"}
         ]
       }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {"type": "command", "command": "/tmp/agent-notify handle-codex-hook"}
-        ]
-      }
     ]
   }
 }`
@@ -414,7 +407,7 @@ func TestRunInitInstallsCodexHookConfig(t *testing.T) {
 		selects: []string{"codex"},
 		multi: [][]string{
 			{"feishu", "system"},
-			{"permission_required", "input_required", "run_completed"},
+			{"permission_required", "input_required"},
 		},
 		inputs: []string{"/tmp/agent-notify"},
 	})
@@ -430,10 +423,13 @@ func TestRunInitInstallsCodexHookConfig(t *testing.T) {
 		t.Fatalf("ReadFile() error = %v", err)
 	}
 	got := string(data)
-	for _, want := range []string{`"PermissionRequest"`, `"PreToolUse"`, `"matcher": "^request_user_input$"`, `"Stop"`, "handle-codex-hook"} {
+	for _, want := range []string{`"PermissionRequest"`, `"PreToolUse"`, `"matcher": "^request_user_input$"`, "handle-codex-hook"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("hooks.json = %q, want substring %q", got, want)
 		}
+	}
+	if strings.Contains(got, `"Stop"`) {
+		t.Fatalf("hooks.json = %q, should not register Codex Stop", got)
 	}
 	if !strings.Contains(stdout.String(), hooksPath) {
 		t.Fatalf("stdout = %q, want hooks.json path", stdout.String())
@@ -447,7 +443,7 @@ func TestRunInitInstallsCodexHookConfig(t *testing.T) {
 	if !cfg.Notify.Codex.Channels.Feishu.Enabled || !cfg.Notify.Codex.Channels.System.Enabled {
 		t.Fatalf("got %+v, want both channels enabled for Codex", cfg.Notify.Codex)
 	}
-	expectedEvents := []string{"permission_required", "input_required", "run_completed"}
+	expectedEvents := []string{"permission_required", "input_required"}
 	if !reflect.DeepEqual(cfg.Notify.Codex.Events, expectedEvents) {
 		t.Fatalf("Codex events = %#v, want %#v", cfg.Notify.Codex.Events, expectedEvents)
 	}
@@ -500,7 +496,7 @@ func TestRunInitCodexDoesNotOverwriteClaudeCodeConfig(t *testing.T) {
 		selects: []string{"codex"},
 		multi: [][]string{
 			{"feishu"}, // Only feishu, no system
-			{"permission_required", "run_completed"},
+			{"permission_required", "input_required"},
 		},
 		inputs: []string{"/tmp/agent-notify"},
 	})
@@ -627,7 +623,7 @@ func TestRunInitClaudeCodeDoesNotOverwriteCodexConfig(t *testing.T) {
 		selects: []string{"codex"},
 		multi: [][]string{
 			{"system"}, // Only system, no feishu
-			{"permission_required", "run_completed"},
+			{"permission_required", "input_required"},
 		},
 		inputs: []string{"/tmp/agent-notify"},
 	})

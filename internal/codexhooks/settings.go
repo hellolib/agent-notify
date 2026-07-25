@@ -19,16 +19,20 @@ const hookCommandMarker = "handle-codex-hook"
 const requestUserInputMatcher = "^request_user_input$"
 
 // managedEvents 是本插件托管的 Codex 事件列表。
-// PermissionRequest / PreToolUse(request_user_input) / Stop 对应项目里的
-// permission_required / input_required / run_completed。
+// PermissionRequest / PreToolUse(request_user_input) 对应项目里的
+// permission_required / input_required。
 // SessionStart 仅用于 Linux 点击聚焦的窗口捕获（见 agenthooks.Dispatch），
 // 不产生任何通知；其它平台收到即 no-op。
 var managedEvents = []string{
 	"SessionStart",
 	"PermissionRequest",
 	"PreToolUse",
-	"Stop",
 }
+
+// deprecatedManagedEvents were installed by earlier versions and are removed
+// on upgrade. Codex Stop means a turn stopped, not that the user's task or
+// session completed, and Stop does not honor matcher filters.
+var deprecatedManagedEvents = []string{"Stop"}
 
 // BuildHookSettings 生成 Codex hooks.json 所需的 settings 结构。
 func BuildHookSettings(binaryPath string) map[string]any {
@@ -71,6 +75,9 @@ func Install(path string, binaryPath string) error {
 	hooks, _ := settings["hooks"].(map[string]any)
 	if hooks == nil {
 		hooks = map[string]any{}
+	}
+	for _, event := range deprecatedManagedEvents {
+		removeManagedHooksForEvent(hooks, event)
 	}
 
 	for _, event := range managedEvents {
@@ -177,6 +184,52 @@ func repairManagedPreToolUseMatcher(entries []any) ([]any, bool) {
 	return normalized, found
 }
 
+// removeManagedHooksForEvent removes only agent-notify command handlers from
+// one event. Matcher groups containing user handlers are kept with all their
+// other fields, and independent user groups are left untouched.
+func removeManagedHooksForEvent(hooks map[string]any, event string) {
+	raw, exists := hooks[event]
+	if !exists {
+		return
+	}
+	entries := common.ToAnySlice(raw)
+	if entries == nil {
+		return
+	}
+
+	cleaned := make([]any, 0, len(entries))
+	for _, entry := range entries {
+		entryMap, ok := entry.(map[string]any)
+		if !ok {
+			cleaned = append(cleaned, entry)
+			continue
+		}
+		inner := common.ToAnySlice(entryMap["hooks"])
+		if inner == nil {
+			cleaned = append(cleaned, entry)
+			continue
+		}
+
+		keptInner := make([]any, 0, len(inner))
+		for _, hook := range inner {
+			if !common.IsManagedHook(hook, hookCommandMarker) {
+				keptInner = append(keptInner, hook)
+			}
+		}
+		if len(keptInner) == 0 {
+			continue
+		}
+		entryMap["hooks"] = keptInner
+		cleaned = append(cleaned, entryMap)
+	}
+
+	if len(cleaned) == 0 {
+		delete(hooks, event)
+		return
+	}
+	hooks[event] = cleaned
+}
+
 // IsInstalled 检查 hooks.json 中是否已挂载 agent-notify 的 hook。
 func IsInstalled(path string) (bool, error) {
 	data, err := os.ReadFile(path)
@@ -231,33 +284,8 @@ func Uninstall(path string) error {
 		return nil
 	}
 
-	for event, raw := range hooks {
-		entries := common.ToAnySlice(raw)
-		cleaned := entries[:0]
-		for _, entry := range entries {
-			entryMap, ok := entry.(map[string]any)
-			if !ok {
-				cleaned = append(cleaned, entry)
-				continue
-			}
-			inner := common.ToAnySlice(entryMap["hooks"])
-			keptInner := inner[:0]
-			for _, h := range inner {
-				if !common.IsManagedHook(h, hookCommandMarker) {
-					keptInner = append(keptInner, h)
-				}
-			}
-			if len(keptInner) == 0 {
-				continue
-			}
-			entryMap["hooks"] = keptInner
-			cleaned = append(cleaned, entryMap)
-		}
-		if len(cleaned) == 0 {
-			delete(hooks, event)
-		} else {
-			hooks[event] = cleaned
-		}
+	for event := range hooks {
+		removeManagedHooksForEvent(hooks, event)
 	}
 
 	if len(hooks) == 0 {
