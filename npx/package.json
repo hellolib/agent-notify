@@ -1,7 +1,22 @@
 {
   "name": "agent-notify",
   "version": "0.7.1",
-  "description": "NPX launcher for the agent-notify binary",
+  "description": "Get notified the moment your AI coding agent needs you — Claude Code, Codex, ZCode & Grok → phone & desktop (Feishu, WeCom, DingTalk, Bark, ntfy, Slack).",
+  "keywords": [
+    "claude-code", "codex", "zcode", "grok", "ai-agent", "agent",
+    "notifications", "desktop-notification", "hooks", "cli",
+    "feishu", "lark", "bark", "ntfy", "slack", "dingtalk", "wecom"
+  ],
+  "homepage": "https://github.com/hellolib/agent-notify#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hellolib/agent-notify.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hellolib/agent-notify/issues"
+  },
+  "author": "hellolib",
+  "license": "MIT",
   "bin": {
     "agent-notify": "./bin/agent-notify.js"
   },
@@ -9,7 +24,8 @@
   "files": [
     "bin",
     "lib",
-    "test"
+    "test",
+    "README.md"
   ],
   "scripts": {
     "test": "node --test ./test/*.test.js"
