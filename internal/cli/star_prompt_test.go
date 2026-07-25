@@ -55,3 +55,10 @@ func TestMaybeStarPromptLocale(t *testing.T) {
 		t.Fatalf("en output missing expected copy: %q", en.String())
 	}
 }
+
+func TestStdoutIsTTYNonFileIsFalse(t *testing.T) {
+	var buf bytes.Buffer
+	if stdoutIsTTY(&buf) {
+		t.Fatal("a non-*os.File writer must not be reported as a TTY")
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/hellolib/agent-notify/internal/grokhooks"
 	"github.com/hellolib/agent-notify/internal/i18n"
 	"github.com/hellolib/agent-notify/internal/zcodehooks"
+	"github.com/mattn/go-isatty"
 )
 
 // cliPrompter adapts CLI Prompter to setup.Prompter
@@ -78,8 +80,22 @@ func runInitFlow(ctx context.Context, streams Streams, prompter Prompter, config
 	cliPrompter := &cliPrompter{p: prompter}
 	output := &cliOutputWriter{streams: streams}
 
-	_, err := svc.Run(ctx, cliPrompter, output, configPath, binaryPath)
-	return err
+	result, err := svc.Run(ctx, cliPrompter, output, configPath, binaryPath)
+	if err != nil {
+		return err
+	}
+
+	// One-time GitHub star invitation. Interactive setup path only — never
+	// reached by handle-*-hook. Reload to pick up the config svc.Run just saved.
+	if result != nil {
+		if cfg, lerr := config.Load(result.ConfigPath); lerr == nil {
+			if maybeStarPrompt(cfg, streams.Stdout, stdoutIsTTY(streams.Stdout)) {
+				cfg.StarPrompted = true
+				_ = config.Save(result.ConfigPath, cfg) // best-effort; don't fail setup
+			}
+		}
+	}
+	return nil
 }
 
 func runPrintClaudeHooks(streams Streams, binaryPath string) error {
@@ -313,6 +329,15 @@ func printCurrentNotifyConfig(streams Streams) error {
 	fmt.Fprintln(streams.Stdout, i18n.T("view.separator"))
 
 	return nil
+}
+
+// stdoutIsTTY reports whether w is a real interactive terminal. Buffers and
+// pipes (tests, CI) return false, suppressing the star prompt.
+func stdoutIsTTY(w io.Writer) bool {
+	if f, ok := w.(*os.File); ok {
+		return isatty.IsTerminal(f.Fd())
+	}
+	return false
 }
 
 // settingsPathForAgent returns the settings path for the given agent and scope.
