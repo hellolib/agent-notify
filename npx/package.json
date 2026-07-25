@@ -28,7 +28,8 @@
     "README.md"
   ],
   "scripts": {
-    "test": "node --test ./test/*.test.js"
+    "test": "node --test ./test/*.test.js",
+    "prepack": "node ./scripts/sync-readme.js"
   },
   "dependencies": {
     "tar": "^7.4.3"
