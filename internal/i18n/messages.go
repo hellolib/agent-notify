@@ -39,6 +39,10 @@ var catalog = map[string]map[Lang]string{
 	"setup.select_channels": {ZhCN: "启用通知渠道", EnUS: "Enable notification channels"},
 	"setup.select_events":   {ZhCN: "通知事件", EnUS: "Notification events"},
 
+	// ── Star prompt (one-time, after successful setup) ─────────
+	"star_prompt.title": {ZhCN: "喜欢 agent-notify 吗？", EnUS: "Enjoying agent-notify?"},
+	"star_prompt.body":  {ZhCN: "点个 Star 能帮助更多人发现它：", EnUS: "A GitHub star helps others discover it:"},
+
 	// Channel option labels (used in multi-select during setup)
 	"channel.system": {ZhCN: "系统通知", EnUS: "System"},
 
