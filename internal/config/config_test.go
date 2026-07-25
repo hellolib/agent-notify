@@ -317,3 +317,36 @@ func TestDefaultConfigDedupeWindowIsTenSeconds(t *testing.T) {
 		t.Fatalf("default DedupeSeconds = %d, want 10", got)
 	}
 }
+
+func TestStarPromptedRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "config.yaml")
+
+	cfg := Default()
+	cfg.StarPrompted = true
+	if err := Save(p, cfg); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	loaded, err := Load(p)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !loaded.StarPrompted {
+		t.Fatal("StarPrompted did not round-trip through Save/Load")
+	}
+}
+
+func TestStarPromptedDefaultsFalseForOldConfig(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(p, []byte("version: 1\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	loaded, err := Load(p)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if loaded.StarPrompted {
+		t.Fatal("expected StarPrompted=false for config without the key")
+	}
+}

@@ -11,10 +11,11 @@ import (
 
 // Config is the root configuration structure for agent-notify.
 type Config struct {
-	Version  int            `yaml:"version"`  // 配置版本号
-	Agent    AgentConfig    `yaml:"agent"`    // Agent 安装配置
-	Notify   NotifyConfig   `yaml:"notify"`   // 通知配置
-	Behavior BehaviorConfig `yaml:"behavior"` // 行为配置
+	Version      int            `yaml:"version"`  // 配置版本号
+	Agent        AgentConfig    `yaml:"agent"`    // Agent 安装配置
+	Notify       NotifyConfig   `yaml:"notify"`   // 通知配置
+	Behavior     BehaviorConfig `yaml:"behavior"` // 行为配置
+	StarPrompted bool           `yaml:"star_prompted,omitempty"` // 是否已展示过一次性 GitHub star 引导
 }
 
 // AgentConfig holds configuration for supported agents.
