@@ -116,24 +116,11 @@ func TestBuildCardContainsBody(t *testing.T) {
 	card := sender.buildCard(msg)
 
 	elements := cardBodyElements(t, card)
-
-	// 查找包含 Body 的元素
-	found := false
-	for _, el := range elements {
-		if elMap, ok := el.(map[string]any); ok {
-			if text, ok := elMap["text"].(map[string]any); ok {
-				if content, ok := text["content"].(string); ok {
-					if contains(content, "这是测试消息内容") {
-						found = true
-						break
-					}
-				}
-			}
+	visibleText := cardElementText(elements)
+	for _, want := range []string{"**消息内容**", "这是测试消息内容"} {
+		if !contains(visibleText, want) {
+			t.Errorf("ordinary card text = %q, missing %q", visibleText, want)
 		}
-	}
-
-	if !found {
-		t.Error("card should contain message body content")
 	}
 }
 
@@ -203,7 +190,13 @@ func TestBuildCardRendersQuestionsAsReadOnlyText(t *testing.T) {
 		Agent: "codex",
 		Event: "input_required",
 		Title: "Codex 等待输入",
-		Body:  "请选择配置",
+		Body: "Codex 正在等待您的输入\n" +
+			"1. 环境: 使用哪个环境？🌏\n" +
+			"   - 生产: 面向真实用户\n" +
+			"   - 测试: 仅用于验证\n" +
+			"   - 其他（自由输入）\n" +
+			"2. 密钥: 请输入令牌 [敏感输入]\n" +
+			"请回到 Codex 终端提交答案",
 		Questions: []Question{
 			{
 				ID:       "environment",
@@ -225,6 +218,33 @@ func TestBuildCardRendersQuestionsAsReadOnlyText(t *testing.T) {
 	})
 
 	elements := cardBodyElements(t, card)
+	visibleText := cardElementText(elements)
+
+	for _, unwanted := range []string{"消息内容", "Codex 正在等待您的输入"} {
+		if contains(visibleText, unwanted) {
+			t.Errorf("structured question card text = %q, should not contain %q", visibleText, unwanted)
+		}
+	}
+	for _, wantOnce := range []string{
+		"**问题 1** · 环境",
+		"使用哪个环境？🌏",
+		"生产",
+		"面向真实用户",
+		"测试",
+		"仅用于验证",
+		"其他（自由输入）",
+		"• 生产： 面向真实用户",
+		"• 测试： 仅用于验证",
+		"• 其他（自由输入）：请回到 Codex 终端输入",
+		"**问题 2** · 密钥 🔒 敏感输入",
+		"请输入令牌",
+		"敏感输入",
+		"请回到 Codex 终端提交答案",
+	} {
+		if got := strings.Count(visibleText, wantOnce); got != 1 {
+			t.Errorf("structured question card contains %q %d times, want exactly once; text = %q", wantOnce, got, visibleText)
+		}
+	}
 
 	var foundQuestion, foundHeader, foundSecret, foundFooter bool
 	var optionContents []string
@@ -282,6 +302,42 @@ func TestBuildCardRendersQuestionsAsReadOnlyText(t *testing.T) {
 	if len(optionContents) != 3 || !contains(optionContents[0], "面向真实用户") || !contains(optionContents[1], "仅用于验证") {
 		t.Fatalf("card option text = %#v, want labels and descriptions", optionContents)
 	}
+}
+
+func TestBuildCardInputRequiredWithoutQuestionsFallsBackToBody(t *testing.T) {
+	sender := &FeishuSender{}
+	card := sender.buildCard(Message{
+		Agent: "codex",
+		Event: "input_required",
+		Title: "Codex 等待输入",
+		Body:  "无法解析结构化问题，请在终端查看原始提示",
+	})
+
+	visibleText := cardElementText(cardBodyElements(t, card))
+	for _, want := range []string{"**消息内容**", "无法解析结构化问题，请在终端查看原始提示"} {
+		if !contains(visibleText, want) {
+			t.Errorf("input-required fallback card text = %q, missing %q", visibleText, want)
+		}
+	}
+}
+
+func cardElementText(elements []any) string {
+	var contents []string
+	for _, raw := range elements {
+		el, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if content, ok := el["content"].(string); ok {
+			contents = append(contents, content)
+		}
+		if text, ok := el["text"].(map[string]any); ok {
+			if content, ok := text["content"].(string); ok {
+				contents = append(contents, content)
+			}
+		}
+	}
+	return strings.Join(contents, "\n")
 }
 
 func cardBodyElements(t *testing.T, card map[string]any) []any {

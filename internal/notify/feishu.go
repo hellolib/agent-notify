@@ -142,21 +142,21 @@ func (s *FeishuSender) buildCard(msg Message) map[string]any {
 				},
 			},
 		},
-		map[string]any{
+	}
+	// request_user_input's textual body is a fallback rendering of Questions.
+	// Showing both duplicates every prompt and option, so structured cards skip
+	// the generic message section. Notifications without structured questions
+	// retain the existing body rendering as their fallback.
+	if len(msg.Questions) > 0 {
+		elements = appendQuestionElements(elements, msg.Questions)
+	} else {
+		elements = append(elements, map[string]any{
 			"tag": "div",
 			"text": map[string]any{
 				"tag":     "lark_md",
 				"content": fmt.Sprintf("**消息内容**\n%s", msg.Body),
 			},
-		},
-	}
-	// request_user_input carries structured questions in addition to the
-	// textual body. Render those questions explicitly so a remote recipient
-	// can see the same choices as the Codex terminal. The options are plain
-	// text on purpose: this hook only notifies; the answer is submitted in the
-	// Codex terminal.
-	if len(msg.Questions) > 0 {
-		elements = appendQuestionElements(elements, msg.Questions)
+		})
 	}
 	if msg.Workspace != "" && !isCodex {
 		elements = append(elements, map[string]any{
