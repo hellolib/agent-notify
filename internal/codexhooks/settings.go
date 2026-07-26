@@ -3,7 +3,6 @@ package codexhooks
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"os"
 	"path/filepath"
 
@@ -85,10 +84,12 @@ func Install(path string, binaryPath string) error {
 		return err
 	}
 
-	// 同步启用 config.toml 中的 [features] hooks = true
+	// 同步启用 config.toml 中的 [features] hooks = true。
+	// 失败必须显式上抛:features.hooks 未开启时 Codex 不会执行任何 hook,
+	// 静默吞掉会让向导显示「安装成功」而集成实际不可用(issue #31)。
 	configTomlPath := filepath.Join(filepath.Dir(path), "config.toml")
 	if err := EnableHooksFeature(configTomlPath); err != nil {
-		log.Printf("warning: failed to enable hooks feature in %s: %v", configTomlPath, err)
+		return err
 	}
 
 	return nil
