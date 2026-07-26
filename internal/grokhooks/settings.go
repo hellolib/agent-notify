@@ -209,5 +209,6 @@ func writeSettings(path string, settings map[string]any) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, out, 0o644)
+	// 用户配置文件:原子写 + 覆盖式 .bak 备份(issue #29)
+	return common.WriteFileAtomicWithBackup(path, out, 0o644)
 }

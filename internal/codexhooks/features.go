@@ -4,6 +4,8 @@ import (
 	"os"
 
 	toml "github.com/pelletier/go-toml/v2"
+
+	"github.com/hellolib/agent-notify/internal/common"
 )
 
 // EnableHooksFeature 确保 config.toml 中 [features] hooks = true，
@@ -33,5 +35,6 @@ func EnableHooksFeature(configTomlPath string) error {
 		return err
 	}
 
-	return os.WriteFile(configTomlPath, out, 0o644)
+	// 用户配置文件:原子写 + 覆盖式 .bak 备份(issue #29)
+	return common.WriteFileAtomicWithBackup(configTomlPath, out, 0o644)
 }
