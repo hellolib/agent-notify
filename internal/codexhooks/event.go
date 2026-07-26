@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hellolib/agent-notify/internal/common"
 	"github.com/hellolib/agent-notify/internal/notify"
 )
 
@@ -74,12 +75,7 @@ func fallbackToolName(name string) string {
 	return name
 }
 
+// truncateMessage 按 rune 截断,CJK 不产生半个字符(issue #33)。
 func truncateMessage(msg string, limit int) string {
-	if msg == "" {
-		return ""
-	}
-	if len(msg) <= limit {
-		return msg
-	}
-	return msg[:limit-3] + "..."
+	return common.TruncateRunes(msg, limit)
 }

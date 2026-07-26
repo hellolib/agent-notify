@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hellolib/agent-notify/internal/common"
 	"github.com/hellolib/agent-notify/internal/notify"
 )
 
@@ -336,15 +337,7 @@ func extractErrorMessage(p payload) string {
 	return "操作失败"
 }
 
-// truncate limits s to max runes (not bytes) so CJK multibyte characters are
-// not split mid-sequence (issue #19). max must be > 3 when truncation is needed.
+// truncate 委托 common.TruncateRunes(rune 安全截断,issue #19 上移至 common)。
 func truncate(s string, max int) string {
-	runes := []rune(s)
-	if len(runes) <= max {
-		return s
-	}
-	if max <= 3 {
-		return string(runes[:max])
-	}
-	return string(runes[:max-3]) + "..."
+	return common.TruncateRunes(s, max)
 }

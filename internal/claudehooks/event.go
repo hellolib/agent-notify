@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hellolib/agent-notify/internal/common"
 	"github.com/hellolib/agent-notify/internal/notify"
 )
 
@@ -107,12 +108,8 @@ func extractInputHint(msg string) string {
 		}
 	}
 
-	// If message is too long, truncate it
-	if len(msg) > 100 {
-		return msg[:97] + "..."
-	}
-
-	return msg
+	// If message is too long, truncate it (rune-safe, issue #33)
+	return common.TruncateRunes(msg, 100)
 }
 
 // extractErrorMessage extracts error message from tool response
@@ -123,19 +120,13 @@ func extractErrorMessage(response map[string]any) string {
 
 	if err, ok := response["error"]; ok {
 		if errStr, ok := err.(string); ok && errStr != "" {
-			if len(errStr) > 200 {
-				return errStr[:197] + "..."
-			}
-			return errStr
+			return common.TruncateRunes(errStr, 200)
 		}
 	}
 
 	if err, ok := response["message"]; ok {
 		if errStr, ok := err.(string); ok && errStr != "" {
-			if len(errStr) > 200 {
-				return errStr[:197] + "..."
-			}
-			return errStr
+			return common.TruncateRunes(errStr, 200)
 		}
 	}
 
