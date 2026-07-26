@@ -2,6 +2,8 @@ package doctor
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -67,6 +69,17 @@ func TestNewServiceWithOptions(t *testing.T) {
 }
 
 func TestService_Run(t *testing.T) {
+	// 断言 StatusInstalled 要求 ConfigExists==true;隔离 HOME 并显式创建
+	// config.yaml,不依赖开发机上真实的 ~/.agent-notify/config.yaml(CI 上没有)。
+	home := testutil.IsolateHome(t)
+	cfgPath := filepath.Join(home, ".agent-notify", "config.yaml")
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfgPath, []byte("version: 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
 	svc := NewService(
 		WithClaudeIntegration(&mockIntegration{
 			name:            "Claude Code",

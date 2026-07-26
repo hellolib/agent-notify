@@ -3,7 +3,6 @@ package codexhooks
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"os"
 	"path/filepath"
 
@@ -26,7 +25,7 @@ var managedEvents = []string{
 // BuildHookSettings 生成 Codex hooks.json 所需的 settings 结构。
 func BuildHookSettings(binaryPath string) map[string]any {
 	binaryPath = common.ResolveBinaryPath(binaryPath)
-	command := binaryPath + " " + hookCommandMarker
+	command := common.QuotePathForShell(binaryPath) + " " + hookCommandMarker
 
 	buildEntry := func() []map[string]any {
 		return []map[string]any{
@@ -57,7 +56,7 @@ func Install(path string, binaryPath string) error {
 	}
 
 	binaryPath = common.ResolveBinaryPath(binaryPath)
-	command := binaryPath + " " + hookCommandMarker
+	command := common.QuotePathForShell(binaryPath) + " " + hookCommandMarker
 
 	hooks, _ := settings["hooks"].(map[string]any)
 	if hooks == nil {
@@ -85,10 +84,12 @@ func Install(path string, binaryPath string) error {
 		return err
 	}
 
-	// 同步启用 config.toml 中的 [features] hooks = true
+	// 同步启用 config.toml 中的 [features] hooks = true。
+	// 失败必须显式上抛:features.hooks 未开启时 Codex 不会执行任何 hook,
+	// 静默吞掉会让向导显示「安装成功」而集成实际不可用(issue #31)。
 	configTomlPath := filepath.Join(filepath.Dir(path), "config.toml")
 	if err := EnableHooksFeature(configTomlPath); err != nil {
-		log.Printf("warning: failed to enable hooks feature in %s: %v", configTomlPath, err)
+		return err
 	}
 
 	return nil
@@ -212,5 +213,6 @@ func writeSettings(path string, settings map[string]any) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, out, 0o644)
+	// 用户配置文件:原子写 + 覆盖式 .bak 备份(issue #29)
+	return common.WriteFileAtomicWithBackup(path, out, 0o644)
 }

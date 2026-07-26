@@ -8,6 +8,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/hellolib/agent-notify/internal/common"
 )
 
 const (
@@ -45,12 +47,16 @@ func NewFocusStore(path string) *FocusStore {
 
 // Save 写入/更新一条 session -> window 映射，并顺带做 GC。
 // sessionID 或 windowID 为空时忽略。
+// load-modify-save 全程持跨进程文件锁,避免并发 SessionStart 互相丢更新。
 func (s *FocusStore) Save(sessionID, windowID string, now time.Time) error {
 	if sessionID == "" || windowID == "" {
 		return nil
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	lock := common.AcquireFileLock(s.path+".lock", lockTimeout)
+	defer lock.Release()
 
 	ff, err := s.load()
 	if err != nil {
@@ -102,14 +108,11 @@ func (s *FocusStore) load() (focusFile, error) {
 }
 
 func (s *FocusStore) save(ff focusFile) error {
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
-		return err
-	}
 	data, err := json.MarshalIndent(ff, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.path, data, 0o644)
+	return common.WriteFileAtomic(s.path, data, 0o644)
 }
 
 // pruneFocus 先删除超过 focusMaxAge 的过期项，再在超额时按 Updated 从旧到新裁剪到上限。

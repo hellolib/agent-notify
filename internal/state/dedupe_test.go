@@ -71,6 +71,57 @@ func TestStoreReserveSendPreventsDuplicateInFlightSend(t *testing.T) {
 	}
 }
 
+// 两个 Store 实例共享同一文件 = 生产拓扑(每次 hook 触发都是新进程)。
+// 预留必须落盘对彼此可见,进程内存 map 挡不住跨进程重复发送(issue #28)。
+func TestStoreReserveSendVisibleAcrossStoreInstances(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	now := time.Date(2026, 4, 5, 12, 0, 0, 0, time.UTC)
+	key := "claude:permission_required:sess-1:system"
+
+	allow, err := NewStore(path).ReserveSend(key, 60*time.Second, now)
+	if err != nil || !allow {
+		t.Fatalf("first instance ReserveSend() = (%v, %v), want (true, nil)", allow, err)
+	}
+
+	// 「另一个进程」:全新 Store 实例,只共享文件
+	allow, err = NewStore(path).ReserveSend(key, 60*time.Second, now.Add(time.Second))
+	if err != nil || allow {
+		t.Fatalf("second instance ReserveSend() = (%v, %v), want (false, nil)", allow, err)
+	}
+}
+
+// 损坏的 state.json 必须自愈为空 state,而不是永久报错——
+// 报错会级联为「所有通知静默停发」(issue #28)。
+func TestStoreSelfHealsFromCorruptedFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	if err := os.WriteFile(path, []byte(`{"last_sent": {"k": "torn-wri`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store := NewStore(path)
+	now := time.Date(2026, 4, 5, 12, 0, 0, 0, time.UTC)
+
+	allow, err := store.ReserveSend("key", 60*time.Second, now)
+	if err != nil || !allow {
+		t.Fatalf("ReserveSend() on corrupted file = (%v, %v), want (true, nil)", allow, err)
+	}
+	if err := store.MarkSent("key", 60*time.Second, now); err != nil {
+		t.Fatalf("MarkSent() should repair the file, got %v", err)
+	}
+
+	// 修复后文件应为合法 JSON
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var st fileState
+	if err := json.Unmarshal(data, &st); err != nil {
+		t.Fatalf("file still corrupted after MarkSent: %v", err)
+	}
+	if _, ok := st.LastSent["key"]; !ok {
+		t.Fatal("repaired file should contain the new key")
+	}
+}
+
 func TestStoreMarkSentPrunesExpiredEntries(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
 	store := NewStore(path)

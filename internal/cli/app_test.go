@@ -172,6 +172,7 @@ func TestRunInitWritesConfig(t *testing.T) {
 	// --settings 在 init 里是 no-op（见 actions.go），claude hook 实际写 HOME/.claude，
 	// 必须隔离 HOME，否则会污染真实 ~/.claude/settings.json。
 	testutil.IsolateHome(t)
+	testutil.FakeAgentsOnPath(t)
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	settingsPath := filepath.Join(dir, "settings.json")
@@ -263,7 +264,7 @@ func TestRunPrintHooks(t *testing.T) {
 	if !strings.Contains(stdout.String(), "PermissionRequest") {
 		t.Fatalf("stdout = %q, want PermissionRequest", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "/tmp/agent-notify handle-claude-hook") {
+	if !strings.Contains(stdout.String(), `\"/tmp/agent-notify\" handle-claude-hook`) {
 		t.Fatalf("stdout = %q, want binary command", stdout.String())
 	}
 }
@@ -323,6 +324,7 @@ func TestRunDoctorDetectsCodexHookConfig(t *testing.T) {
 
 func TestRunInitCanDisableSystemNotification(t *testing.T) {
 	testutil.IsolateHome(t) // init 忽略 --settings，claude hook 落到 HOME/.claude，需隔离
+	testutil.FakeAgentsOnPath(t)
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	settingsPath := filepath.Join(dir, "settings.json")
@@ -362,6 +364,7 @@ func TestRunInitCanDisableSystemNotification(t *testing.T) {
 
 func TestRunInitPartialEventsSelection(t *testing.T) {
 	testutil.IsolateHome(t) // init 忽略 --settings，claude hook 落到 HOME/.claude，需隔离
+	testutil.FakeAgentsOnPath(t)
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.yaml")
 	settingsPath := filepath.Join(dir, "settings.json")
@@ -400,6 +403,9 @@ func TestRunInitPartialEventsSelection(t *testing.T) {
 
 func TestRunInitInstallsCodexHookConfig(t *testing.T) {
 	dir := testutil.IsolateHome(t)
+	testutil.FakeAgentsOnPath(t)
+	testutil.FakeAgentsOnPath(t)
+	testutil.FakeAgentsOnPath(t)
 	configPath := filepath.Join(dir, "config.yaml")
 
 	// Mock prepareFeishuCLI to avoid actual feishu CLI interaction
@@ -457,6 +463,7 @@ func TestRunInitInstallsCodexHookConfig(t *testing.T) {
 // does not overwrite Claude Code's existing notify config
 func TestRunInitCodexDoesNotOverwriteClaudeCodeConfig(t *testing.T) {
 	dir := testutil.IsolateHome(t)
+	testutil.FakeAgentsOnPath(t)
 	configPath := filepath.Join(dir, "config.yaml")
 
 	// Mock prepareFeishuCLI to avoid actual feishu CLI interaction
@@ -537,6 +544,7 @@ func TestRunInitCodexDoesNotOverwriteClaudeCodeConfig(t *testing.T) {
 // correctly updates the config (editing scenario)
 func TestRunInitEditSameAgentConfig(t *testing.T) {
 	dir := testutil.IsolateHome(t)
+	testutil.FakeAgentsOnPath(t)
 	configPath := filepath.Join(dir, "config.yaml")
 
 	// Mock prepareFeishuCLI to avoid actual feishu CLI interaction
@@ -613,6 +621,7 @@ func TestRunInitEditSameAgentConfig(t *testing.T) {
 // does not overwrite Codex's existing notify config
 func TestRunInitClaudeCodeDoesNotOverwriteCodexConfig(t *testing.T) {
 	dir := testutil.IsolateHome(t)
+	testutil.FakeAgentsOnPath(t)
 	configPath := filepath.Join(dir, "config.yaml")
 
 	// Mock prepareFeishuCLI to avoid actual feishu CLI interaction

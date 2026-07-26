@@ -26,7 +26,7 @@ var managedEvents = []string{
 
 func BuildHookSettings(binaryPath string) map[string]any {
 	binaryPath = common.ResolveBinaryPath(binaryPath)
-	command := binaryPath + " " + hookCommandMarker
+	command := common.QuotePathForShell(binaryPath) + " " + hookCommandMarker
 
 	entry := func() []map[string]any {
 		return []map[string]any{
@@ -57,7 +57,7 @@ func Install(path string, binaryPath string) error {
 	}
 
 	binaryPath = common.ResolveBinaryPath(binaryPath)
-	command := binaryPath + " " + hookCommandMarker
+	command := common.QuotePathForShell(binaryPath) + " " + hookCommandMarker
 
 	hooks, _ := settings["hooks"].(map[string]any)
 	if hooks == nil {
@@ -202,5 +202,6 @@ func writeSettings(path string, settings map[string]any) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, out, 0o644)
+	// 用户配置文件:原子写 + 覆盖式 .bak 备份(issue #29)
+	return common.WriteFileAtomicWithBackup(path, out, 0o644)
 }

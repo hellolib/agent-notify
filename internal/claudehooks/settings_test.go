@@ -27,8 +27,8 @@ func TestBuildHookSettings(t *testing.T) {
 		if !ok || len(entryHooks) != 1 {
 			t.Fatalf("%s command hooks missing or invalid", event)
 		}
-		if entryHooks[0]["command"] != "/tmp/agent-notify handle-claude-hook" {
-			t.Fatalf("%s command = %v, want /tmp/agent-notify handle-claude-hook", event, entryHooks[0]["command"])
+		if entryHooks[0]["command"] != `"/tmp/agent-notify" handle-claude-hook` {
+			t.Fatalf(`%s command = %v, want "/tmp/agent-notify" handle-claude-hook`, event, entryHooks[0]["command"])
 		}
 	}
 }
@@ -277,4 +277,27 @@ func containsSubstring(haystack []string, needle string) bool {
 		}
 	}
 	return false
+}
+
+// TestInstallBacksUpExistingSettings 改写已有 settings.json 前应落 .bak 备份,
+// 逻辑写坏时用户有恢复路径(issue #29)。
+func TestInstallBacksUpExistingSettings(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	original := `{"theme":"dark"}`
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Install(path, "/tmp/agent-notify"); err != nil {
+		t.Fatalf("install error = %v", err)
+	}
+
+	bak, err := os.ReadFile(path + common.BackupSuffix)
+	if err != nil {
+		t.Fatalf("backup missing: %v", err)
+	}
+	if string(bak) != original {
+		t.Fatalf("backup = %q, want original content", bak)
+	}
 }
