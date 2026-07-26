@@ -16,6 +16,7 @@ import (
 // channel-menu init enabled webhooks on every agent).
 func TestRunInitGrokWechatOnlyShowsGrokConfiguredInView(t *testing.T) {
 	dir := testutil.IsolateHome(t)
+	testutil.FakeAgentsOnPath(t)
 	configPath := filepath.Join(dir, ".agent-notify", "config.yaml")
 
 	useFakePrompter(t, &fakePrompter{
