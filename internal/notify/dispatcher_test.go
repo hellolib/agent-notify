@@ -3,6 +3,7 @@ package notify
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -122,6 +123,31 @@ func TestDispatcherSendAllDoesNotDuplicateConcurrentSendsForSameSender(t *testin
 
 	if sender.calls != 1 {
 		t.Fatalf("sender calls = %d, want 1", sender.calls)
+	}
+}
+
+// store 故障时必须 fail-open 照发(issue #28):漏发的代价远大于重复。
+// 把 state.json 路径造成目录,使 load/save 都必然失败。
+func TestDispatcherSendAllFailsOpenOnStoreError(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	if err := os.MkdirAll(statePath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	store := state.NewStore(statePath)
+	sender := &fakeSender{name: "system"}
+	dispatcher := NewDispatcher(store, 60*time.Second, sender)
+
+	err := dispatcher.SendAll(context.Background(), Message{
+		Agent:     "claude",
+		Event:     "permission_required",
+		SessionID: "sess-1",
+	})
+
+	if sender.calls != 1 {
+		t.Fatalf("sender calls = %d, want 1 (must send despite store failure)", sender.calls)
+	}
+	if err == nil {
+		t.Fatal("SendAll() error = nil, want store error surfaced for logging")
 	}
 }
 

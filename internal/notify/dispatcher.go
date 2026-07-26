@@ -27,6 +27,10 @@ func NewDispatcher(store *state.Store, window time.Duration, senders ...Sender) 
 	}
 }
 
+// SendAll 对 store 故障 fail-open:去重是尽力而为的降噪层,不是正确性保障。
+// 本工具的存在意义是「agent 需要你时你一定知道」——漏发一条 permission_required
+// 的代价(agent 干等)远大于重复一条的代价,因此 store 出错时照发不误,
+// 错误仅记入返回值供调用方写日志,绝不因 store 中止剩余 sender。
 func (d *Dispatcher) SendAll(ctx context.Context, msg Message) error {
 	var errs []string
 	for _, sender := range d.senders {
@@ -34,7 +38,7 @@ func (d *Dispatcher) SendAll(ctx context.Context, msg Message) error {
 		key := dedupeKey(msg, sender.Name(), os.Getppid())
 		allow, err := d.store.ReserveSend(key, d.window, now)
 		if err != nil {
-			return err
+			errs = append(errs, fmt.Sprintf("%s: dedupe store: %v", sender.Name(), err))
 		}
 		if !allow {
 			continue
@@ -45,7 +49,7 @@ func (d *Dispatcher) SendAll(ctx context.Context, msg Message) error {
 			continue
 		}
 		if err := d.store.MarkSent(key, d.window, now); err != nil {
-			return err
+			errs = append(errs, fmt.Sprintf("%s: mark sent: %v", sender.Name(), err))
 		}
 	}
 
