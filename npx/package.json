@@ -1,11 +1,25 @@
 {
   "name": "agent-notify",
-  "version": "0.7.1",
+  "version": "0.14.3",
   "description": "Get notified the moment your AI coding agent needs you — Claude Code, Codex, ZCode & Grok → phone & desktop (Feishu, WeCom, DingTalk, Bark, ntfy, Slack).",
   "keywords": [
-    "claude-code", "codex", "zcode", "grok", "ai-agent", "agent",
-    "notifications", "desktop-notification", "hooks", "cli",
-    "feishu", "lark", "bark", "ntfy", "slack", "dingtalk", "wecom"
+    "claude-code",
+    "codex",
+    "zcode",
+    "grok",
+    "ai-agent",
+    "agent",
+    "notifications",
+    "desktop-notification",
+    "hooks",
+    "cli",
+    "feishu",
+    "lark",
+    "bark",
+    "ntfy",
+    "slack",
+    "dingtalk",
+    "wecom"
   ],
   "homepage": "https://github.com/hellolib/agent-notify#readme",
   "repository": {
