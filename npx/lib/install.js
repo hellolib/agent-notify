@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const crypto = require('node:crypto');
 const tar = require('tar');
 
 function isUnsafeArchivePath(entryPath) {
@@ -19,7 +20,9 @@ async function installFromArchive({ archivePath, installDir, binaryNameInArchive
 
   const extractDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-notify-extract-'));
   const finalPath = path.join(installDir, finalBinaryName);
-  const tempFinalPath = `${finalPath}.tmp`;
+  // 临时文件名带 pid + 随机后缀:两个 npx 并发首装(两个 agent 同时启动)时
+  // 各写各的,且 finally 里的清理只会删掉自己的那份(issue #38)。
+  const tempFinalPath = `${finalPath}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`;
 
   try {
     const entries = [];

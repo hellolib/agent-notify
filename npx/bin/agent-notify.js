@@ -32,16 +32,25 @@ async function downloadAndInstall(version, target, binaryPath) {
   fs.mkdirSync(TMP_DIR, { recursive: true });
 
   const assetName = buildAssetName(version, target);
-  const archivePath = path.join(TMP_DIR, assetName);
   const binaryNameInArchive = `agent-notify-v${version}-${target.goos}-${target.goarch}${target.ext}`;
 
-  await downloadToFile(buildDownloadUrl(version, assetName), archivePath);
-  const installed = installFromArchive({
-    archivePath,
-    installDir: path.dirname(binaryPath),
-    binaryNameInArchive,
-    finalBinaryName: path.basename(binaryPath),
-  });
+  // 下载到本次调用独占的临时目录:共享的确定性路径会让两个并发 npx
+  // (两个 agent 同时首启)互相截断下载,产生损坏的 gzip(issue #38)。
+  const downloadDir = fs.mkdtempSync(path.join(TMP_DIR, 'download-'));
+  const archivePath = path.join(downloadDir, assetName);
+
+  let installed;
+  try {
+    await downloadToFile(buildDownloadUrl(version, assetName), archivePath);
+    installed = await installFromArchive({
+      archivePath,
+      installDir: path.dirname(binaryPath),
+      binaryNameInArchive,
+      finalBinaryName: path.basename(binaryPath),
+    });
+  } finally {
+    fs.rmSync(downloadDir, { recursive: true, force: true });
+  }
 
   // macOS：terminal-notifier.app 已随 tar.gz 解压到 installDir（见 install.js），
   // 此处只做 quarantine 清除与 ad-hoc 签名（点击跳转依赖）。失败仅警告，不阻断主流程。

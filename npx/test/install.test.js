@@ -215,3 +215,37 @@ test('rejects with timeout error when download takes too long', async (t) => {
   );
   assert.equal(fs.existsSync(destinationPath), false);
 });
+
+// issue #38:两个 npx 并发首装时,临时文件名必须互不冲突,
+// 否则一方的 finally 清理会删掉另一方进行中的临时拷贝。
+test('concurrent installs from the same archive both succeed', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-notify-concurrent-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const installDir = path.join(root, '.agent-notify');
+  const archivePath = path.join(root, 'agent-notify-v0.2.3-linux-amd64.tar.gz');
+  const extractedBinaryName = 'agent-notify-v0.2.3-linux-amd64';
+
+  fs.mkdirSync(path.join(root, 'src'));
+  fs.writeFileSync(path.join(root, 'src', extractedBinaryName), 'new-binary');
+  await tar.c({ gzip: true, file: archivePath, cwd: path.join(root, 'src') }, [extractedBinaryName]);
+  fs.mkdirSync(installDir, { recursive: true });
+
+  const opts = {
+    archivePath,
+    installDir,
+    binaryNameInArchive: extractedBinaryName,
+    finalBinaryName: 'agent-notify',
+  };
+  const results = await Promise.all([
+    installFromArchive({ ...opts }),
+    installFromArchive({ ...opts }),
+    installFromArchive({ ...opts }),
+  ]);
+
+  for (const installedPath of results) {
+    assert.equal(fs.readFileSync(installedPath, 'utf8'), 'new-binary');
+  }
+  // 不留下任何 .tmp- 残骸
+  const leftovers = fs.readdirSync(installDir).filter((name) => name.includes('.tmp-'));
+  assert.deepEqual(leftovers, []);
+});
