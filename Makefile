@@ -1,4 +1,4 @@
-.PHONY: build test run clean install lint fmt vet help tag npm-publish release
+.PHONY: build test run clean install lint fmt vet help tag npm-publish release check-release-version
 
 # Binary name
 BINARY_NAME=agent-notify
@@ -109,36 +109,44 @@ help:
 # Release parameters
 NPX_DIR=npx
 
+# VERSION 顶部有 `?=` 默认值(git describe),所以 `ifndef VERSION` 永远不成立——
+# 不传 VERSION 时它会静默变成 "v0.14.3-15-gabc1234-dirty" 之类,照样打 tag、
+# 推远端、触发 release workflow,发出一个垃圾 release。因此改为校验格式:
+# 只接受 vX.Y.Z(可带 -rc1 之类后缀),git describe 的产物一律拒绝。
+check-release-version:
+	@echo "$(VERSION)" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$$' || { \
+		echo "Error: VERSION must look like v1.2.3 (got: '$(VERSION)')."; \
+		echo "       Usage: make $(MAKECMDGOALS) VERSION=v0.1.0"; \
+		exit 1; \
+	}
+
 ## tag: Create and push a git tag (usage: make tag VERSION=v0.1.0)
-tag:
-ifndef VERSION
-	@echo "Error: VERSION is required. Usage: make tag VERSION=v0.1.0"
-	@exit 1
-endif
+tag: check-release-version
 	@echo "Creating tag $(VERSION)..."
 	git tag -a $(VERSION) -m "Release $(VERSION)"
 	git push origin $(VERSION)
 	@echo "Tag $(VERSION) created and pushed to remote"
 
-## npm-publish: Publish npm package (usage: make npm-publish VERSION=v0.1.0)
-npm-publish:
-ifndef VERSION
-	@echo "Error: VERSION is required. Usage: make npm-publish VERSION=v0.1.0"
-	@exit 1
-endif
+## npm-publish: Manually publish npm package (fallback; CI normally does this)
+npm-publish: check-release-version
 	@echo "Publishing to npm..."
+	@echo "NOTE: release.yml publishes automatically after the GitHub Release is"
+	@echo "      uploaded. Only run this by hand if that job failed."
 	@NPM_VERSION=$$(echo $(VERSION) | sed 's/^v//'); \
 	cd $(NPX_DIR) && npm version $$NPM_VERSION --no-git-tag-version --allow-same-version && npm publish --access public
 	@git checkout $(NPX_DIR)/package.json $(NPX_DIR)/package-lock.json 2>/dev/null || true
 	@echo "Published $(VERSION) to npm"
 
-## release: Create tag and publish to npm (usage: make release VERSION=v0.1.0)
-release:
-ifndef VERSION
-	@echo "Error: VERSION is required. Usage: make release VERSION=v0.1.0"
-	@exit 1
-endif
+## release: Push the release tag; CI builds, publishes the GitHub Release, then npm (usage: make release VERSION=v0.1.0)
+release: check-release-version
 	@echo "Starting release $(VERSION)..."
 	$(MAKE) tag VERSION=$(VERSION)
-	$(MAKE) npm-publish VERSION=$(VERSION)
-	@echo "Release $(VERSION) completed!"
+	@echo ""
+	@echo "Tag pushed. release.yml now:"
+	@echo "  1. builds the 6-target matrix"
+	@echo "  2. publishes the GitHub Release + SHA256SUMS"
+	@echo "  3. publishes to npm (only after step 2 succeeds)"
+	@echo ""
+	@echo "Watch it with: gh run watch"
+	@echo "npm publish is intentionally NOT run from here: doing so raced the"
+	@echo "release build and left first-time npx users downloading a 404."
