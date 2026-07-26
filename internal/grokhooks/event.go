@@ -18,24 +18,24 @@ import (
 // Grok 文档示例使用 camelCase 字段名，hookEventName 的值为 snake_case
 // （如 pre_tool_use / session_start）。同时兼容 PascalCase 与下划线字段名。
 type payload struct {
-	HookEventName         string         `json:"hook_event_name"`
-	HookEventNameCamel    string         `json:"hookEventName"`
-	SessionID             string         `json:"session_id"`
-	SessionIDCamel        string         `json:"sessionId"`
-	CWD                   string         `json:"cwd"`
-	WorkspaceRoot         string         `json:"workspaceRoot"`
-	Message               string         `json:"message"`
-	NotificationType      string         `json:"notification_type"`
-	NotificationTypeCamel string         `json:"notificationType"`
-	ToolName              string         `json:"tool_name"`
-	ToolNameCamel         string         `json:"toolName"`
+	HookEventName         string `json:"hook_event_name"`
+	HookEventNameCamel    string `json:"hookEventName"`
+	SessionID             string `json:"session_id"`
+	SessionIDCamel        string `json:"sessionId"`
+	CWD                   string `json:"cwd"`
+	WorkspaceRoot         string `json:"workspaceRoot"`
+	Message               string `json:"message"`
+	NotificationType      string `json:"notification_type"`
+	NotificationTypeCamel string `json:"notificationType"`
+	ToolName              string `json:"tool_name"`
+	ToolNameCamel         string `json:"toolName"`
 	// RawMessage 容错:tool_response 可能是对象/字符串/数组(issue #32)
-	ToolResponse          json.RawMessage `json:"tool_response"`
-	ToolResponseCamel     json.RawMessage `json:"toolResponse"`
-	ToolInput             json.RawMessage `json:"tool_input"`
-	ToolInputCamel        json.RawMessage `json:"toolInput"`
-	Error                 string         `json:"error"`
-	ErrorMessage          string         `json:"errorMessage"`
+	ToolResponse      json.RawMessage `json:"tool_response"`
+	ToolResponseCamel json.RawMessage `json:"toolResponse"`
+	ToolInput         json.RawMessage `json:"tool_input"`
+	ToolInputCamel    json.RawMessage `json:"toolInput"`
+	Error             string          `json:"error"`
+	ErrorMessage      string          `json:"errorMessage"`
 }
 
 func (p payload) eventOf() string {

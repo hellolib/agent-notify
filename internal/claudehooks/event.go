@@ -10,15 +10,15 @@ import (
 )
 
 type payload struct {
-	HookEventName string         `json:"hook_event_name"`
-	SessionID     string         `json:"session_id"`
-	CWD           string         `json:"cwd"`
-	Message       string         `json:"message"`
-	ToolName      string         `json:"tool_name"`
+	HookEventName string `json:"hook_event_name"`
+	SessionID     string `json:"session_id"`
+	CWD           string `json:"cwd"`
+	Message       string `json:"message"`
+	ToolName      string `json:"tool_name"`
 	// tool_response / tool_input 依工具而异(对象/字符串/数组),用 RawMessage
 	// 容错解析,单字段类型意外不丢整个事件(issue #32)
-	ToolResponse  json.RawMessage `json:"tool_response"`
-	ToolInput     json.RawMessage `json:"tool_input"`
+	ToolResponse json.RawMessage `json:"tool_response"`
+	ToolInput    json.RawMessage `json:"tool_input"`
 }
 
 func ParseMessage(data []byte) (notify.Message, error) {

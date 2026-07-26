@@ -12,16 +12,16 @@ import (
 // payload 描述 Codex hooks 通过 stdin 投递的事件 JSON。
 // 字段与 Codex 官方 hook schema 对齐，未使用的字段也保留以便排查。
 type payload struct {
-	HookEventName        string         `json:"hook_event_name"`
-	SessionID            string         `json:"session_id"`
-	CWD                  string         `json:"cwd"`
-	Model                string         `json:"model"`
-	PermissionMode       string         `json:"permission_mode"`
-	TurnID               string         `json:"turn_id"`
-	ToolName             string         `json:"tool_name"`
-	ToolInput            json.RawMessage `json:"tool_input"`  // 容错:形态依工具而异(issue #32)
+	HookEventName        string          `json:"hook_event_name"`
+	SessionID            string          `json:"session_id"`
+	CWD                  string          `json:"cwd"`
+	Model                string          `json:"model"`
+	PermissionMode       string          `json:"permission_mode"`
+	TurnID               string          `json:"turn_id"`
+	ToolName             string          `json:"tool_name"`
+	ToolInput            json.RawMessage `json:"tool_input"`       // 容错:形态依工具而异(issue #32)
 	StopHookActive       json.RawMessage `json:"stop_hook_active"` // 容错:接受 bool 或 "true"/"false"
-	LastAssistantMessage string         `json:"last_assistant_message"`
+	LastAssistantMessage string          `json:"last_assistant_message"`
 }
 
 func ParseMessage(data []byte) (notify.Message, error) {

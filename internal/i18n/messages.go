@@ -146,6 +146,7 @@ var catalog = map[string]map[Lang]string{
 	"status.integration_agent_missing":  {ZhCN: "❌ 未安装 Agent", EnUS: "❌ Agent not found"},
 	"status.integration_config_missing": {ZhCN: "❌ 缺少配置", EnUS: "❌ Config missing"},
 	"status.integration_not_integrated": {ZhCN: "❌ 未集成", EnUS: "❌ Not integrated"},
+	"status.integration_binary_missing": {ZhCN: "❌ 程序缺失", EnUS: "❌ Binary missing"},
 	"status.integration_unknown":        {ZhCN: "❌ 未知", EnUS: "❌ Unknown"},
 	"doctor.system_notify_name":         {ZhCN: "系统通知", EnUS: "System Notification"},
 

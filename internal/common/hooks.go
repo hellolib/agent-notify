@@ -47,3 +47,32 @@ func ToAnySlice(v any) []any {
 		return nil
 	}
 }
+
+// SyncManagedHookCommand 遍历 event 下的托管 hook(command 含 commandMarker),
+// 将其 command 更新为 want。返回 (是否存在托管 hook, 是否发生了修改)。
+// 存在但命令不同(如二进制从本地构建切到 npx 安装路径)时原位替换,
+// 修复「重装不更新过期路径」的问题(issue #34)。
+func SyncManagedHookCommand(hooks map[string]any, event, commandMarker, want string) (found, changed bool) {
+	for _, entry := range ToAnySlice(hooks[event]) {
+		entryMap, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		for _, h := range ToAnySlice(entryMap["hooks"]) {
+			m, ok := h.(map[string]any)
+			if !ok {
+				continue
+			}
+			cmd, _ := m["command"].(string)
+			if !strings.Contains(cmd, commandMarker) {
+				continue
+			}
+			found = true
+			if cmd != want {
+				m["command"] = want
+				changed = true
+			}
+		}
+	}
+	return found, changed
+}

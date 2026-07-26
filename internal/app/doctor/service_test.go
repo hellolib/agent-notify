@@ -273,7 +273,11 @@ func TestPadRight(t *testing.T) {
 }
 
 func TestSummarizeMacFocus(t *testing.T) {
-	cases := []struct{ precision string; helper bool; want string }{
+	cases := []struct {
+		precision string
+		helper    bool
+		want      string
+	}{
 		{"app", true, "app"},
 		{"app", false, "app"},
 		{"window", true, "window-ready"},
@@ -288,8 +292,8 @@ func TestSummarizeMacFocus(t *testing.T) {
 
 func TestFocusPrecisionI18nKey(t *testing.T) {
 	cases := map[string]string{
-		"app":           "doctor.focus_precision_app",
-		"window-ready":  "doctor.focus_precision_window_ready",
+		"app":            "doctor.focus_precision_app",
+		"window-ready":   "doctor.focus_precision_window_ready",
 		"window-degrade": "doctor.focus_precision_window_degrade",
 	}
 	for status, want := range cases {
@@ -311,16 +315,16 @@ func TestFirstEnabledAgentSystemPrecision(t *testing.T) {
 	}
 	// Claude enabled with window precision takes precedence.
 	r = &DiagnosticsResult{
-		ClaudeSystemEnabled:         true,
-		ClaudeSystemFocusPrecision:  "window",
+		ClaudeSystemEnabled:        true,
+		ClaudeSystemFocusPrecision: "window",
 	}
 	if got := firstEnabledAgentSystemPrecision(r); got != "window" {
 		t.Fatalf("firstEnabledAgentSystemPrecision(claude)=%q want window", got)
 	}
 	// Claude disabled, Codex enabled -> Codex precision.
 	r = &DiagnosticsResult{
-		CodexSystemEnabled:         true,
-		CodexSystemFocusPrecision:  "window",
+		CodexSystemEnabled:        true,
+		CodexSystemFocusPrecision: "window",
 	}
 	if got := firstEnabledAgentSystemPrecision(r); got != "window" {
 		t.Fatalf("firstEnabledAgentSystemPrecision(codex)=%q want window", got)
