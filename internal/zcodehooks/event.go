@@ -24,8 +24,8 @@ type payload struct {
 	PermissionMode    string         `json:"permission_mode"`
 	TurnID            string         `json:"turn_id"`
 	ToolName          string         `json:"tool_name"`
-	ToolInput         map[string]any `json:"tool_input"`
-	StopHookActive    bool           `json:"stop_hook_active"`
+	ToolInput         json.RawMessage `json:"tool_input"`  // 容错:形态依工具而异(issue #32)
+	StopHookActive    json.RawMessage `json:"stop_hook_active"` // 容错:接受 bool 或 "true"/"false"
 	Message           string         `json:"message"` // Notification 原因（ZCode 当前无此事件，保留）
 }
 

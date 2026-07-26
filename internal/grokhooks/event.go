@@ -29,10 +29,11 @@ type payload struct {
 	NotificationTypeCamel string         `json:"notificationType"`
 	ToolName              string         `json:"tool_name"`
 	ToolNameCamel         string         `json:"toolName"`
-	ToolResponse          map[string]any `json:"tool_response"`
-	ToolResponseCamel     map[string]any `json:"toolResponse"`
-	ToolInput             map[string]any `json:"tool_input"`
-	ToolInputCamel        map[string]any `json:"toolInput"`
+	// RawMessage 容错:tool_response 可能是对象/字符串/数组(issue #32)
+	ToolResponse          json.RawMessage `json:"tool_response"`
+	ToolResponseCamel     json.RawMessage `json:"toolResponse"`
+	ToolInput             json.RawMessage `json:"tool_input"`
+	ToolInputCamel        json.RawMessage `json:"toolInput"`
 	Error                 string         `json:"error"`
 	ErrorMessage          string         `json:"errorMessage"`
 }
@@ -66,10 +67,10 @@ func (p payload) toolNameOf() string {
 }
 
 func (p payload) toolResponseOf() map[string]any {
-	if p.ToolResponse != nil {
-		return p.ToolResponse
+	if m := common.LenientObject(p.ToolResponse); m != nil {
+		return m
 	}
-	return p.ToolResponseCamel
+	return common.LenientObject(p.ToolResponseCamel)
 }
 
 func (p payload) notificationTypeOf() string {
