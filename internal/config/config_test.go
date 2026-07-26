@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -57,6 +58,12 @@ func TestDefaultConfigUsesAgentScopedNotifyConfig(t *testing.T) {
 }
 
 func TestSaveUsesOwnerOnlyPermissions(t *testing.T) {
+	// Windows 无 POSIX 权限位:os.Stat 对可写文件恒返回 0666,Chmod 只能切换
+	// 只读位,0600/0700 断言在 Windows 上永远不成立(issue #20 的权限收紧
+	// 本身就只对 Unix 有意义)。
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permission bits are not applicable on Windows")
+	}
 	dir := t.TempDir()
 	// Parent is a temp dir (usually 0700); Save still creates config dir if needed.
 	cfgDir := filepath.Join(dir, ".agent-notify")
