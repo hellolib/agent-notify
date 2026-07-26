@@ -91,8 +91,18 @@ jobs:
       - name: List artifacts
         run: ls -la artifacts/
 
+      # 生成校验和清单,供 npx 启动器在安装前验证下载完整性(issue #37)。
+      # 文件名与 tar.gz 同目录相对,便于 `sha256sum -c SHA256SUMS` 直接复核。
+      - name: Generate SHA256SUMS
+        working-directory: artifacts
+        run: |
+          sha256sum *.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*.tar.gz
+          files: |
+            artifacts/*.tar.gz
+            artifacts/SHA256SUMS
           generate_release_notes: true
