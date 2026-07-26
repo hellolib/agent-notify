@@ -44,7 +44,7 @@ var managedEvents = []string{
 //	}
 func BuildHookSettings(binaryPath string) map[string]any {
 	binaryPath = common.ResolveBinaryPath(binaryPath)
-	command := binaryPath + " " + hookCommandMarker
+	command := common.QuotePathForShell(binaryPath) + " " + hookCommandMarker
 
 	buildEntry := func() []map[string]any {
 		return []map[string]any{
@@ -79,7 +79,7 @@ func Install(path string, binaryPath string) error {
 	}
 
 	binaryPath = common.ResolveBinaryPath(binaryPath)
-	command := binaryPath + " " + hookCommandMarker
+	command := common.QuotePathForShell(binaryPath) + " " + hookCommandMarker
 
 	hooks, _ := settings["hooks"].(map[string]any)
 	if hooks == nil {

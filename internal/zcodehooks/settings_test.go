@@ -36,7 +36,7 @@ func TestBuildHookSettingsStructure(t *testing.T) {
 		if !ok || len(entryHooks) != 1 {
 			t.Fatalf("%s command hooks missing or invalid", event)
 		}
-		if entryHooks[0]["command"] != "/tmp/agent-notify handle-zcode-hook" {
+		if entryHooks[0]["command"] != `"/tmp/agent-notify" handle-zcode-hook` {
 			t.Fatalf("%s command = %v, want /tmp/agent-notify handle-zcode-hook", event, entryHooks[0]["command"])
 		}
 	}

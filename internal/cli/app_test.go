@@ -263,7 +263,7 @@ func TestRunPrintHooks(t *testing.T) {
 	if !strings.Contains(stdout.String(), "PermissionRequest") {
 		t.Fatalf("stdout = %q, want PermissionRequest", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "/tmp/agent-notify handle-claude-hook") {
+	if !strings.Contains(stdout.String(), `\"/tmp/agent-notify\" handle-claude-hook`) {
 		t.Fatalf("stdout = %q, want binary command", stdout.String())
 	}
 }
