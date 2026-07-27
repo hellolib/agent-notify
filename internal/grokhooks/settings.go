@@ -114,11 +114,18 @@ func Uninstall(path string) error {
 	}
 
 	if hooks.Len() == 0 {
-		// 文件已空：删除专用 hook 文件，避免留下空 JSON
-		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return err
+		// settings 此时还带着 hooks 键,所以 Len()==1 就等价于「hooks 是唯一顶层键」,
+		// 即这个文件除了我们的 hook 之外一无所有,删掉它才是安全的。
+		// 文件里还有用户自己加的顶层键($schema、description 之类)时只摘掉 hooks——
+		// 旧实现在这里无条件 os.Remove,把那些键一并抹掉。
+		if settings.Len() == 1 {
+			if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			return nil
 		}
-		return nil
+		settings.Delete("hooks")
+		return common.WriteOrderedSettings(path, settings)
 	}
 
 	if err := common.SetChildObject(&settings, "hooks", hooks); err != nil {

@@ -227,3 +227,61 @@ func TestUninstallKeepsNonArrayHookValue(t *testing.T) {
 		t.Fatalf("托管 hook 未被移除:\n%s", data)
 	}
 }
+
+// TestUninstallKeepsFileWithOtherTopLevelKeys 是 issue #39 第 7 项的回归测试。
+// 旧实现只看 hooks 是否清空就 os.Remove 整个文件,用户自己加在同一文件里的
+// 其它顶层键(注释性的 description、编辑器补全用的 $schema 等)一并消失。
+func TestUninstallKeepsFileWithOtherTopLevelKeys(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "agent-notify.json")
+	original := `{
+  "$schema": "https://example.invalid/grok-hooks.json",
+  "description": "我的 grok 钩子集合",
+  "hooks": {}
+}`
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Install(path, "/tmp/agent-notify"); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	if err := Uninstall(path); err != nil {
+		t.Fatalf("Uninstall() error = %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("文件被整个删掉了,用户的其它顶层键一并消失: %v", err)
+	}
+	got := string(data)
+	for _, want := range []string{`"$schema"`, `"description"`, "我的 grok 钩子集合"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("顶层键 %s 丢失:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `"hooks"`) {
+		t.Fatalf("hooks 清空后应被移除:\n%s", got)
+	}
+}
+
+// TestUninstallRemovesFileWhenHooksIsTheOnlyKey 文件确实只为本插件服务时,
+// 删掉整个文件而不是留一个空 JSON。
+func TestUninstallRemovesFileWhenHooksIsTheOnlyKey(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "agent-notify.json")
+	if err := os.WriteFile(path, []byte(`{"hooks":{}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Install(path, "/tmp/agent-notify"); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	if err := Uninstall(path); err != nil {
+		t.Fatalf("Uninstall() error = %v", err)
+	}
+
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("hooks 是唯一顶层键时文件应被删除, stat err = %v", err)
+	}
+}
