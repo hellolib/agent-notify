@@ -183,3 +183,58 @@ func TestWriteFileAtomicWithBackupTightensLegacyBackupPermissions(t *testing.T) 
 		t.Fatalf("legacy backup perm = %v, want 0600", got)
 	}
 }
+
+func TestWriteFileAtomicWithBackupSkipsUnchangedContent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+
+	if err := WriteFileAtomicWithBackup(path, []byte("v1"), 0o644); err != nil {
+		t.Fatalf("first write: %v", err)
+	}
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+
+	// 同样的内容再写一次:重跑 setup / doctor 是常态
+	if err := WriteFileAtomicWithBackup(path, []byte("v1"), 0o644); err != nil {
+		t.Fatalf("second write: %v", err)
+	}
+
+	if _, err := os.Stat(path + BackupSuffix); !os.IsNotExist(err) {
+		t.Fatal("内容未变时不应落备份")
+	}
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if !after.ModTime().Equal(before.ModTime()) {
+		t.Fatalf("mtime 变了(%v -> %v),说明发生了无谓写入", before.ModTime(), after.ModTime())
+	}
+}
+
+func TestWriteFileAtomicWithBackupKeepsOriginalBackupOnRepeatedWrite(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+
+	// 用户的原始文件
+	if err := WriteFileAtomicWithBackup(path, []byte("original"), 0o644); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	// 首次安装:备份 = original
+	if err := WriteFileAtomicWithBackup(path, []byte("installed"), 0o644); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	// 重跑 setup,内容一字未变
+	if err := WriteFileAtomicWithBackup(path, []byte("installed"), 0o644); err != nil {
+		t.Fatalf("reinstall: %v", err)
+	}
+
+	// 备份仍须是安装前的原始文件,而不是被刷成 installed——
+	// 否则重跑一次 setup 就把用户的恢复路径抹掉了
+	bak, err := os.ReadFile(path + BackupSuffix)
+	if err != nil {
+		t.Fatalf("read backup: %v", err)
+	}
+	if string(bak) != "original" {
+		t.Fatalf("backup = %q, want original", bak)
+	}
+}

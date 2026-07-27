@@ -1,6 +1,7 @@
 package common
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 )
@@ -62,8 +63,16 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
 // 备份若落成 0644,等于把同一份密钥换个文件名泄漏出去。这里写完后显式
 // Chmod,好把旧版本以 0644 落下的历史备份一并收紧——只靠 WriteFileAtomic
 // 的「已存在则保留」语义会把错误权限锁死。
+//
+// 内容与磁盘上一字不差时直接返回,不写盘也不落备份。重跑 setup / doctor
+// 是常态,而备份是覆盖式的「上一版」:无谓写入会把它从「安装前的原始文件」
+// 刷成「上次安装后的文件」,用户的恢复路径就此消失。附带好处是 dotfiles
+// 用户不会看到只有 mtime 变化的 diff。
 func WriteFileAtomicWithBackup(path string, data []byte, perm os.FileMode) error {
 	if old, err := os.ReadFile(path); err == nil {
+		if bytes.Equal(old, data) {
+			return nil
+		}
 		backupPath := path + BackupSuffix
 		backupPerm := perm
 		if st, statErr := os.Stat(path); statErr == nil {
