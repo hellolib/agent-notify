@@ -96,7 +96,7 @@ async function downloadAndInstall(version, target, binaryPath, warn = (m) => con
 }
 
 async function main(argv, deps = {}) {
-  const desiredVersion = (deps.getDesiredVersion || getDesiredVersion)();
+  const rawDesiredVersion = (deps.getDesiredVersion || getDesiredVersion)();
   const target = (deps.getPlatformTarget || getPlatformTarget)();
   const binaryPath = (deps.getInstalledBinaryPath || getInstalledBinaryPath)(target);
   const pathExists = deps.pathExists || fs.existsSync;
@@ -113,7 +113,25 @@ async function main(argv, deps = {}) {
   }
   const canFallbackToInstalledBinary = Boolean(installedVersion);
 
-  const needsInstall = !hasInstalledBinary || !installedVersion || compare(installedVersion, desiredVersion) < 0;
+  // package.json 的 version 由 CI 从 tag 写入,正常情况下必然合法。手工改坏了
+  // 的话,与其带着垃圾去拼一个必然 404 的下载地址(还要先耗掉一次网络往返),
+  // 不如就地说清楚。已有可用二进制时降级运行它,不让一个打包错误砸掉用户的手。
+  const desiredVersion = extractSemver(rawDesiredVersion);
+  if (!desiredVersion) {
+    if (!canFallbackToInstalledBinary) {
+      throw new Error(`package.json has an unusable version "${rawDesiredVersion}"; reinstall agent-notify`);
+    }
+    warn(`unusable package version "${rawDesiredVersion}"; running installed v${installedVersion}`);
+    return run(binaryPath, argv);
+  }
+
+  // 精确 pin:npx agent-notify@X 就该跑 X。旧的「只在 installed < desired 时装」
+  // 让显式降级静默失效——用户拿到的仍是那个更新的二进制,且没有任何提示。
+  // hook 命令写的是二进制绝对路径、不经 npx,所以来回切版本的开销只落在
+  // 手动交替执行 npx 的人身上。
+  const needsInstall = !hasInstalledBinary
+    || !installedVersion
+    || compare(installedVersion, desiredVersion) !== 0;
 
   if (needsInstall) {
     try {
