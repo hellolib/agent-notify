@@ -1,7 +1,6 @@
 package codexhooks
 
 import (
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -50,7 +49,7 @@ func BuildHookSettings(binaryPath string) map[string]any {
 // Install 以增量方式写入 hooks.json：已存在 agent-notify 的 hook 则跳过，
 // 不覆盖用户自己挂载的其他 hook。同时确保 config.toml 中 [features] hooks = true。
 func Install(path string, binaryPath string) error {
-	settings, err := readSettings(path)
+	settings, err := common.ReadOrderedSettings(path)
 	if err != nil {
 		return err
 	}
@@ -58,30 +57,19 @@ func Install(path string, binaryPath string) error {
 	binaryPath = common.ResolveBinaryPath(binaryPath)
 	command := common.QuotePathForShell(binaryPath) + " " + hookCommandMarker
 
-	hooks, _ := settings["hooks"].(map[string]any)
-	if hooks == nil {
-		hooks = map[string]any{}
+	hooks, err := common.ChildObject(settings, "hooks")
+	if err != nil {
+		return err
+	}
+	if err := common.InstallManagedHooks(&hooks, managedEvents, hookCommandMarker, command,
+		common.SkipNonArrayEvent); err != nil {
+		return err
+	}
+	if err := common.SetChildObject(&settings, "hooks", hooks); err != nil {
+		return err
 	}
 
-	for _, event := range managedEvents {
-		// 已有托管 hook:同步 command(路径可能已过期,issue #34)后跳过追加
-		if found, _ := common.SyncManagedHookCommand(hooks, event, hookCommandMarker, command); found {
-			continue
-		}
-		entries := common.ToAnySlice(hooks[event])
-		entries = append(entries, map[string]any{
-			"hooks": []any{
-				map[string]any{
-					"type":    "command",
-					"command": command,
-				},
-			},
-		})
-		hooks[event] = entries
-	}
-	settings["hooks"] = hooks
-
-	if err := writeSettings(path, settings); err != nil {
+	if err := common.WriteOrderedSettings(path, settings); err != nil {
 		return err
 	}
 
@@ -89,131 +77,51 @@ func Install(path string, binaryPath string) error {
 	// 失败必须显式上抛:features.hooks 未开启时 Codex 不会执行任何 hook,
 	// 静默吞掉会让向导显示「安装成功」而集成实际不可用(issue #31)。
 	configTomlPath := filepath.Join(filepath.Dir(path), "config.toml")
-	if err := EnableHooksFeature(configTomlPath); err != nil {
-		return err
-	}
-
-	return nil
+	return EnableHooksFeature(configTomlPath)
 }
 
 // IsInstalled 检查 hooks.json 中是否已挂载 agent-notify 的 hook。
 func IsInstalled(path string) (bool, error) {
-	data, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
+	settings, err := common.ReadOrderedSettings(path)
 	if err != nil {
 		return false, err
 	}
-
-	settings := map[string]any{}
-	if len(data) > 0 {
-		if err := json.Unmarshal(data, &settings); err != nil {
-			return false, err
-		}
-	}
-
-	hooks, ok := settings["hooks"].(map[string]any)
-	if !ok {
+	hooks, err := common.ChildObject(settings, "hooks")
+	if err != nil {
 		return false, nil
 	}
-
-	for _, event := range managedEvents {
-		if common.EventHasManagedHook(hooks, event, hookCommandMarker) {
-			return true, nil
-		}
-	}
-	return false, nil
+	return common.HasManagedHook(hooks, managedEvents, hookCommandMarker), nil
 }
 
 // Uninstall 仅移除本插件写入的 hook 条目（command 含 handle-codex-hook）。
 // config.toml 中的 [features] hooks 开关不动 —— 那是通用开关，可能被其他 hook 使用。
 // 文件不存在时是 no-op。
 func Uninstall(path string) error {
-	data, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
-	settings := map[string]any{}
-	if len(data) > 0 {
-		if err := json.Unmarshal(data, &settings); err != nil {
-			return err
-		}
-	}
-
-	hooks, ok := settings["hooks"].(map[string]any)
-	if !ok {
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
 
-	for event, raw := range hooks {
-		entries := common.ToAnySlice(raw)
-		cleaned := entries[:0]
-		for _, entry := range entries {
-			entryMap, ok := entry.(map[string]any)
-			if !ok {
-				cleaned = append(cleaned, entry)
-				continue
-			}
-			inner := common.ToAnySlice(entryMap["hooks"])
-			keptInner := inner[:0]
-			for _, h := range inner {
-				if !common.IsManagedHook(h, hookCommandMarker) {
-					keptInner = append(keptInner, h)
-				}
-			}
-			if len(keptInner) == 0 {
-				continue
-			}
-			entryMap["hooks"] = keptInner
-			cleaned = append(cleaned, entryMap)
-		}
-		if len(cleaned) == 0 {
-			delete(hooks, event)
-		} else {
-			hooks[event] = cleaned
-		}
-	}
-
-	if len(hooks) == 0 {
-		delete(settings, "hooks")
-	} else {
-		settings["hooks"] = hooks
-	}
-
-	return writeSettings(path, settings)
-}
-
-func readSettings(path string) (map[string]any, error) {
-	settings := map[string]any{}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return settings, nil
-		}
-		return nil, err
-	}
-	if len(data) == 0 {
-		return settings, nil
-	}
-	if err := json.Unmarshal(data, &settings); err != nil {
-		return nil, err
-	}
-	return settings, nil
-}
-
-func writeSettings(path string, settings map[string]any) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	out, err := json.MarshalIndent(settings, "", "  ")
+	settings, err := common.ReadOrderedSettings(path)
 	if err != nil {
 		return err
 	}
-	// 用户配置文件:原子写 + 覆盖式 .bak 备份(issue #29)
-	return common.WriteFileAtomicWithBackup(path, out, 0o644)
+	if _, ok := settings.Get("hooks"); !ok {
+		return nil
+	}
+	hooks, err := common.ChildObject(settings, "hooks")
+	if err != nil {
+		return nil
+	}
+
+	if err := common.UninstallManagedHooks(&hooks, hookCommandMarker); err != nil {
+		return err
+	}
+
+	if hooks.Len() == 0 {
+		settings.Delete("hooks")
+	} else if err := common.SetChildObject(&settings, "hooks", hooks); err != nil {
+		return err
+	}
+
+	return common.WriteOrderedSettings(path, settings)
 }

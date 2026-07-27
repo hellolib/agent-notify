@@ -341,3 +341,107 @@ func TestInstallRefreshesStaleBinaryPath(t *testing.T) {
 		}
 	}
 }
+
+// TestInstallPreservesKeyOrderAndNumericPrecision 是 issue #39 第 3 项的回归测试。
+// map[string]any 往返会把顶层键重排成字母序、把 >2^53 的整数改值、
+// 把大数变成科学计数法、把 1.10 抹成 1.1——dotfiles 用户每次安装都拿到全文件 diff。
+func TestInstallPreservesKeyOrderAndNumericPrecision(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	// 顶层键刻意逆字母序,且带上真实 settings.json 里会出现的数值字段
+	original := `{
+  "theme": "dark",
+  "statusLine": {"type": "command"},
+  "maxTokens": 9007199254740993,
+  "huge": 123456789012345678901234,
+  "keep": 1.10,
+  "env": {"ZZZ": "last", "AAA": "first"},
+  "attribution": {"enabled": false}
+}`
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Install(path, "/tmp/agent-notify"); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(data)
+
+	// 顶层键序:原顺序保持,新增的 hooks 追加到末尾
+	wantOrder := []string{"theme", "statusLine", "maxTokens", "huge", "keep", "env", "attribution", "hooks"}
+	prev := -1
+	for _, key := range wantOrder {
+		idx := strings.Index(got, `"`+key+`"`)
+		if idx < 0 {
+			t.Fatalf("key %q missing from output:\n%s", key, got)
+		}
+		if idx < prev {
+			t.Fatalf("key %q moved out of order:\n%s", key, got)
+		}
+		prev = idx
+	}
+
+	// 数值逐字节保留
+	for _, literal := range []string{"9007199254740993", "123456789012345678901234", "1.10"} {
+		if !strings.Contains(got, literal) {
+			t.Fatalf("numeric literal %s was rewritten:\n%s", literal, got)
+		}
+	}
+
+	// 未触碰的子树内部键序也保留
+	zzz := strings.Index(got, `"ZZZ"`)
+	aaa := strings.Index(got, `"AAA"`)
+	if zzz < 0 || aaa < 0 || zzz > aaa {
+		t.Fatalf("env 内部键序被重排:\n%s", got)
+	}
+}
+
+// TestInstallLeavesUserHookEntryByteIdentical 用户手写的 entry(含 matcher、
+// 自定义键、自己的缩进)在安装后应当一个字节都没变。
+func TestInstallLeavesUserHookEntryByteIdentical(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	original := `{
+  "hooks": {
+    "UserPromptSubmit": [
+      {"matcher": "*", "note": "mine", "hooks": [{"type": "command", "command": "echo hi"}]}
+    ],
+    "Stop": [
+      {"matcher": "Bash", "hooks": [{"type": "command", "command": "echo user-stop"}]}
+    ]
+  }
+}`
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Install(path, "/tmp/agent-notify"); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+
+	data, _ := os.ReadFile(path)
+	got := string(data)
+
+	// 用户 entry 的键序 matcher/note/hooks 必须原样,不能被重排成 hooks/matcher/note
+	for _, want := range []string{
+		`"matcher": "*"`,
+		`"note": "mine"`,
+		`"matcher": "Bash"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("user entry was rewritten, %s missing:\n%s", want, got)
+		}
+	}
+
+	// 用户手写的 UserPromptSubmit 事件不该被重排到 SessionStart 之后的字母序位置
+	ups := strings.Index(got, `"UserPromptSubmit"`)
+	stop := strings.Index(got, `"Stop"`)
+	if ups < 0 || stop < 0 || ups > stop {
+		t.Fatalf("hooks 内的用户事件顺序被重排:\n%s", got)
+	}
+}
