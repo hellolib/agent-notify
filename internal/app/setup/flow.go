@@ -246,6 +246,8 @@ func (s *Service) configureClaude(req configureAgentRequest) (configuredAgent, e
 	}
 	req.output.Writef(i18n.T("setup.claude_hooks_done"), settingsPath)
 	next.Agent.ClaudeCode.InstallScope = agentScope
+	next.Agent.ClaudeCode.InstalledPaths = config.RecordInstalledPath(
+		next.Agent.ClaudeCode.InstalledPaths, settingsPath)
 	next.Agent.ClaudeCode.Enabled = true
 	return configuredAgent{cfg: next, settingsPath: settingsPath}, nil
 }
@@ -275,6 +277,8 @@ func (s *Service) configureCodex(req configureAgentRequest) (configuredAgent, er
 	req.output.Writef(i18n.T("setup.codex_hooks_done"), settingsPath)
 	req.output.Writef(i18n.T("setup.codex_tip"))
 	next.Agent.Codex.InstallScope = agentScope
+	next.Agent.Codex.InstalledPaths = config.RecordInstalledPath(
+		next.Agent.Codex.InstalledPaths, settingsPath)
 	next.Agent.Codex.Enabled = true
 	return configuredAgent{cfg: next, settingsPath: settingsPath}, nil
 }
@@ -306,6 +310,8 @@ func (s *Service) configureZcode(req configureAgentRequest) (configuredAgent, er
 	req.output.Writef(i18n.T("setup.zcode_hooks_done"), settingsPath)
 	req.output.Writef(i18n.T("setup.zcode_tip"))
 	next.Agent.ZCode.InstallScope = agentScope
+	next.Agent.ZCode.InstalledPaths = config.RecordInstalledPath(
+		next.Agent.ZCode.InstalledPaths, settingsPath)
 	next.Agent.ZCode.Enabled = true
 	return configuredAgent{cfg: next, settingsPath: settingsPath}, nil
 }
@@ -337,6 +343,8 @@ func (s *Service) configureGrok(req configureAgentRequest) (configuredAgent, err
 	req.output.Writef(i18n.T("setup.grok_hooks_done"), settingsPath)
 	req.output.Writef(i18n.T("setup.grok_tip"))
 	next.Agent.Grok.InstallScope = agentScope
+	next.Agent.Grok.InstalledPaths = config.RecordInstalledPath(
+		next.Agent.Grok.InstalledPaths, settingsPath)
 	next.Agent.Grok.Enabled = true
 	return configuredAgent{cfg: next, settingsPath: settingsPath}, nil
 }

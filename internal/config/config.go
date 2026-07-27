@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -11,10 +12,10 @@ import (
 
 // Config is the root configuration structure for agent-notify.
 type Config struct {
-	Version      int            `yaml:"version"`  // 配置版本号
-	Agent        AgentConfig    `yaml:"agent"`    // Agent 安装配置
-	Notify       NotifyConfig   `yaml:"notify"`   // 通知配置
-	Behavior     BehaviorConfig `yaml:"behavior"` // 行为配置
+	Version      int            `yaml:"version"`                 // 配置版本号
+	Agent        AgentConfig    `yaml:"agent"`                   // Agent 安装配置
+	Notify       NotifyConfig   `yaml:"notify"`                  // 通知配置
+	Behavior     BehaviorConfig `yaml:"behavior"`                // 行为配置
 	StarPrompted bool           `yaml:"star_prompted,omitempty"` // 是否已展示过一次性 GitHub star 引导
 }
 
@@ -30,6 +31,23 @@ type AgentConfig struct {
 type AgentTargetConfig struct {
 	Enabled      bool   `yaml:"enabled"`       // 是否启用该 Agent 的通知
 	InstallScope string `yaml:"install_scope"` // 安装范围: user 或 project
+	// InstalledPaths 是实际写入过 hook 的配置文件绝对路径。
+	// install_scope 只记 "user"/"project",而 project scope 解析成的相对路径
+	// (.claude/settings.json)依赖当时的工作目录——换个目录执行 clean 就再也
+	// 找不到它。记下绝对路径才能可靠地清理,也支持在多个项目里分别安装。
+	InstalledPaths []string `yaml:"installed_paths,omitempty"`
+}
+
+// RecordInstalledPath 把 path 的绝对形式并入 paths(已存在则不重复追加)。
+func RecordInstalledPath(paths []string, path string) []string {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		abs = path
+	}
+	if slices.Contains(paths, abs) {
+		return paths
+	}
+	return append(paths, abs)
 }
 
 // NotifyConfig holds notification configuration for all agents.

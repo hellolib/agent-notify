@@ -40,33 +40,3 @@ func TestIsManagedHook(t *testing.T) {
 		t.Fatal("expected false for non-map")
 	}
 }
-
-func TestEventHasManagedHook(t *testing.T) {
-	marker := "handle-grok-hook"
-	hooks := map[string]any{
-		"Stop": []any{
-			map[string]any{
-				"hooks": []any{
-					map[string]any{"type": "command", "command": "other"},
-					map[string]any{"type": "command", "command": "agent-notify handle-grok-hook"},
-				},
-			},
-		},
-		"SessionStart": []any{
-			map[string]any{
-				"hooks": []any{
-					map[string]any{"type": "command", "command": "echo only"},
-				},
-			},
-		},
-	}
-	if !EventHasManagedHook(hooks, "Stop", marker) {
-		t.Fatal("Stop should have managed hook")
-	}
-	if EventHasManagedHook(hooks, "SessionStart", marker) {
-		t.Fatal("SessionStart should not have managed hook")
-	}
-	if EventHasManagedHook(hooks, "Missing", marker) {
-		t.Fatal("Missing event should be false")
-	}
-}

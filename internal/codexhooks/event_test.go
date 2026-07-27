@@ -1,10 +1,13 @@
 package codexhooks
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/hellolib/agent-notify/internal/notify"
 )
 
 func TestParsePermissionRequest(t *testing.T) {
@@ -13,7 +16,7 @@ func TestParsePermissionRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg, err := ParseMessage(data)
+	msg, err := parseMessageBytes(data)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
@@ -37,7 +40,7 @@ func TestParseStop(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg, err := ParseMessage(data)
+	msg, err := parseMessageBytes(data)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
@@ -56,7 +59,7 @@ func TestParseStop(t *testing.T) {
 func TestParseStopFallsBackToDefaultBody(t *testing.T) {
 	raw := []byte(`{"hook_event_name":"Stop","session_id":"s","cwd":"/tmp","last_assistant_message":""}`)
 
-	msg, err := ParseMessage(raw)
+	msg, err := parseMessageBytes(raw)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
@@ -68,9 +71,9 @@ func TestParseStopFallsBackToDefaultBody(t *testing.T) {
 func TestParseUnsupportedEvent(t *testing.T) {
 	raw := []byte(`{"hook_event_name":"UserPromptSubmit","session_id":"s","cwd":"/tmp"}`)
 
-	_, err := ParseMessage(raw)
+	_, err := parseMessageBytes(raw)
 	if err == nil {
-		t.Fatal("ParseMessage() expected error for unsupported event")
+		t.Fatal("parseMessageBytes() expected error for unsupported event")
 	}
 }
 
@@ -90,4 +93,10 @@ func TestTruncateMessage(t *testing.T) {
 			t.Fatalf("truncateMessage(%q, %d) = %q, want %q", tt.in, tt.limit, got, tt.want)
 		}
 	}
+}
+
+// parseMessageBytes 让既有用例继续以字节数组驱动 ParseMessage,
+// 后者现在从 io.Reader 流式解码(见 common.DecodeHookPayload)。
+func parseMessageBytes(data []byte) (notify.Message, error) {
+	return ParseMessage(bytes.NewReader(data))
 }

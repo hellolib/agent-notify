@@ -3,6 +3,7 @@ package common
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -84,5 +85,156 @@ func TestWriteFileAtomicWithBackupKeepsPreviousVersion(t *testing.T) {
 	cur, _ := os.ReadFile(path)
 	if string(cur) != "v3" {
 		t.Fatalf("current = %q, want v3", cur)
+	}
+}
+
+// skipOnWindows 跳过 POSIX 权限断言:Windows 无权限位,os.Stat 对可写文件
+// 恒返回 0666,0600 断言永远不成立(与 config.TestSaveUsesOwnerOnlyPermissions 同理)。
+func skipOnWindows(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permission bits are not applicable on Windows")
+	}
+}
+
+func TestWriteFileAtomicPreservesExistingPermissions(t *testing.T) {
+	skipOnWindows(t)
+	path := filepath.Join(t.TempDir(), "settings.json")
+
+	// 模拟 Claude Code 写下的 ~/.claude/settings.json:0600,因为 env 段存 API key
+	if err := os.WriteFile(path, []byte(`{"env":{"ANTHROPIC_API_KEY":"sk-secret"}}`), 0o600); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	if err := WriteFileAtomic(path, []byte(`{"env":{"ANTHROPIC_API_KEY":"sk-secret"},"hooks":{}}`), 0o644); err != nil {
+		t.Fatalf("WriteFileAtomic: %v", err)
+	}
+
+	st, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if got := st.Mode().Perm(); got != 0o600 {
+		t.Fatalf("perm = %v, want 0600 (装一次 hook 就把用户的密钥放宽给同机用户)", got)
+	}
+}
+
+func TestWriteFileAtomicAppliesPermissionsToNewFile(t *testing.T) {
+	skipOnWindows(t)
+	path := filepath.Join(t.TempDir(), "sub", "fresh.json")
+
+	if err := WriteFileAtomic(path, []byte("{}"), 0o600); err != nil {
+		t.Fatalf("WriteFileAtomic: %v", err)
+	}
+
+	st, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if got := st.Mode().Perm(); got != 0o600 {
+		t.Fatalf("perm = %v, want 0600", got)
+	}
+}
+
+func TestWriteFileAtomicWithBackupGivesBackupTheSourcePermissions(t *testing.T) {
+	skipOnWindows(t)
+	path := filepath.Join(t.TempDir(), "settings.json")
+
+	if err := os.WriteFile(path, []byte(`{"env":{"KEY":"sk-secret"}}`), 0o600); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	if err := WriteFileAtomicWithBackup(path, []byte(`{"env":{"KEY":"sk-secret"},"hooks":{}}`), 0o644); err != nil {
+		t.Fatalf("WriteFileAtomicWithBackup: %v", err)
+	}
+
+	// 备份内容就是原文件内容,同一份密钥换个文件名摆在 0644 上等于没修
+	st, err := os.Stat(path + BackupSuffix)
+	if err != nil {
+		t.Fatalf("stat backup: %v", err)
+	}
+	if got := st.Mode().Perm(); got != 0o600 {
+		t.Fatalf("backup perm = %v, want 0600", got)
+	}
+}
+
+func TestWriteFileAtomicWithBackupTightensLegacyBackupPermissions(t *testing.T) {
+	skipOnWindows(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+
+	if err := os.WriteFile(path, []byte(`{"env":{"KEY":"sk-secret"}}`), 0o600); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	// 旧版本以 0644 落下的备份:本次写入应把它一并收紧,而不是沿用错误权限
+	if err := os.WriteFile(path+BackupSuffix, []byte(`{"stale":true}`), 0o644); err != nil {
+		t.Fatalf("seed backup: %v", err)
+	}
+
+	if err := WriteFileAtomicWithBackup(path, []byte(`{"env":{"KEY":"sk-secret"},"hooks":{}}`), 0o644); err != nil {
+		t.Fatalf("WriteFileAtomicWithBackup: %v", err)
+	}
+
+	st, err := os.Stat(path + BackupSuffix)
+	if err != nil {
+		t.Fatalf("stat backup: %v", err)
+	}
+	if got := st.Mode().Perm(); got != 0o600 {
+		t.Fatalf("legacy backup perm = %v, want 0600", got)
+	}
+}
+
+func TestWriteFileAtomicWithBackupSkipsUnchangedContent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+
+	if err := WriteFileAtomicWithBackup(path, []byte("v1"), 0o644); err != nil {
+		t.Fatalf("first write: %v", err)
+	}
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+
+	// 同样的内容再写一次:重跑 setup / doctor 是常态
+	if err := WriteFileAtomicWithBackup(path, []byte("v1"), 0o644); err != nil {
+		t.Fatalf("second write: %v", err)
+	}
+
+	if _, err := os.Stat(path + BackupSuffix); !os.IsNotExist(err) {
+		t.Fatal("内容未变时不应落备份")
+	}
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if !after.ModTime().Equal(before.ModTime()) {
+		t.Fatalf("mtime 变了(%v -> %v),说明发生了无谓写入", before.ModTime(), after.ModTime())
+	}
+}
+
+func TestWriteFileAtomicWithBackupKeepsOriginalBackupOnRepeatedWrite(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+
+	// 用户的原始文件
+	if err := WriteFileAtomicWithBackup(path, []byte("original"), 0o644); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	// 首次安装:备份 = original
+	if err := WriteFileAtomicWithBackup(path, []byte("installed"), 0o644); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	// 重跑 setup,内容一字未变
+	if err := WriteFileAtomicWithBackup(path, []byte("installed"), 0o644); err != nil {
+		t.Fatalf("reinstall: %v", err)
+	}
+
+	// 备份仍须是安装前的原始文件,而不是被刷成 installed——
+	// 否则重跑一次 setup 就把用户的恢复路径抹掉了
+	bak, err := os.ReadFile(path + BackupSuffix)
+	if err != nil {
+		t.Fatalf("read backup: %v", err)
+	}
+	if string(bak) != "original" {
+		t.Fatalf("backup = %q, want original", bak)
 	}
 }

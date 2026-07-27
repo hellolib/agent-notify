@@ -2,6 +2,7 @@ package setup
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/hellolib/agent-notify/internal/config"
@@ -250,5 +251,69 @@ func TestDedupeStrings(t *testing.T) {
 		if len(result) != len(tt.expected) {
 			t.Errorf("dedupeStrings(%v) = %v, want %v", tt.input, result, tt.expected)
 		}
+	}
+}
+
+// TestService_RecordsInstalledPath 是 issue #39 第 4 项的回归测试:
+// 安装成功后必须把实际写入的配置文件绝对路径记进 config.yaml,
+// 否则 project scope 装出去的 hook 换个目录就再也清理不掉。
+func TestService_RecordsInstalledPath(t *testing.T) {
+	loader := &mockConfigLoader{defaultPath: "/tmp/cfg.yaml", loadedCfg: config.Default()}
+	svc := NewService(
+		WithClaudeIntegration(&mockIntegration{
+			name: "Claude Code", detectInstalled: true,
+			settingsPath: filepath.Join(".claude", "settings.json"),
+		}),
+		WithCodexIntegration(&mockIntegration{name: "Codex", detectInstalled: false}),
+		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
+		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
+		WithConfigLoader(loader),
+	)
+
+	_, err := svc.Run(context.Background(), &mockPrompter{selectResult: "claude", multiResult: []string{"system"}},
+		&mockOutputWriter{}, "", "/tmp/agent-notify")
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	paths := loader.savedCfg.Agent.ClaudeCode.InstalledPaths
+	if len(paths) != 1 {
+		t.Fatalf("installed_paths = %v, want 1 entry", paths)
+	}
+	// 相对路径必须被转成绝对路径,否则记录换个工作目录就失效
+	if !filepath.IsAbs(paths[0]) {
+		t.Fatalf("记录的是相对路径 %q,换个目录执行 clean 就指不到它", paths[0])
+	}
+	want, _ := filepath.Abs(filepath.Join(".claude", "settings.json"))
+	if paths[0] != want {
+		t.Fatalf("installed_paths[0] = %q, want %q", paths[0], want)
+	}
+}
+
+// TestService_DoesNotDuplicateInstalledPathOnReinstall 重复跑向导不该堆积重复记录。
+func TestService_DoesNotDuplicateInstalledPathOnReinstall(t *testing.T) {
+	existing, _ := filepath.Abs(filepath.Join(".claude", "settings.json"))
+	cfg := config.Default()
+	cfg.Agent.ClaudeCode.InstalledPaths = []string{existing}
+
+	loader := &mockConfigLoader{defaultPath: "/tmp/cfg.yaml", loadedCfg: cfg}
+	svc := NewService(
+		WithClaudeIntegration(&mockIntegration{
+			name: "Claude Code", detectInstalled: true,
+			settingsPath: filepath.Join(".claude", "settings.json"),
+		}),
+		WithCodexIntegration(&mockIntegration{name: "Codex", detectInstalled: false}),
+		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
+		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
+		WithConfigLoader(loader),
+	)
+
+	if _, err := svc.Run(context.Background(), &mockPrompter{selectResult: "claude", multiResult: []string{"system"}},
+		&mockOutputWriter{}, "", "/tmp/agent-notify"); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if got := loader.savedCfg.Agent.ClaudeCode.InstalledPaths; len(got) != 1 {
+		t.Fatalf("重复安装后 installed_paths = %v, want 1 entry", got)
 	}
 }

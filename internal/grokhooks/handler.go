@@ -12,12 +12,7 @@ import (
 
 // Handle 读取 Grok 通过 stdin 投递的 hook 事件并分发通知。
 func Handle(ctx context.Context, cfg config.Config, statePath, logPath string, stdin io.Reader) error {
-	data, err := io.ReadAll(stdin)
-	if err != nil {
-		return state.AppendLog(logPath, fmt.Sprintf("read stdin error: %v", err))
-	}
-
-	msg, err := ParseMessage(data)
+	msg, err := ParseMessage(stdin)
 	if err != nil {
 		return state.AppendLog(logPath, fmt.Sprintf("skip event: %v", err))
 	}

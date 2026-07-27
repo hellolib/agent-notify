@@ -1,10 +1,13 @@
 package grokhooks
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/hellolib/agent-notify/internal/notify"
 	"unicode/utf8"
 )
 
@@ -14,7 +17,7 @@ func TestParseSessionStart(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg, err := ParseMessage(data)
+	msg, err := parseMessageBytes(data)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
@@ -38,7 +41,7 @@ func TestParseNotificationWaitingInput(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg, err := ParseMessage(data)
+	msg, err := parseMessageBytes(data)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
@@ -56,7 +59,7 @@ func TestParseNotificationPermission(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg, err := ParseMessage(data)
+	msg, err := parseMessageBytes(data)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
@@ -74,7 +77,7 @@ func TestParseStop(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg, err := ParseMessage(data)
+	msg, err := parseMessageBytes(data)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
@@ -92,7 +95,7 @@ func TestParseStopFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg, err := ParseMessage(data)
+	msg, err := parseMessageBytes(data)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
@@ -110,7 +113,7 @@ func TestParsePostToolUseFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg, err := ParseMessage(data)
+	msg, err := parseMessageBytes(data)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
@@ -127,7 +130,7 @@ func TestParsePostToolUseFailure(t *testing.T) {
 
 func TestParsePascalCaseEventNames(t *testing.T) {
 	raw := []byte(`{"hookEventName":"Stop","sessionId":"s1","cwd":"/tmp"}`)
-	msg, err := ParseMessage(raw)
+	msg, err := parseMessageBytes(raw)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
@@ -141,7 +144,7 @@ func TestParsePascalCaseEventNames(t *testing.T) {
 
 func TestParseSnakeCaseFieldNames(t *testing.T) {
 	raw := []byte(`{"hook_event_name":"SessionStart","session_id":"s2","cwd":"/work"}`)
-	msg, err := ParseMessage(raw)
+	msg, err := parseMessageBytes(raw)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
@@ -155,9 +158,9 @@ func TestParseSnakeCaseFieldNames(t *testing.T) {
 
 func TestParseUnsupportedEvent(t *testing.T) {
 	raw := []byte(`{"hookEventName":"PreToolUse","sessionId":"s","cwd":"/tmp"}`)
-	_, err := ParseMessage(raw)
+	_, err := parseMessageBytes(raw)
 	if err == nil {
-		t.Fatal("ParseMessage() expected error for unsupported event PreToolUse")
+		t.Fatal("parseMessageBytes() expected error for unsupported event PreToolUse")
 	}
 }
 
@@ -170,7 +173,7 @@ func TestParseNotificationPrefersTypeOverBroadMessageKeywords(t *testing.T) {
 		"message":"Discussed file permission settings earlier",
 		"notificationType":"idle_prompt"
 	}`)
-	msg, err := ParseMessage(raw)
+	msg, err := parseMessageBytes(raw)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
@@ -188,7 +191,7 @@ func TestParseNotificationTypePermissionPrompt(t *testing.T) {
 		"message":"Allow shell?",
 		"notificationType":"permission_prompt"
 	}`)
-	msg, err := ParseMessage(raw)
+	msg, err := parseMessageBytes(raw)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
@@ -208,7 +211,7 @@ func TestParseNotificationBarePermissionWordIsNotPermissionRequired(t *testing.T
 		"cwd":"/tmp",
 		"message":"Check the permission model docs"
 	}`)
-	msg, err := ParseMessage(raw)
+	msg, err := parseMessageBytes(raw)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
@@ -225,7 +228,7 @@ func TestParseNotificationMessagePhrasePermissionRequired(t *testing.T) {
 		"toolName":"run_terminal_command",
 		"message":"Permission required to run shell command"
 	}`)
-	msg, err := ParseMessage(raw)
+	msg, err := parseMessageBytes(raw)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
@@ -308,7 +311,7 @@ func TestParseNotificationPermissionGrantedIsNotPermissionRequired(t *testing.T)
 		"notificationType":"permission_granted",
 		"message":"Permission was granted"
 	}`)
-	msg, err := ParseMessage(raw)
+	msg, err := parseMessageBytes(raw)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
@@ -316,4 +319,10 @@ func TestParseNotificationPermissionGrantedIsNotPermissionRequired(t *testing.T)
 	if msg.Event != "input_required" {
 		t.Fatalf("Event = %q, want input_required for permission_granted", msg.Event)
 	}
+}
+
+// parseMessageBytes 让既有用例继续以字节数组驱动 ParseMessage,
+// 后者现在从 io.Reader 流式解码(见 common.DecodeHookPayload)。
+func parseMessageBytes(data []byte) (notify.Message, error) {
+	return ParseMessage(bytes.NewReader(data))
 }

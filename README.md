@@ -93,7 +93,20 @@ On first run, the launcher downloads the platform-specific binary matching the c
 - macOS / Linux: `~/.agent-notify/agent-notify`
 - Windows: `~/.agent-notify/agent-notify.exe`
 
-On every subsequent run it checks the local binary version: it downloads if missing, updates if outdated, and otherwise runs directly. The launcher never persistently modifies `PATH` — it always executes via an absolute path.
+On every subsequent run it compares the local binary against the version pinned by the npm package and reinstalls whenever they differ — in both directions, so `npx agent-notify@0.13.0` really does run 0.13.0. The launcher never persistently modifies `PATH` — it always executes via an absolute path.
+
+### Behind a proxy
+
+The downloader honours `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` and `NO_PROXY` (lowercase forms take precedence, as usual). When none of those are set it falls back to npm's own proxy settings from `.npmrc`, which is how most corporate setups are configured:
+
+```bash
+export HTTPS_PROXY=http://user:pass@proxy.corp:8080
+export NO_PROXY=github.com                          # or exclude GitHub from the proxy
+
+npm config set https-proxy http://proxy.corp:8080   # read as a fallback
+```
+
+Download failures name the proxy that was used and what to try next, rather than stalling until the timeout.
 
 > **Note**: Codex integrates through the official hooks system in `~/.codex/hooks.json` and currently subscribes only to `PermissionRequest` and `Stop`. After first install, run `/hooks` inside Codex to complete the trust review.
 >

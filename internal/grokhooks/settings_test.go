@@ -174,3 +174,114 @@ func readSettingsForTest(t *testing.T, path string) map[string]any {
 	}
 	return got
 }
+
+// TestInstallRefusesNonArrayHookValue 是 issue #39 第 6 项的回归测试。
+// 旧实现里 common.ToAnySlice 对非数组返回 nil,Install 据此认为「这个事件下
+// 什么都没有」而整个替换掉——用户手写成对象形式的 hook 定义无声消失。
+func TestInstallRefusesNonArrayHookValue(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "agent-notify.json")
+	original := `{"hooks":{"Stop":{"hooks":[{"type":"command","command":"echo mine"}]}}}`
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := Install(path, "/tmp/agent-notify")
+	if err == nil {
+		t.Fatal("Install 应当拒绝写入,而不是替换掉用户的定义")
+	}
+	if !strings.Contains(err.Error(), "hooks.Stop") {
+		t.Fatalf("错误信息应指出是哪个事件,实际是: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != original {
+		t.Fatalf("拒绝写入时文件不该被改动:\n got %s\nwant %s", data, original)
+	}
+}
+
+// TestUninstallKeepsNonArrayHookValue 卸载不该被用户的无关配置阻塞:
+// 非数组形态里不可能有我们写的 entry。
+func TestUninstallKeepsNonArrayHookValue(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "agent-notify.json")
+	if err := os.WriteFile(path, []byte(`{"hooks":{"Stop":{"mine":true},"Notification":[{"hooks":[{"type":"command","command":"/x handle-grok-hook"}]}]}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Uninstall(path); err != nil {
+		t.Fatalf("Uninstall 不应报错: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"mine"`) {
+		t.Fatalf("用户手写的非数组值被删掉了:\n%s", data)
+	}
+	if strings.Contains(string(data), hookCommandMarker) {
+		t.Fatalf("托管 hook 未被移除:\n%s", data)
+	}
+}
+
+// TestUninstallKeepsFileWithOtherTopLevelKeys 是 issue #39 第 7 项的回归测试。
+// 旧实现只看 hooks 是否清空就 os.Remove 整个文件,用户自己加在同一文件里的
+// 其它顶层键(注释性的 description、编辑器补全用的 $schema 等)一并消失。
+func TestUninstallKeepsFileWithOtherTopLevelKeys(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "agent-notify.json")
+	original := `{
+  "$schema": "https://example.invalid/grok-hooks.json",
+  "description": "我的 grok 钩子集合",
+  "hooks": {}
+}`
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Install(path, "/tmp/agent-notify"); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	if err := Uninstall(path); err != nil {
+		t.Fatalf("Uninstall() error = %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("文件被整个删掉了,用户的其它顶层键一并消失: %v", err)
+	}
+	got := string(data)
+	for _, want := range []string{`"$schema"`, `"description"`, "我的 grok 钩子集合"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("顶层键 %s 丢失:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `"hooks"`) {
+		t.Fatalf("hooks 清空后应被移除:\n%s", got)
+	}
+}
+
+// TestUninstallRemovesFileWhenHooksIsTheOnlyKey 文件确实只为本插件服务时,
+// 删掉整个文件而不是留一个空 JSON。
+func TestUninstallRemovesFileWhenHooksIsTheOnlyKey(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "agent-notify.json")
+	if err := os.WriteFile(path, []byte(`{"hooks":{}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Install(path, "/tmp/agent-notify"); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+	if err := Uninstall(path); err != nil {
+		t.Fatalf("Uninstall() error = %v", err)
+	}
+
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("hooks 是唯一顶层键时文件应被删除, stat err = %v", err)
+	}
+}

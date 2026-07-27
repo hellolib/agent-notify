@@ -1,10 +1,13 @@
 package zcodehooks
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/hellolib/agent-notify/internal/notify"
 )
 
 func TestParseSessionStart(t *testing.T) {
@@ -13,7 +16,7 @@ func TestParseSessionStart(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg, err := ParseMessage(data)
+	msg, err := parseMessageBytes(data)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
@@ -34,7 +37,7 @@ func TestParsePermissionRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg, err := ParseMessage(data)
+	msg, err := parseMessageBytes(data)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
@@ -58,7 +61,7 @@ func TestParsePostToolUseFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg, err := ParseMessage(data)
+	msg, err := parseMessageBytes(data)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
@@ -76,7 +79,7 @@ func TestParseStop(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	msg, err := ParseMessage(data)
+	msg, err := parseMessageBytes(data)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
@@ -93,7 +96,7 @@ func TestParseCamelCaseFallback(t *testing.T) {
 	// 只有驼峰字段，模拟部分 ZCode 版本只下发 hookEventName 的情况
 	raw := []byte(`{"hookEventName":"Stop","sessionId":"s1","cwd":"/tmp"}`)
 
-	msg, err := ParseMessage(raw)
+	msg, err := parseMessageBytes(raw)
 	if err != nil {
 		t.Fatalf("ParseMessage() error = %v", err)
 	}
@@ -109,8 +112,14 @@ func TestParseUnsupportedEvent(t *testing.T) {
 	// Notification 是 Claude Code 专有事件，ZCode 不支持
 	raw := []byte(`{"hook_event_name":"Notification","session_id":"s","cwd":"/tmp"}`)
 
-	_, err := ParseMessage(raw)
+	_, err := parseMessageBytes(raw)
 	if err == nil {
-		t.Fatal("ParseMessage() expected error for unsupported event Notification")
+		t.Fatal("parseMessageBytes() expected error for unsupported event Notification")
 	}
+}
+
+// parseMessageBytes 让既有用例继续以字节数组驱动 ParseMessage,
+// 后者现在从 io.Reader 流式解码(见 common.DecodeHookPayload)。
+func parseMessageBytes(data []byte) (notify.Message, error) {
+	return ParseMessage(bytes.NewReader(data))
 }

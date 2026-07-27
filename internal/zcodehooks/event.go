@@ -3,8 +3,10 @@ package zcodehooks
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 
+	"github.com/hellolib/agent-notify/internal/common"
 	"github.com/hellolib/agent-notify/internal/notify"
 )
 
@@ -24,7 +26,6 @@ type payload struct {
 	PermissionMode     string          `json:"permission_mode"`
 	TurnID             string          `json:"turn_id"`
 	ToolName           string          `json:"tool_name"`
-	ToolInput          json.RawMessage `json:"tool_input"`       // 容错:形态依工具而异(issue #32)
 	StopHookActive     json.RawMessage `json:"stop_hook_active"` // 容错:接受 bool 或 "true"/"false"
 	Message            string          `json:"message"`          // Notification 原因（ZCode 当前无此事件，保留）
 }
@@ -45,9 +46,9 @@ func (p payload) sessionOf() string {
 	return p.SessionIDCamel
 }
 
-func ParseMessage(data []byte) (notify.Message, error) {
+func ParseMessage(stdin io.Reader) (notify.Message, error) {
 	var p payload
-	if err := json.Unmarshal(data, &p); err != nil {
+	if err := common.DecodeHookPayload(stdin, &p); err != nil {
 		return notify.Message{}, err
 	}
 

@@ -2,24 +2,10 @@ package common
 
 import "strings"
 
-// EventHasManagedHook reports whether any hook entry under event has a command
-// that contains commandMarker (e.g. "handle-claude-hook").
-//
-// Shared by claudehooks / codexhooks / zcodehooks / grokhooks (issue #21).
-func EventHasManagedHook(hooks map[string]any, event, commandMarker string) bool {
-	for _, entry := range ToAnySlice(hooks[event]) {
-		entryMap, ok := entry.(map[string]any)
-		if !ok {
-			continue
-		}
-		for _, h := range ToAnySlice(entryMap["hooks"]) {
-			if IsManagedHook(h, commandMarker) {
-				return true
-			}
-		}
-	}
-	return false
-}
+// 本文件保留两个基于 map[string]any 的小工具。它们曾是四个 agent 包读写
+// hooks 的共享实现(issue #21),现已被 hookentries.go 的原字节版本取代——
+// 保序改写要求不解析用户没让我们碰的内容。这两个仍在的原因是测试从磁盘
+// 读回 JSON 校验结果时用得上。
 
 // IsManagedHook reports whether hook is a map whose command string contains commandMarker.
 func IsManagedHook(hook any, commandMarker string) bool {
@@ -46,33 +32,4 @@ func ToAnySlice(v any) []any {
 	default:
 		return nil
 	}
-}
-
-// SyncManagedHookCommand 遍历 event 下的托管 hook(command 含 commandMarker),
-// 将其 command 更新为 want。返回 (是否存在托管 hook, 是否发生了修改)。
-// 存在但命令不同(如二进制从本地构建切到 npx 安装路径)时原位替换,
-// 修复「重装不更新过期路径」的问题(issue #34)。
-func SyncManagedHookCommand(hooks map[string]any, event, commandMarker, want string) (found, changed bool) {
-	for _, entry := range ToAnySlice(hooks[event]) {
-		entryMap, ok := entry.(map[string]any)
-		if !ok {
-			continue
-		}
-		for _, h := range ToAnySlice(entryMap["hooks"]) {
-			m, ok := h.(map[string]any)
-			if !ok {
-				continue
-			}
-			cmd, _ := m["command"].(string)
-			if !strings.Contains(cmd, commandMarker) {
-				continue
-			}
-			found = true
-			if cmd != want {
-				m["command"] = want
-				changed = true
-			}
-		}
-	}
-	return found, changed
 }

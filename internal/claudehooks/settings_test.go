@@ -341,3 +341,160 @@ func TestInstallRefreshesStaleBinaryPath(t *testing.T) {
 		}
 	}
 }
+
+// TestInstallPreservesKeyOrderAndNumericPrecision 是 issue #39 第 3 项的回归测试。
+// map[string]any 往返会把顶层键重排成字母序、把 >2^53 的整数改值、
+// 把大数变成科学计数法、把 1.10 抹成 1.1——dotfiles 用户每次安装都拿到全文件 diff。
+func TestInstallPreservesKeyOrderAndNumericPrecision(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	// 顶层键刻意逆字母序,且带上真实 settings.json 里会出现的数值字段
+	original := `{
+  "theme": "dark",
+  "statusLine": {"type": "command"},
+  "maxTokens": 9007199254740993,
+  "huge": 123456789012345678901234,
+  "keep": 1.10,
+  "env": {"ZZZ": "last", "AAA": "first"},
+  "attribution": {"enabled": false}
+}`
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Install(path, "/tmp/agent-notify"); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(data)
+
+	// 顶层键序:原顺序保持,新增的 hooks 追加到末尾
+	wantOrder := []string{"theme", "statusLine", "maxTokens", "huge", "keep", "env", "attribution", "hooks"}
+	prev := -1
+	for _, key := range wantOrder {
+		idx := strings.Index(got, `"`+key+`"`)
+		if idx < 0 {
+			t.Fatalf("key %q missing from output:\n%s", key, got)
+		}
+		if idx < prev {
+			t.Fatalf("key %q moved out of order:\n%s", key, got)
+		}
+		prev = idx
+	}
+
+	// 数值逐字节保留
+	for _, literal := range []string{"9007199254740993", "123456789012345678901234", "1.10"} {
+		if !strings.Contains(got, literal) {
+			t.Fatalf("numeric literal %s was rewritten:\n%s", literal, got)
+		}
+	}
+
+	// 未触碰的子树内部键序也保留
+	zzz := strings.Index(got, `"ZZZ"`)
+	aaa := strings.Index(got, `"AAA"`)
+	if zzz < 0 || aaa < 0 || zzz > aaa {
+		t.Fatalf("env 内部键序被重排:\n%s", got)
+	}
+}
+
+// TestInstallLeavesUserHookEntryByteIdentical 用户手写的 entry(含 matcher、
+// 自定义键、自己的缩进)在安装后应当一个字节都没变。
+func TestInstallLeavesUserHookEntryByteIdentical(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	original := `{
+  "hooks": {
+    "UserPromptSubmit": [
+      {"matcher": "*", "note": "mine", "hooks": [{"type": "command", "command": "echo hi"}]}
+    ],
+    "Stop": [
+      {"matcher": "Bash", "hooks": [{"type": "command", "command": "echo user-stop"}]}
+    ]
+  }
+}`
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Install(path, "/tmp/agent-notify"); err != nil {
+		t.Fatalf("Install() error = %v", err)
+	}
+
+	data, _ := os.ReadFile(path)
+	got := string(data)
+
+	// 用户 entry 的键序 matcher/note/hooks 必须原样,不能被重排成 hooks/matcher/note
+	for _, want := range []string{
+		`"matcher": "*"`,
+		`"note": "mine"`,
+		`"matcher": "Bash"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("user entry was rewritten, %s missing:\n%s", want, got)
+		}
+	}
+
+	// 用户手写的 UserPromptSubmit 事件不该被重排到 SessionStart 之后的字母序位置
+	ups := strings.Index(got, `"UserPromptSubmit"`)
+	stop := strings.Index(got, `"Stop"`)
+	if ups < 0 || stop < 0 || ups > stop {
+		t.Fatalf("hooks 内的用户事件顺序被重排:\n%s", got)
+	}
+}
+
+// TestInstallRefusesNonArrayHookValue 是 issue #39 第 6 项的回归测试。
+// 旧实现里 common.ToAnySlice 对非数组返回 nil,Install 据此认为「这个事件下
+// 什么都没有」而整个替换掉——用户手写成对象形式的 hook 定义无声消失。
+func TestInstallRefusesNonArrayHookValue(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	original := `{"hooks":{"Stop":{"hooks":[{"type":"command","command":"echo mine"}]}}}`
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := Install(path, "/tmp/agent-notify")
+	if err == nil {
+		t.Fatal("Install 应当拒绝写入,而不是替换掉用户的定义")
+	}
+	if !strings.Contains(err.Error(), "hooks.Stop") {
+		t.Fatalf("错误信息应指出是哪个事件,实际是: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != original {
+		t.Fatalf("拒绝写入时文件不该被改动:\n got %s\nwant %s", data, original)
+	}
+}
+
+// TestUninstallKeepsNonArrayHookValue 卸载不该被用户的无关配置阻塞:
+// 非数组形态里不可能有我们写的 entry。
+func TestUninstallKeepsNonArrayHookValue(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	if err := os.WriteFile(path, []byte(`{"hooks":{"Stop":{"mine":true},"Notification":[{"hooks":[{"type":"command","command":"/x handle-claude-hook"}]}]}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Uninstall(path); err != nil {
+		t.Fatalf("Uninstall 不应报错: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"mine"`) {
+		t.Fatalf("用户手写的非数组值被删掉了:\n%s", data)
+	}
+	if strings.Contains(string(data), hookCommandMarker) {
+		t.Fatalf("托管 hook 未被移除:\n%s", data)
+	}
+}

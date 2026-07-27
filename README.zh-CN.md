@@ -89,7 +89,20 @@ npx agent-notify
 - macOS / Linux: `~/.agent-notify/agent-notify`
 - Windows: `~/.agent-notify/agent-notify.exe`
 
-之后每次运行都会检查本地二进制版本：不存在则自动下载，版本落后则自动更新，否则直接运行。launcher 不会持久修改 PATH，始终用绝对路径执行。
+之后每次运行都会把本地二进制与 npm 包锁定的版本比对，只要不一致就重新安装——双向生效，所以 `npx agent-notify@0.13.0` 跑的确实是 0.13.0。launcher 不会持久修改 PATH，始终用绝对路径执行。
+
+### 代理环境
+
+下载器支持 `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` 与 `NO_PROXY`（按惯例小写形式优先）。这些变量都没设时，会回落到 `.npmrc` 里 npm 自身的代理配置——企业环境多半是这么配的：
+
+```bash
+export HTTPS_PROXY=http://user:pass@proxy.corp:8080
+export NO_PROXY=github.com                          # 或者让 GitHub 走直连
+
+npm config set https-proxy http://proxy.corp:8080   # 作为兜底被读取
+```
+
+下载失败时会指出用的是哪个代理、下一步可以怎么做，而不是一直卡到超时。
 
 > **注意**: Codex 通过 `~/.codex/hooks.json` 接入官方 hooks 系统，目前仅订阅 `PermissionRequest`、`Stop` 两个事件。首次安装后请在 codex 内运行 `/hooks` 完成 trust 审核。
 >

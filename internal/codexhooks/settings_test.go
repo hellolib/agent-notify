@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/hellolib/agent-notify/internal/common"
@@ -290,4 +291,57 @@ func containsSubstring(haystack []string, needle string) bool {
 		}
 	}
 	return false
+}
+
+// TestInstallRefusesNonArrayHookValue 是 issue #39 第 6 项的回归测试。
+// 旧实现里 common.ToAnySlice 对非数组返回 nil,Install 据此认为「这个事件下
+// 什么都没有」而整个替换掉——用户手写成对象形式的 hook 定义无声消失。
+func TestInstallRefusesNonArrayHookValue(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hooks.json")
+	original := `{"hooks":{"Stop":{"hooks":[{"type":"command","command":"echo mine"}]}}}`
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := Install(path, "/tmp/agent-notify")
+	if err == nil {
+		t.Fatal("Install 应当拒绝写入,而不是替换掉用户的定义")
+	}
+	if !strings.Contains(err.Error(), "hooks.Stop") {
+		t.Fatalf("错误信息应指出是哪个事件,实际是: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != original {
+		t.Fatalf("拒绝写入时文件不该被改动:\n got %s\nwant %s", data, original)
+	}
+}
+
+// TestUninstallKeepsNonArrayHookValue 卸载不该被用户的无关配置阻塞:
+// 非数组形态里不可能有我们写的 entry。
+func TestUninstallKeepsNonArrayHookValue(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hooks.json")
+	if err := os.WriteFile(path, []byte(`{"hooks":{"Stop":{"mine":true},"PermissionRequest":[{"hooks":[{"type":"command","command":"/x handle-codex-hook"}]}]}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Uninstall(path); err != nil {
+		t.Fatalf("Uninstall 不应报错: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"mine"`) {
+		t.Fatalf("用户手写的非数组值被删掉了:\n%s", data)
+	}
+	if strings.Contains(string(data), hookCommandMarker) {
+		t.Fatalf("托管 hook 未被移除:\n%s", data)
+	}
 }
