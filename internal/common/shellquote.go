@@ -18,3 +18,30 @@ func QuotePathForShell(path string) string {
 	)
 	return `"` + r.Replace(path) + `"`
 }
+
+// UnquotePathFromShell 是 QuotePathForShell 的逆操作:从生成的 hook command
+// 里还原出二进制路径。兼容历史上未加引号的形态(直接返回原串)。
+func UnquotePathFromShell(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) < 2 || !strings.HasPrefix(s, `"`) || !strings.HasSuffix(s, `"`) {
+		return s
+	}
+	inner := s[1 : len(s)-1]
+	r := strings.NewReplacer(
+		`\\`, `\`,
+		`\"`, `"`,
+		`\$`, "$",
+		"\\`", "`",
+	)
+	return r.Replace(inner)
+}
+
+// BinaryPathFromHookCommand 从 hook command(形如 `"/path/to/bin" handle-x-hook`)
+// 中提取二进制路径。marker 之前的部分即路径;未找到 marker 时返回空串。
+func BinaryPathFromHookCommand(command, marker string) string {
+	idx := strings.Index(command, marker)
+	if idx < 0 {
+		return ""
+	}
+	return UnquotePathFromShell(command[:idx])
+}

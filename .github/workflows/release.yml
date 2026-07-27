@@ -91,8 +91,49 @@ jobs:
       - name: List artifacts
         run: ls -la artifacts/
 
+      # 生成校验和清单,供 npx 启动器在安装前验证下载完整性(issue #37)。
+      # 文件名与 tar.gz 同目录相对,便于 `sha256sum -c SHA256SUMS` 直接复核。
+      - name: Generate SHA256SUMS
+        working-directory: artifacts
+        run: |
+          sha256sum *.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*.tar.gz
+          files: |
+            artifacts/*.tar.gz
+            artifacts/SHA256SUMS
           generate_release_notes: true
+
+  # npm 必须在 Release 产物上传完成之后才发布(issue #36)。
+  # 过去由维护者本地 `make release` 在 push tag 后立刻 npm publish,
+  # 而 6 平台构建还要数分钟——窗口期内首次安装的用户下载 404 直接硬失败。
+  npm-publish:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm provenance 需要
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Publish to npm
+        working-directory: npx
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::NPM_TOKEN secret is not set — add it under Settings → Secrets and variables → Actions, then re-run this job."
+            exit 1
+          fi
+          npm_version="${VERSION#v}"
+          npm version "$npm_version" --no-git-tag-version --allow-same-version
+          npm publish --access public --provenance

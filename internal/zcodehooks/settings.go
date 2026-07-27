@@ -3,6 +3,7 @@ package zcodehooks
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -26,6 +27,19 @@ var managedEvents = []string{
 	"PermissionRequest",
 	"PostToolUseFailure",
 	"Stop",
+}
+
+// validEvents 是 ZCode 认可的全部 7 个事件名。schema 为 strict,
+// hooks 对象里出现任何这之外的键都会让整个 hooks 配置被静默丢弃,
+// 因此写入前必须校验既有内容的形状(issue #35)。
+var validEvents = map[string]bool{
+	"SessionStart":       true,
+	"UserPromptSubmit":   true,
+	"PreToolUse":         true,
+	"PermissionRequest":  true,
+	"PostToolUse":        true,
+	"PostToolUseFailure": true,
+	"Stop":               true,
 }
 
 // BuildHookSettings 生成 ZCode config.json 所需的 hooks 结构。
@@ -85,15 +99,35 @@ func Install(path string, binaryPath string) error {
 	if hooks == nil {
 		hooks = map[string]any{}
 	}
-	hooks["enabled"] = true
 
 	events, _ := hooks["events"].(map[string]any)
 	if events == nil {
 		events = map[string]any{}
 	}
 
+	// 写入前先规整既有形状:把历史/手写的扁平事件键迁进 events,
+	// 遇到无法识别的键则拒绝写入——留着它会让 ZCode 丢弃整个 hooks 配置。
+	if err := normalizeHooksShape(hooks, events); err != nil {
+		return err
+	}
+
+	// enabled 是用户所有 ZCode hook 的总开关,不属于我们。
+	// 仅在缺失时创建;用户显式关闭时拒绝安装并说明,而不是静默替他打开。
+	switch enabled := hooks["enabled"].(type) {
+	case nil:
+		hooks["enabled"] = true
+	case bool:
+		if !enabled {
+			return fmt.Errorf("%s 中 hooks.enabled = false(ZCode hook 总开关已关闭),"+
+				"agent-notify 的通知不会触发;请先将其改为 true 再重新安装", path)
+		}
+	default:
+		return fmt.Errorf("%s 中 hooks.enabled 不是布尔值(%T),请手动修正后重试", path, enabled)
+	}
+
 	for _, event := range managedEvents {
-		if common.EventHasManagedHook(events, event, hookCommandMarker) {
+		// 已有托管 hook:同步 command(路径可能已过期,issue #34)后跳过追加
+		if found, _ := common.SyncManagedHookCommand(events, event, hookCommandMarker, command); found {
 			continue
 		}
 		entries := common.ToAnySlice(events[event])
@@ -195,6 +229,12 @@ func Uninstall(path string) error {
 	if len(events) == 0 {
 		if hooks != nil {
 			delete(hooks, "events")
+			// events 已空说明没有任何 hook 了,此时留着 enabled=true 只会把
+			// 「我们安装时创建的开关」永久留在用户配置里。仅在其为 true 时清理:
+			// false 一定是用户自己设的(安装时我们从不写 false),必须保留。
+			if enabled, ok := hooks["enabled"].(bool); ok && enabled {
+				delete(hooks, "enabled")
+			}
 		}
 	} else if hooks != nil {
 		hooks["events"] = events
@@ -209,6 +249,31 @@ func Uninstall(path string) error {
 	}
 
 	return writeSettings(path, settings)
+}
+
+// normalizeHooksShape 把 hooks 对象规整成 ZCode 认可的 {enabled, events} 形状。
+//
+// 历史版本或手写配置可能留下 Claude 风格的扁平事件键(hooks.Stop = [...]),
+// 它对 ZCode 的 strict schema 是未知键,会导致整个 hooks 配置被静默丢弃——
+// 连我们刚写进去的 hook 一起失效。合法事件名的扁平键迁移进 events;
+// 其余无法识别的键无法安全处理,直接报错拒绝写入,把决定权交还用户。
+func normalizeHooksShape(hooks, events map[string]any) error {
+	for key, value := range hooks {
+		if key == "enabled" || key == "events" {
+			continue
+		}
+		if !validEvents[key] {
+			return fmt.Errorf("hooks 中存在无法识别的键 %q,ZCode 会因此丢弃整个 hooks 配置;"+
+				"请先手动移除该键或将其移入 hooks.events 后重试", key)
+		}
+		entries := common.ToAnySlice(value)
+		if entries == nil {
+			return fmt.Errorf("hooks.%s 不是数组,无法自动迁移到 hooks.events;请手动调整后重试", key)
+		}
+		events[key] = append(common.ToAnySlice(events[key]), entries...)
+		delete(hooks, key)
+	}
+	return nil
 }
 
 // eventsOf 从 settings 中取出 hooks.events 子对象（兼容历史/手写配置）。

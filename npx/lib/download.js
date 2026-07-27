@@ -23,9 +23,13 @@ function downloadToFile(url, destinationPath, client = https) {
       }
 
       if (response.statusCode !== 200) {
+        const statusCode = response.statusCode;
         file.close(() => {
           removeFileIfExists(destinationPath, () => {
-            reject(new Error(`download failed: ${response.statusCode} ${url}`));
+            const err = new Error(`download failed: ${statusCode} ${url}`);
+            // 调用方据此区分「该 release 没有这个文件」(404) 与网络/服务端故障
+            err.statusCode = statusCode;
+            reject(err);
           });
         });
         return;

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/hellolib/agent-notify/internal/common"
@@ -299,5 +300,44 @@ func TestInstallBacksUpExistingSettings(t *testing.T) {
 	}
 	if string(bak) != original {
 		t.Fatalf("backup = %q, want original content", bak)
+	}
+}
+
+// issue #34:重装时应把过期的二进制路径同步为当前路径,
+// 而不是因 marker 命中而原样保留失效命令。
+func TestInstallRefreshesStaleBinaryPath(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+
+	if err := Install(path, "/old/build/agent-notify"); err != nil {
+		t.Fatalf("first install error = %v", err)
+	}
+	if err := Install(path, "/new/npx/agent-notify"); err != nil {
+		t.Fatalf("second install error = %v", err)
+	}
+
+	got := readSettingsForTest(t, path)
+	hooks := got["hooks"].(map[string]any)
+	for _, event := range managedEvents {
+		entries := hooks[event].([]any)
+		total := 0
+		for _, e := range entries {
+			entryMap := e.(map[string]any)
+			for _, h := range entryMap["hooks"].([]any) {
+				hm := h.(map[string]any)
+				cmd, _ := hm["command"].(string)
+				if !strings.Contains(cmd, hookCommandMarker) {
+					continue
+				}
+				total++
+				want := `"/new/npx/agent-notify" ` + hookCommandMarker
+				if cmd != want {
+					t.Fatalf("%s command = %q, want %q", event, cmd, want)
+				}
+			}
+		}
+		if total != 1 {
+			t.Fatalf("%s has %d managed hooks, want 1 (no duplicates)", event, total)
+		}
 	}
 }

@@ -31,6 +31,7 @@ func IsolateHome(t *testing.T) string {
 // 真实 agent 的环境(CI runner)中也返回 true:
 //   - claude / codex / grok:PATH 上的可执行占位文件(exec.LookPath 探测);
 //   - zcode:home 下的 ~/.zcode 目录(os.Stat 探测)——须先 IsolateHome。
+//
 // 本地开发机装了真实 agent 时这些伪造是冗余但无害的。
 func FakeAgentsOnPath(t *testing.T) {
 	t.Helper()

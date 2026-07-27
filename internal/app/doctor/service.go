@@ -74,6 +74,9 @@ const (
 	StatusAgentMissing       DiagnosticStatus = "agent_missing"
 	StatusConfigMissing      DiagnosticStatus = "config_missing"
 	StatusIntegrationMissing DiagnosticStatus = "integration_missing"
+	// StatusBinaryMissing:hook 已注册,但 command 指向的二进制不存在
+	// (典型:先本地构建安装、后改用 npx,旧路径已删除,issue #34)
+	StatusBinaryMissing DiagnosticStatus = "binary_missing"
 )
 
 // DiagnosticsResult contains diagnostic results.
@@ -157,11 +160,15 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	_, cfgErr := os.Stat(cfgPath)
 	result.ConfigExists = cfgErr == nil
 
+	// hook 已注册但 command 指向的二进制不存在时,集成实际不可用(issue #34)
+	var claudeBinaryMissing, codexBinaryMissing, zcodeBinaryMissing, grokBinaryMissing bool
+
 	// Claude hooks settings
 	claudeSettingsPath, _ := s.claudeIntegration.SettingsPath("user")
 	if claudeSettingsPath != "" {
 		installed, err := s.claudeIntegration.IsHookInstalled(claudeSettingsPath)
 		result.ClaudeHookInstalled = err == nil && installed
+		claudeBinaryMissing = result.ClaudeHookInstalled && hookBinaryMissing(claudeSettingsPath, "handle-claude-hook")
 	}
 
 	// Codex hooks settings
@@ -169,6 +176,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	if codexSettingsPath != "" {
 		installed, err := s.codexIntegration.IsHookInstalled(codexSettingsPath)
 		result.CodexHookInstalled = err == nil && installed
+		codexBinaryMissing = result.CodexHookInstalled && hookBinaryMissing(codexSettingsPath, "handle-codex-hook")
 	}
 
 	// ZCode hooks settings
@@ -177,6 +185,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 		if zcodeSettingsPath != "" {
 			installed, err := s.zcodeIntegration.IsHookInstalled(zcodeSettingsPath)
 			result.ZcodeHookInstalled = err == nil && installed
+			zcodeBinaryMissing = result.ZcodeHookInstalled && hookBinaryMissing(zcodeSettingsPath, "handle-zcode-hook")
 		}
 	}
 
@@ -186,6 +195,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 		if grokSettingsPath != "" {
 			installed, err := s.grokIntegration.IsHookInstalled(grokSettingsPath)
 			result.GrokHookInstalled = err == nil && installed
+			grokBinaryMissing = result.GrokHookInstalled && hookBinaryMissing(grokSettingsPath, "handle-grok-hook")
 		}
 	}
 
@@ -230,10 +240,10 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.ZcodeSystemFocusPrecision = config.FocusPrecisionFromEnv()
 	result.GrokSystemFocusPrecision = config.FocusPrecisionFromEnv()
 
-	result.ClaudeIntegrationStatus = integrationStatus(result.ConfigExists, result.ClaudeInstalled, result.ClaudeHookInstalled)
-	result.CodexIntegrationStatus = integrationStatus(result.ConfigExists, result.CodexInstalled, result.CodexHookInstalled)
-	result.ZcodeIntegrationStatus = integrationStatus(result.ConfigExists, result.ZcodeInstalled, result.ZcodeHookInstalled)
-	result.GrokIntegrationStatus = integrationStatus(result.ConfigExists, result.GrokInstalled, result.GrokHookInstalled)
+	result.ClaudeIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.ClaudeInstalled, result.ClaudeHookInstalled, claudeBinaryMissing)
+	result.CodexIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.CodexInstalled, result.CodexHookInstalled, codexBinaryMissing)
+	result.ZcodeIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.ZcodeInstalled, result.ZcodeHookInstalled, zcodeBinaryMissing)
+	result.GrokIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.GrokInstalled, result.GrokHookInstalled, grokBinaryMissing)
 
 	// Feishu CLI
 	_, feishuCLIConfigErr := feishucli.ParseConfig()
@@ -243,6 +253,12 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 }
 
 func integrationStatus(configExists, agentInstalled, integrationInstalled bool) DiagnosticStatus {
+	return integrationStatusWithBinary(configExists, agentInstalled, integrationInstalled, false)
+}
+
+// integrationStatusWithBinary 在原有判定后追加一层:hook 注册了但二进制不在,
+// 集成实际不可用,必须与「已安装」区分开(issue #34)。
+func integrationStatusWithBinary(configExists, agentInstalled, integrationInstalled, binaryMissing bool) DiagnosticStatus {
 	if !agentInstalled {
 		return StatusAgentMissing
 	}
@@ -251,6 +267,9 @@ func integrationStatus(configExists, agentInstalled, integrationInstalled bool) 
 	}
 	if !integrationInstalled {
 		return StatusIntegrationMissing
+	}
+	if binaryMissing {
+		return StatusBinaryMissing
 	}
 	return StatusInstalled
 }
@@ -524,6 +543,8 @@ func diagnosticStatusLabel(status DiagnosticStatus) string {
 		return i18n.T("status.integration_installed")
 	case StatusAgentMissing:
 		return i18n.T("status.integration_agent_missing")
+	case StatusBinaryMissing:
+		return i18n.T("status.integration_binary_missing")
 	case StatusConfigMissing:
 		return i18n.T("status.integration_config_missing")
 	case StatusIntegrationMissing:

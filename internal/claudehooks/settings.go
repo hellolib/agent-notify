@@ -65,7 +65,8 @@ func Install(path string, binaryPath string) error {
 	}
 
 	for _, event := range managedEvents {
-		if common.EventHasManagedHook(hooks, event, hookCommandMarker) {
+		// 已有托管 hook:同步 command(路径可能已过期,issue #34)后跳过追加
+		if found, _ := common.SyncManagedHookCommand(hooks, event, hookCommandMarker, command); found {
 			continue
 		}
 		entries := common.ToAnySlice(hooks[event])

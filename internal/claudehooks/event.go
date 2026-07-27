@@ -5,17 +5,20 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hellolib/agent-notify/internal/common"
 	"github.com/hellolib/agent-notify/internal/notify"
 )
 
 type payload struct {
-	HookEventName string         `json:"hook_event_name"`
-	SessionID     string         `json:"session_id"`
-	CWD           string         `json:"cwd"`
-	Message       string         `json:"message"`
-	ToolName      string         `json:"tool_name"`
-	ToolResponse  map[string]any `json:"tool_response"`
-	ToolInput     map[string]any `json:"tool_input"`
+	HookEventName string `json:"hook_event_name"`
+	SessionID     string `json:"session_id"`
+	CWD           string `json:"cwd"`
+	Message       string `json:"message"`
+	ToolName      string `json:"tool_name"`
+	// tool_response / tool_input 依工具而异(对象/字符串/数组),用 RawMessage
+	// 容错解析,单字段类型意外不丢整个事件(issue #32)
+	ToolResponse json.RawMessage `json:"tool_response"`
+	ToolInput    json.RawMessage `json:"tool_input"`
 }
 
 func ParseMessage(data []byte) (notify.Message, error) {
@@ -68,7 +71,7 @@ func ParseMessage(data []byte) (notify.Message, error) {
 			Body:      notify.DefaultBody("run_completed"),
 		}, nil
 	case "PostToolUseFailure":
-		errMsg := extractErrorMessage(p.ToolResponse)
+		errMsg := extractErrorMessage(common.LenientObject(p.ToolResponse))
 		return notify.Message{
 			Agent:     "claude_code",
 			Event:     "run_failed",
@@ -107,12 +110,8 @@ func extractInputHint(msg string) string {
 		}
 	}
 
-	// If message is too long, truncate it
-	if len(msg) > 100 {
-		return msg[:97] + "..."
-	}
-
-	return msg
+	// If message is too long, truncate it (rune-safe, issue #33)
+	return common.TruncateRunes(msg, 100)
 }
 
 // extractErrorMessage extracts error message from tool response
@@ -123,19 +122,13 @@ func extractErrorMessage(response map[string]any) string {
 
 	if err, ok := response["error"]; ok {
 		if errStr, ok := err.(string); ok && errStr != "" {
-			if len(errStr) > 200 {
-				return errStr[:197] + "..."
-			}
-			return errStr
+			return common.TruncateRunes(errStr, 200)
 		}
 	}
 
 	if err, ok := response["message"]; ok {
 		if errStr, ok := err.(string); ok && errStr != "" {
-			if len(errStr) > 200 {
-				return errStr[:197] + "..."
-			}
-			return errStr
+			return common.TruncateRunes(errStr, 200)
 		}
 	}
 
