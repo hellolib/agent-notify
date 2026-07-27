@@ -11,12 +11,7 @@ import (
 )
 
 func Handle(ctx context.Context, cfg config.Config, statePath, logPath string, stdin io.Reader) error {
-	data, err := io.ReadAll(stdin)
-	if err != nil {
-		return state.AppendLog(logPath, fmt.Sprintf("read stdin error: %v", err))
-	}
-
-	msg, err := ParseMessage(data)
+	msg, err := ParseMessage(stdin)
 	if err != nil {
 		return state.AppendLog(logPath, fmt.Sprintf("skip event: %v", err))
 	}

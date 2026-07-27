@@ -8,6 +8,7 @@ package grokhooks
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/hellolib/agent-notify/internal/common"
@@ -32,8 +33,6 @@ type payload struct {
 	// RawMessage 容错:tool_response 可能是对象/字符串/数组(issue #32)
 	ToolResponse      json.RawMessage `json:"tool_response"`
 	ToolResponseCamel json.RawMessage `json:"toolResponse"`
-	ToolInput         json.RawMessage `json:"tool_input"`
-	ToolInputCamel    json.RawMessage `json:"toolInput"`
 	Error             string          `json:"error"`
 	ErrorMessage      string          `json:"errorMessage"`
 }
@@ -80,9 +79,9 @@ func (p payload) notificationTypeOf() string {
 	return p.NotificationTypeCamel
 }
 
-func ParseMessage(data []byte) (notify.Message, error) {
+func ParseMessage(stdin io.Reader) (notify.Message, error) {
 	var p payload
-	if err := json.Unmarshal(data, &p); err != nil {
+	if err := common.DecodeHookPayload(stdin, &p); err != nil {
 		return notify.Message{}, err
 	}
 
