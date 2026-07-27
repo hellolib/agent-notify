@@ -90,7 +90,6 @@ var catalog = map[string]map[Lang]string{
 	"clean.save_default_err": {ZhCN: "保存默认配置失败", EnUS: "failed to save default config"},
 	"clean.delete_failed":    {ZhCN: "删除配置文件失败", EnUS: "failed to delete config file"},
 	"clean.done":             {ZhCN: "✅ 配置已清理，下次配置时需要重新初始化飞书", EnUS: "✅ Config reset; Feishu will need re-initialization next time"},
-	"clean.skip_hooks":       {ZhCN: "⚠️  跳过 %s hooks 清理: %v\n", EnUS: "⚠️  Skipped %s hooks cleanup: %v\n"},
 	"clean.hooks_failed":     {ZhCN: "⚠️  清理 %s hooks 失败 (%s): %v\n", EnUS: "⚠️  Failed to clean %s hooks (%s): %v\n"},
 	"clean.hooks_done":       {ZhCN: "✅ 已清理 %s hooks (%s)\n", EnUS: "✅ Cleaned %s hooks (%s)\n"},
 	"clean.agent_closed":     {ZhCN: "%s 通知已关闭\n", EnUS: "%s notifications disabled\n"},

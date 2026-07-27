@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/hellolib/agent-notify/internal/agentintegrations"
 	"github.com/hellolib/agent-notify/internal/common"
 	"github.com/hellolib/agent-notify/internal/config"
 	"github.com/hellolib/agent-notify/internal/feishucli"
@@ -202,11 +201,16 @@ func runCleanConfig(streams Streams, prompter Prompter) error {
 		return nil
 	}
 
-	// 清理 agent-notify 配置
+	// 先把安装记录读出来再删配置:install_scope 与 installed_paths 都在
+	// config.yaml 里,删掉之后就无从知道 project scope 当初装到了哪个目录。
 	cfgPath, err := config.DefaultPath()
 	if err != nil {
 		return err
 	}
+	cfg, cfgErr := config.Load(cfgPath)
+	targets := hookCleanupTargets(cfg, cfgErr == nil)
+
+	// 清理 agent-notify 配置
 	if err := os.Remove(cfgPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("%s: %w", i18n.T("clean.delete_failed"), err)
 	}
@@ -230,22 +234,14 @@ func runCleanConfig(streams Streams, prompter Prompter) error {
 	}
 
 	// 清理 Claude / Codex / ZCode / Grok 中由本插件写入的 hook（保留用户挂载的其他 hook）
-	for _, integ := range []agentintegrations.Integration{
-		agentintegrations.NewClaudeIntegration(),
-		agentintegrations.NewCodexIntegration(),
-		agentintegrations.NewZcodeIntegration(),
-		agentintegrations.NewGrokIntegration(),
-	} {
-		settingsPath, err := integ.SettingsPath("user")
-		if err != nil {
-			fmt.Fprintf(streams.Stdout, i18n.T("clean.skip_hooks"), integ.Name(), err)
-			continue
+	for _, target := range targets {
+		for _, settingsPath := range target.paths {
+			if err := target.integration.Uninstall(settingsPath); err != nil {
+				fmt.Fprintf(streams.Stdout, i18n.T("clean.hooks_failed"), target.integration.Name(), settingsPath, err)
+				continue
+			}
+			fmt.Fprintf(streams.Stdout, i18n.T("clean.hooks_done"), target.integration.Name(), settingsPath)
 		}
-		if err := integ.Uninstall(settingsPath); err != nil {
-			fmt.Fprintf(streams.Stdout, i18n.T("clean.hooks_failed"), integ.Name(), settingsPath, err)
-			continue
-		}
-		fmt.Fprintf(streams.Stdout, i18n.T("clean.hooks_done"), integ.Name(), settingsPath)
 	}
 
 	// 保存一个干净的默认配置（所有通知都关闭）

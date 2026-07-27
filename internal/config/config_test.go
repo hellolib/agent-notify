@@ -357,3 +357,45 @@ func TestStarPromptedDefaultsFalseForOldConfig(t *testing.T) {
 		t.Fatal("expected StarPrompted=false for config without the key")
 	}
 }
+
+func TestRecordInstalledPathStoresAbsolutePathAndDedupes(t *testing.T) {
+	// project scope 传进来的是相对路径,必须转成绝对路径才能在别的目录清理
+	got := RecordInstalledPath(nil, filepath.Join(".claude", "settings.json"))
+	if len(got) != 1 {
+		t.Fatalf("len = %d, want 1", len(got))
+	}
+	if !filepath.IsAbs(got[0]) {
+		t.Fatalf("path %q 不是绝对路径", got[0])
+	}
+
+	// 同一路径重复安装不应产生重复记录
+	again := RecordInstalledPath(got, filepath.Join(".claude", "settings.json"))
+	if len(again) != 1 {
+		t.Fatalf("重复安装后 len = %d, want 1: %v", len(again), again)
+	}
+
+	// 不同项目分别安装应各记一条
+	other := RecordInstalledPath(again, filepath.Join(t.TempDir(), ".claude", "settings.json"))
+	if len(other) != 2 {
+		t.Fatalf("第二个项目未被记录: %v", other)
+	}
+}
+
+func TestInstalledPathsSurviveSaveLoadRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	cfg := Default()
+	cfg.Agent.ClaudeCode.InstalledPaths = []string{"/a/.claude/settings.json", "/b/.claude/settings.json"}
+
+	if err := Save(path, cfg); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	got := loaded.Agent.ClaudeCode.InstalledPaths
+	if len(got) != 2 || got[0] != "/a/.claude/settings.json" || got[1] != "/b/.claude/settings.json" {
+		t.Fatalf("installed_paths 未往返: %v", got)
+	}
+}
