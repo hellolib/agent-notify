@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -164,6 +165,17 @@ func HasManagedHook(events OrderedObject, managed []string, marker string) bool 
 	return false
 }
 
-// SkipNonArrayEvent 是 InstallManagedHooks 的 onNonArray 策略之一:
-// 保留原值、跳过该事件、继续安装其余事件。
-func SkipNonArrayEvent(string, error) error { return nil }
+// RefuseNonArrayEvent 构造 InstallManagedHooks 的 onNonArray 策略:报错中止整个安装。
+//
+// 用户把某个托管事件手写成对象形式时,我们无法安全地往里追加——旧实现把它
+// 当成「没有」而整个替换掉,用户的 hook 定义无声消失。拒绝写入让文件保持
+// 原样,并告诉用户该改哪里;这与 zcodehooks 对无法识别的 hooks 键的处理一致。
+//
+// pathPrefix 是事件在文件里的父路径,用于让报错指向准确位置
+// (claude/codex/grok 是 "hooks",zcode 是 "hooks.events")。
+func RefuseNonArrayEvent(pathPrefix string) func(string, error) error {
+	return func(event string, err error) error {
+		return fmt.Errorf("%s.%s %w;无法安全追加 agent-notify hook,"+
+			"请先手动改成数组形式后重试", pathPrefix, event, err)
+	}
+}

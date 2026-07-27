@@ -117,7 +117,7 @@ func Install(path string, binaryPath string) error {
 	}
 
 	if err := common.InstallManagedHooks(&events, managedEvents, hookCommandMarker, command,
-		common.SkipNonArrayEvent); err != nil {
+		common.RefuseNonArrayEvent("hooks.events")); err != nil {
 		return err
 	}
 

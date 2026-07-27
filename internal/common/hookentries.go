@@ -23,7 +23,7 @@ func HookEntries(raw json.RawMessage) ([]json.RawMessage, error) {
 		return nil, nil
 	}
 	if trimmed[0] != '[' {
-		return nil, fmt.Errorf("期望数组,实际是 %s", jsonKindOf(trimmed))
+		return nil, fmt.Errorf("期望数组,实际是%s", jsonKindOf(trimmed))
 	}
 	var entries []json.RawMessage
 	if err := json.Unmarshal(trimmed, &entries); err != nil {

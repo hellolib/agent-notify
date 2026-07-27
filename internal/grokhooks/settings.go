@@ -66,7 +66,7 @@ func Install(path string, binaryPath string) error {
 		return err
 	}
 	if err := common.InstallManagedHooks(&hooks, managedEvents, hookCommandMarker, command,
-		common.SkipNonArrayEvent); err != nil {
+		common.RefuseNonArrayEvent("hooks")); err != nil {
 		return err
 	}
 	if err := common.SetChildObject(&settings, "hooks", hooks); err != nil {
