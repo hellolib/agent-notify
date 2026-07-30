@@ -5,7 +5,7 @@ var catalog = map[string]map[Lang]string{
 	"menu.agent_config":   {ZhCN: "Agent通知配置", EnUS: "Agent Setup"},
 	"menu.channel_config": {ZhCN: "消息渠道配置", EnUS: "Channel Config"},
 	"menu.test":           {ZhCN: "测试通知", EnUS: "Test Notification"},
-	"menu.freeze":         {ZhCN: "🧊 暂时冻结通知（临时静音）", EnUS: "🧊 Freeze Notifications (mute temporarily)"},
+	"menu.freeze":         {ZhCN: "🔕冻结通知", EnUS: "🔕 Freeze Notifications"},
 	"menu.doctor":         {ZhCN: "环境诊断", EnUS: "Diagnostics"},
 	"menu.view_config":    {ZhCN: "查看配置", EnUS: "View Config"},
 	"menu.clean_config":   {ZhCN: "清理配置", EnUS: "Reset Config"},
