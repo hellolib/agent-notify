@@ -3,16 +3,19 @@
 package doctor
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/hellolib/agent-notify/internal/agentintegrations"
 	"github.com/hellolib/agent-notify/internal/config"
 	"github.com/hellolib/agent-notify/internal/feishucli"
 	"github.com/hellolib/agent-notify/internal/i18n"
+	"github.com/hellolib/agent-notify/internal/state"
 )
 
 // OutputWriter handles output messages.
@@ -137,6 +140,12 @@ type DiagnosticsResult struct {
 	CodexSystemFocusPrecision  string
 	ZcodeSystemFocusPrecision  string
 	GrokSystemFocusPrecision   string
+
+	// Temporary notification freeze (from freeze.json).
+	FreezeActive   bool
+	FreezeUntil    string
+	FreezeChannels string
+	FreezeRemain   string
 }
 
 // Run executes diagnostics and returns results.
@@ -248,6 +257,31 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	// Feishu CLI
 	_, feishuCLIConfigErr := feishucli.ParseConfig()
 	result.FeishuCLIReady = feishuCLIConfigErr == nil
+
+	// 临时冻结状态（读失败视为未冻结）
+	if statePath, err := config.StatePath(); err == nil {
+		now := time.Now()
+		st := state.NewFreezeStore(state.FreezePath(statePath)).Load()
+		if st.Active(now) {
+			result.FreezeActive = true
+			result.FreezeUntil = st.Until.Local().Format("2006-01-02 15:04")
+			result.FreezeChannels = strings.Join(st.Channels, ",")
+			remain := st.Until.Sub(now).Round(time.Second)
+			if remain >= time.Hour {
+				h := int(remain / time.Hour)
+				m := int((remain % time.Hour) / time.Minute)
+				if m == 0 {
+					result.FreezeRemain = fmt.Sprintf("%dh", h)
+				} else {
+					result.FreezeRemain = fmt.Sprintf("%dh%dm", h, m)
+				}
+			} else if remain >= time.Minute {
+				result.FreezeRemain = fmt.Sprintf("%dm", int(remain/time.Minute))
+			} else {
+				result.FreezeRemain = fmt.Sprintf("%ds", int(remain/time.Second))
+			}
+		}
+	}
 
 	return result, nil
 }
@@ -404,6 +438,12 @@ func (s *Service) Print(output OutputWriter, result *DiagnosticsResult) {
 		feishuCLIStatus = padRight(i18n.T("status.ready"), 10)
 	}
 	output.Writef(i18n.T("doctor.env_row_format")+"\n", padRight(i18n.T("doctor.item_feishu_cli"), 20), feishuCLIStatus)
+	if result.FreezeActive {
+		freezeStatus := fmt.Sprintf(i18n.T("doctor.freeze_active"), result.FreezeUntil, result.FreezeRemain, result.FreezeChannels)
+		output.Writef(i18n.T("doctor.env_row_format")+"\n", padRight(i18n.T("doctor.item_freeze"), 20), freezeStatus)
+	} else {
+		output.Writef(i18n.T("doctor.env_row_format")+"\n", padRight(i18n.T("doctor.item_freeze"), 20), i18n.T("doctor.freeze_inactive"))
+	}
 
 	output.Writef(i18n.T("doctor.env_sep") + "\n")
 }

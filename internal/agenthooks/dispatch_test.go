@@ -1,10 +1,13 @@
 package agenthooks
 
 import (
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/hellolib/agent-notify/internal/config"
 	"github.com/hellolib/agent-notify/internal/notify"
+	"github.com/hellolib/agent-notify/internal/state"
 )
 
 func TestApplyFocusCacheRoutesByPlatform(t *testing.T) {
@@ -126,5 +129,51 @@ func TestBuildSendersAddsBarkForCodex(t *testing.T) {
 	}
 	if senders[0].Name() != "bark" {
 		t.Fatalf("senders[0] = %q, want bark", senders[0].Name())
+	}
+}
+
+func TestFilterFrozenSendersDropsFrozenChannels(t *testing.T) {
+	dir := t.TempDir()
+	statePath := filepath.Join(dir, "state.json")
+	logPath := filepath.Join(dir, "log.txt")
+	now := time.Now()
+	store := state.NewFreezeStore(state.FreezePath(statePath))
+	if err := store.Set(now.Add(time.Hour), []string{"feishu"}, now); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config.Default()
+	cfg.Notify.ClaudeCode.Channels.System.Enabled = true
+	cfg.Notify.ClaudeCode.Channels.Feishu.Enabled = true
+	cfg.Notify.ClaudeCode.Events = []string{"run_completed"}
+	senders := buildSenders(cfg, notify.Message{Event: "run_completed"})
+	if len(senders) != 2 {
+		t.Fatalf("precondition: len(senders)=%d", len(senders))
+	}
+
+	filtered := filterFrozenSenders(statePath, logPath, "run_completed", senders, now)
+	if len(filtered) != 1 || filtered[0].Name() != "system" {
+		names := make([]string, len(filtered))
+		for i, s := range filtered {
+			names[i] = s.Name()
+		}
+		t.Fatalf("filtered=%v, want [system]", names)
+	}
+}
+
+func TestFilterFrozenSendersInactivePassthrough(t *testing.T) {
+	dir := t.TempDir()
+	statePath := filepath.Join(dir, "state.json")
+	logPath := filepath.Join(dir, "log.txt")
+
+	cfg := config.Default()
+	cfg.Notify.ClaudeCode.Channels.System.Enabled = true
+	cfg.Notify.ClaudeCode.Channels.Feishu.Enabled = true
+	cfg.Notify.ClaudeCode.Events = []string{"run_completed"}
+	senders := buildSenders(cfg, notify.Message{Event: "run_completed"})
+
+	filtered := filterFrozenSenders(statePath, logPath, "run_completed", senders, time.Now())
+	if len(filtered) != len(senders) {
+		t.Fatalf("len(filtered)=%d, want %d", len(filtered), len(senders))
 	}
 }

@@ -40,6 +40,12 @@ func Dispatch(ctx context.Context, cfg config.Config, statePath, logPath string,
 		return state.AppendLog(logPath, fmt.Sprintf("no sender enabled for event=%s", msg.Event))
 	}
 
+	// 临时冻结：在 ReserveSend 之前按渠道静默丢弃，不占去重名额、不改 agent hooks。
+	senders = filterFrozenSenders(statePath, logPath, msg.Event, senders, time.Now())
+	if len(senders) == 0 {
+		return state.AppendLog(logPath, fmt.Sprintf("all senders frozen for event=%s", msg.Event))
+	}
+
 	dispatcher := notify.NewDispatcher(store, time.Duration(cfg.Behavior.DedupeSeconds)*time.Second, senders...)
 	timeout := time.Duration(cfg.Behavior.SendTimeoutSeconds) * time.Second
 	sendCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -96,6 +102,26 @@ func captureFocusWindow(ctx context.Context, statePath, logPath string, msg noti
 	if err := state.NewFocusStore(state.FocusWindowsPath(statePath)).Save(msg.SessionID, windowData, time.Now()); err != nil {
 		_ = state.AppendLog(logPath, fmt.Sprintf("focus capture save error session=%s err=%v", msg.SessionID, err))
 	}
+}
+
+// filterFrozenSenders 按 freeze.json 剔除被冻渠道；未冻结或读失败时原样返回。
+func filterFrozenSenders(statePath, logPath, event string, senders []notify.Sender, now time.Time) []notify.Sender {
+	freeze := state.NewFreezeStore(state.FreezePath(statePath)).Load()
+	if !freeze.Active(now) {
+		return senders
+	}
+	filtered := senders[:0]
+	for _, s := range senders {
+		if freeze.Blocks(s.Name(), now) {
+			_ = state.AppendLog(logPath, fmt.Sprintf(
+				"freeze skip sender=%s until=%s event=%s",
+				s.Name(), freeze.Until.Format(time.RFC3339), event,
+			))
+			continue
+		}
+		filtered = append(filtered, s)
+	}
+	return filtered
 }
 
 func buildSenders(cfg config.Config, msg notify.Message) []notify.Sender {
