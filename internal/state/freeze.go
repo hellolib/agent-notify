@@ -14,10 +14,11 @@ import (
 
 const freezeFileName = "freeze.json"
 
-// DefaultFreezeChannels 是临时冻结的默认渠道集合（远程推送）。
+// RemoteFreezeChannels 是可冻结的远程推送渠道名（有序列表）。
 // 不含 system：人在电脑旁仍希望看到桌面通知。
 // 名称必须与 notify.Sender.Name() 对齐。
-var DefaultFreezeChannels = []string{
+// 实际默认勾选/写入的渠道由调用方按「当前已配置」解析，不再默认全选本列表。
+var RemoteFreezeChannels = []string{
 	"feishu",
 	"wechat",
 	"wechat-work",
@@ -26,6 +27,9 @@ var DefaultFreezeChannels = []string{
 	"ntfy",
 	"slack",
 }
+
+// DefaultFreezeChannels 保留别名，兼容旧引用；语义见 RemoteFreezeChannels。
+var DefaultFreezeChannels = RemoteFreezeChannels
 
 // FreezeState 是落盘的冻结快照。until 为零值或已过期表示未冻结。
 type FreezeState struct {
@@ -78,18 +82,14 @@ func (s *FreezeStore) Load() FreezeState {
 }
 
 // Set 写入/覆盖冻结截止时间与渠道列表。
-// until 必须严格晚于 now；channels 为空时使用 DefaultFreezeChannels。
+// until 必须严格晚于 now；channels 必须非空（由调用方按已配置渠道解析默认值）。
 func (s *FreezeStore) Set(until time.Time, channels []string, now time.Time) error {
 	if !until.After(now) {
 		return errors.New("freeze until must be in the future")
 	}
+	channels = uniqueNonEmpty(channels)
 	if len(channels) == 0 {
-		channels = append([]string(nil), DefaultFreezeChannels...)
-	} else {
-		channels = uniqueNonEmpty(channels)
-		if len(channels) == 0 {
-			channels = append([]string(nil), DefaultFreezeChannels...)
-		}
+		return errors.New("freeze channels must not be empty")
 	}
 
 	s.mu.Lock()

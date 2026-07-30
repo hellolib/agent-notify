@@ -418,9 +418,14 @@ func runFreezeMenu(streams Streams, prompter Prompter) error {
 		{Label: i18n.T("channel.ntfy"), Value: "ntfy"},
 		{Label: i18n.T("channel.slack"), Value: "slack"},
 	}
-	defaults := append([]string(nil), state.DefaultFreezeChannels...)
+	// 默认勾选：当前已配置的远程渠道；系统通知永不默认勾选。
+	// 若正在重设已有冻结，沿用上次冻结渠道（同样过滤掉误存的 system 也不强制）。
+	cfg, cfgErr := loadConfigForFreeze()
+	var defaults []string
 	if st.Active(time.Now()) && len(st.Channels) > 0 {
 		defaults = append([]string(nil), st.Channels...)
+	} else if cfgErr == nil {
+		defaults = enabledRemoteFreezeChannels(cfg)
 	}
 	selected, err := prompter.MultiSelect(i18n.T("freeze.channel_prompt"), channelOpts, defaults)
 	if err != nil {

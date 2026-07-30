@@ -69,24 +69,31 @@ func TestFreezeStoreSetLoadClear(t *testing.T) {
 	}
 }
 
-func TestFreezeStoreSetDefaultChannels(t *testing.T) {
+func TestFreezeStoreSetRejectsEmptyChannels(t *testing.T) {
 	dir := t.TempDir()
 	store := NewFreezeStore(filepath.Join(dir, "freeze.json"))
 	now := time.Now()
-	if err := store.Set(now.Add(time.Hour), nil, now); err != nil {
+	if err := store.Set(now.Add(time.Hour), nil, now); err == nil {
+		t.Fatal("expected error for empty channels")
+	}
+	if err := store.Set(now.Add(time.Hour), []string{"", ""}, now); err == nil {
+		t.Fatal("expected error for blank-only channels")
+	}
+}
+
+func TestFreezeStoreSetKeepsExplicitChannels(t *testing.T) {
+	dir := t.TempDir()
+	store := NewFreezeStore(filepath.Join(dir, "freeze.json"))
+	now := time.Now()
+	if err := store.Set(now.Add(time.Hour), []string{"feishu"}, now); err != nil {
 		t.Fatalf("Set: %v", err)
 	}
 	got := store.Load()
-	if len(got.Channels) != len(DefaultFreezeChannels) {
-		t.Fatalf("Channels = %v, want defaults %v", got.Channels, DefaultFreezeChannels)
-	}
-	for _, ch := range DefaultFreezeChannels {
-		if !got.Blocks(ch, now) {
-			t.Fatalf("default channel %q not blocked", ch)
-		}
+	if len(got.Channels) != 1 || got.Channels[0] != "feishu" {
+		t.Fatalf("Channels = %v, want [feishu]", got.Channels)
 	}
 	if got.Blocks("system", now) {
-		t.Fatal("system must not be in default freeze channels")
+		t.Fatal("system must not be blocked unless explicitly set")
 	}
 }
 

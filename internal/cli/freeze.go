@@ -32,8 +32,11 @@ func newFreezeCmd(streams Streams) *cobra.Command {
 		Short: "Temporarily freeze notification channels",
 		Long: `Temporarily freeze remote notification channels without changing agent hooks.
 
+By default freezes currently configured remote channels (not system).
+System notifications are never included unless you pass --channel system.
+
 Examples:
-  agent-notify freeze            # default 1h, remote channels only
+  agent-notify freeze            # default 1h, currently configured remote channels
   agent-notify freeze 30m
   agent-notify freeze 2h
   agent-notify freeze --until 18:00
@@ -50,7 +53,7 @@ Examples:
 	}
 
 	cmd.Flags().StringVar(&untilFlag, "until", "", "freeze until local HH:MM or RFC3339 timestamp")
-	cmd.Flags().StringVar(&channelsFlag, "channel", "", "comma-separated channels to freeze (default: all remote)")
+	cmd.Flags().StringVar(&channelsFlag, "channel", "", "comma-separated channels to freeze (default: configured remote channels)")
 	cmd.AddCommand(newFreezeStatusCmd(streams))
 	return cmd
 }
@@ -93,6 +96,16 @@ func runFreeze(streams Streams, args []string, untilFlag, channelsFlag string) e
 	if err != nil {
 		return err
 	}
+	if len(channels) == 0 {
+		cfg, err := loadConfigForFreeze()
+		if err != nil {
+			return err
+		}
+		channels = enabledRemoteFreezeChannels(cfg)
+		if len(channels) == 0 {
+			return fmt.Errorf("%s", i18n.T("freeze.err_no_configured_channel"))
+		}
+	}
 
 	store, err := freezeStoreFromDefault()
 	if err != nil {
@@ -102,10 +115,60 @@ func runFreeze(streams Streams, args []string, untilFlag, channelsFlag string) e
 		return fmt.Errorf("%s: %w", i18n.T("freeze.err_save"), err)
 	}
 
-	// Set 可能回填默认渠道，再读一次用于展示。
 	st := store.Load()
 	fmt.Fprintln(streams.Stdout, formatFreezeDone(st, now))
 	return nil
+}
+
+func loadConfigForFreeze() (config.Config, error) {
+	cfgPath, err := config.DefaultPath()
+	if err != nil {
+		return config.Config{}, err
+	}
+	return config.Load(cfgPath)
+}
+
+// enabledRemoteFreezeChannels 返回任一 agent 上已配置的远程推送渠道（去重、保序）。
+// 不含 system。Webhook 类渠道要求 Enabled 且 URL 非空；飞书仅要求 Enabled。
+func enabledRemoteFreezeChannels(cfg config.Config) []string {
+	agents := []config.AgentNotifyConfig{
+		cfg.Notify.ClaudeCode,
+		cfg.Notify.Codex,
+		cfg.Notify.ZCode,
+		cfg.Notify.Grok,
+	}
+	enabled := make(map[string]bool, len(state.RemoteFreezeChannels))
+	for _, a := range agents {
+		c := a.Channels
+		if c.Feishu.Enabled {
+			enabled["feishu"] = true
+		}
+		if c.Wechat.Enabled && c.Wechat.WebhookURL != "" {
+			enabled["wechat"] = true
+		}
+		if c.WechatWork.Enabled && c.WechatWork.WebhookURL != "" {
+			enabled["wechat-work"] = true
+		}
+		if c.DingTalk.Enabled && c.DingTalk.WebhookURL != "" {
+			enabled["dingtalk"] = true
+		}
+		if c.Bark.Enabled && c.Bark.WebhookURL != "" {
+			enabled["bark"] = true
+		}
+		if c.Ntfy.Enabled && c.Ntfy.TopicURL != "" {
+			enabled["ntfy"] = true
+		}
+		if c.Slack.Enabled && c.Slack.WebhookURL != "" {
+			enabled["slack"] = true
+		}
+	}
+	out := make([]string, 0, len(state.RemoteFreezeChannels))
+	for _, name := range state.RemoteFreezeChannels {
+		if enabled[name] {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 func runUnfreeze(streams Streams) error {
