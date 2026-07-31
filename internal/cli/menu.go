@@ -5,11 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/hellolib/agent-notify/internal/common"
 	"github.com/hellolib/agent-notify/internal/config"
 	"github.com/hellolib/agent-notify/internal/feishucli"
 	"github.com/hellolib/agent-notify/internal/i18n"
+	"github.com/hellolib/agent-notify/internal/state"
 )
 
 const banner = `
@@ -39,6 +42,7 @@ func runMenu(ctx context.Context, streams Streams) error {
 			{Label: i18n.T("menu.agent_config"), Value: "init"},
 			{Label: i18n.T("menu.channel_config"), Value: "channels"},
 			{Label: i18n.T("menu.test"), Value: "test"},
+			{Label: i18n.T("menu.freeze"), Value: "freeze"},
 			{Label: i18n.T("menu.doctor"), Value: "doctor"},
 			{Label: i18n.T("menu.view_config"), Value: "view"},
 			{Label: i18n.T("menu.clean_config"), Value: "clean"},
@@ -73,6 +77,12 @@ func runMenu(ctx context.Context, streams Streams) error {
 			if err := runTestMenu(ctx, streams, prompter); err != nil {
 				if !errors.Is(err, ErrCancelled) {
 					fmt.Fprintf(streams.Stdout, "\n%s: %v\n\n", i18n.T("err.test_failed"), err)
+				}
+			}
+		case "freeze":
+			if err := runFreezeMenu(streams, prompter); err != nil {
+				if !errors.Is(err, ErrCancelled) {
+					fmt.Fprintf(streams.Stdout, "\n%s: %v\n\n", i18n.T("freeze.err_save"), err)
 				}
 			}
 		case "doctor":
@@ -215,13 +225,22 @@ func runCleanConfig(streams Streams, prompter Prompter) error {
 		return fmt.Errorf("%s: %w", i18n.T("clean.delete_failed"), err)
 	}
 
-	// 清理状态文件
+	// 清理状态文件（含临时冻结 / 聚焦缓存及其锁文件）
 	statePath, err := config.StatePath()
 	if err != nil {
 		return err
 	}
-	if err := os.Remove(statePath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("%s: %w", i18n.T("clean.delete_failed"), err)
+	for _, p := range []string{
+		statePath,
+		statePath + ".lock",
+		state.FreezePath(statePath),
+		state.FreezePath(statePath) + ".lock",
+		state.FocusWindowsPath(statePath),
+		state.FocusWindowsPath(statePath) + ".lock",
+	} {
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("%s: %w", i18n.T("clean.delete_failed"), err)
+		}
 	}
 
 	// 清理日志文件
@@ -321,6 +340,107 @@ func runCleanConfig(streams Streams, prompter Prompter) error {
 func renderBanner(streams Streams) {
 	fmt.Fprint(streams.Stdout, banner)
 	fmt.Fprintf(streams.Stdout, "  Version: %s  |  https://github.com/hellolib/agent-notify\n\n", Version)
+}
+
+func runFreezeMenu(streams Streams, prompter Prompter) error {
+	store, err := freezeStoreFromDefault()
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	st := store.Load()
+
+	if st.Active(now) {
+		fmt.Fprintln(streams.Stdout, formatFreezeStatus(st, now))
+		choice, err := prompter.Select(i18n.T("freeze.active_prompt"), []PromptOption{
+			{Label: i18n.T("freeze.action_reset"), Value: "reset"},
+			{Label: i18n.T("freeze.action_clear"), Value: "clear"},
+			{Label: i18n.T("freeze.action_back"), Value: "back"},
+		}, "reset")
+		if err != nil {
+			return err
+		}
+		switch choice {
+		case "clear":
+			if err := store.Clear(); err != nil {
+				return fmt.Errorf("%s: %w", i18n.T("freeze.err_save"), err)
+			}
+			fmt.Fprintln(streams.Stdout, i18n.T("freeze.cleared"))
+			return nil
+		case "back":
+			return nil
+		case "reset":
+			// fall through to set flow
+		default:
+			return nil
+		}
+	}
+
+	durationChoice, err := prompter.Select(i18n.T("freeze.duration_prompt"), []PromptOption{
+		{Label: i18n.T("freeze.duration_30m"), Value: "30m"},
+		{Label: i18n.T("freeze.duration_1h"), Value: "1h"},
+		{Label: i18n.T("freeze.duration_2h"), Value: "2h"},
+		{Label: i18n.T("freeze.duration_custom"), Value: "custom"},
+		{Label: i18n.T("freeze.action_back"), Value: "back"},
+	}, "1h")
+	if err != nil {
+		return err
+	}
+	if durationChoice == "back" {
+		return nil
+	}
+
+	var until time.Time
+	now = time.Now()
+	if durationChoice == "custom" {
+		raw, err := prompter.Input(i18n.T("freeze.duration_custom_prompt"), "1h")
+		if err != nil {
+			return err
+		}
+		until, err = parseFreezeUntil(now, []string{strings.TrimSpace(raw)}, "")
+		if err != nil {
+			return err
+		}
+	} else {
+		until, err = parseFreezeUntil(now, []string{durationChoice}, "")
+		if err != nil {
+			return err
+		}
+	}
+
+	channelOpts := []PromptOption{
+		{Label: i18n.T("channel.system"), Value: "system"},
+		{Label: i18n.T("channel.feishu"), Value: "feishu"},
+		{Label: i18n.T("channel.wechat_personal"), Value: "wechat"},
+		{Label: i18n.T("channel.wechat"), Value: "wechat-work"},
+		{Label: i18n.T("channel.dingtalk"), Value: "dingtalk"},
+		{Label: i18n.T("channel.bark"), Value: "bark"},
+		{Label: i18n.T("channel.ntfy"), Value: "ntfy"},
+		{Label: i18n.T("channel.slack"), Value: "slack"},
+	}
+	// 默认勾选：当前已配置的远程渠道；系统通知永不默认勾选。
+	// 若正在重设已有冻结，沿用上次冻结渠道（同样过滤掉误存的 system 也不强制）。
+	cfg, cfgErr := loadConfigForFreeze()
+	var defaults []string
+	if st.Active(time.Now()) && len(st.Channels) > 0 {
+		defaults = append([]string(nil), st.Channels...)
+	} else if cfgErr == nil {
+		defaults = enabledRemoteFreezeChannels(cfg)
+	}
+	selected, err := prompter.MultiSelect(i18n.T("freeze.channel_prompt"), channelOpts, defaults)
+	if err != nil {
+		return err
+	}
+	if len(selected) == 0 {
+		return fmt.Errorf("%s", i18n.T("freeze.err_channel_empty"))
+	}
+
+	now = time.Now()
+	if err := store.Set(until, selected, now); err != nil {
+		return fmt.Errorf("%s: %w", i18n.T("freeze.err_save"), err)
+	}
+	fmt.Fprintln(streams.Stdout, formatFreezeDone(store.Load(), now))
+	return nil
 }
 
 func runSelectLanguage(streams Streams, prompter Prompter) error {

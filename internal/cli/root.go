@@ -38,6 +38,8 @@ func NewRootCmd(ctx context.Context, streams Streams) *cobra.Command {
 		newGrokCmd(streams),
 		newTestCmd(ctx, streams),
 		newDoctorCmd(streams),
+		newFreezeCmd(streams),
+		newUnfreezeCmd(streams),
 		newHandleClaudeHookCmd(ctx, streams),
 		newHandleCodexHookCmd(ctx, streams),
 		newHandleZcodeHookCmd(ctx, streams),
