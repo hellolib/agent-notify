@@ -326,3 +326,32 @@ func TestParseNotificationPermissionGrantedIsNotPermissionRequired(t *testing.T)
 func parseMessageBytes(data []byte) (notify.Message, error) {
 	return ParseMessage(bytes.NewReader(data))
 }
+
+// TestPermissionBodyIsBounded 守住通知正文长度上限:
+// message 直接来自 Grok,长度不可控;不截断会把超长正文原样塞进 webhook payload。
+// 上限 200 runes,与本文件处理错误消息等内容型文本一致。
+func TestPermissionBodyIsBounded(t *testing.T) {
+	long := strings.Repeat("长", 500)
+
+	// 带工具名:前缀之外的正文部分必须被截断
+	got := permissionBody(long, "Bash")
+	if n := len([]rune(got)); n > 200+len([]rune("工具: Bash\n")) {
+		t.Fatalf("permissionBody(带工具名) = %d runes, want <= 200 + 前缀", n)
+	}
+	if !strings.HasSuffix(got, "...") {
+		t.Fatalf("permissionBody = %q, 截断后应以 ... 结尾", got)
+	}
+
+	// 无工具名
+	if n := len([]rune(permissionBody(long, ""))); n > 200 {
+		t.Fatalf("permissionBody(无工具名) = %d runes, want <= 200", n)
+	}
+
+	// 短消息与空消息不受影响
+	if got := permissionBody("需要授权", ""); got != "需要授权" {
+		t.Fatalf("permissionBody 改动了短消息: %q", got)
+	}
+	if got := permissionBody("", "Bash"); got != "工具: Bash\n操作需要您的授权许可" {
+		t.Fatalf("permissionBody 空消息回退异常: %q", got)
+	}
+}

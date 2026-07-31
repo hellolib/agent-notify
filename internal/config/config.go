@@ -60,6 +60,16 @@ type NotifyConfig struct {
 	Droid      AgentNotifyConfig `yaml:"droid"`       // Droid 通知配置
 }
 
+// All 按固定顺序返回全部 agent 的通知配置，供只读遍历使用。
+//
+// 新增 agent 时唯一需要同步的枚举点：调用方（如 freeze 解析「已配置的远程渠道」）
+// 各自手写 agent 列表时漏掉新 agent 是个已经发生过的 bug —— Droid 接入后
+// enabledRemoteFreezeChannels 仍只遍历前四个，导致只配 Droid 的用户完全冻结不了。
+// TestNotifyConfigAllCoversEveryAgent 会在字段数与此处不一致时失败。
+func (n NotifyConfig) All() []AgentNotifyConfig {
+	return []AgentNotifyConfig{n.ClaudeCode, n.Codex, n.ZCode, n.Grok, n.Droid}
+}
+
 // AgentNotifyConfig holds notification configuration for a single agent.
 type AgentNotifyConfig struct {
 	Events   []string       `yaml:"events,omitempty"` // 通知事件列表，如: permission_required, input_required, run_completed, run_failed

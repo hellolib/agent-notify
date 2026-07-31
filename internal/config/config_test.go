@@ -399,3 +399,13 @@ func TestInstalledPathsSurviveSaveLoadRoundTrip(t *testing.T) {
 		t.Fatalf("installed_paths 未往返: %v", got)
 	}
 }
+
+// TestNotifyConfigAllCoversEveryAgent 让「新增 agent 忘了同步 All()」在测试期就暴露:
+// 只要往 NotifyConfig 加字段而不更新 All(),此用例立即失败。
+func TestNotifyConfigAllCoversEveryAgent(t *testing.T) {
+	got := len(NotifyConfig{}.All())
+	want := reflect.TypeOf(NotifyConfig{}).NumField()
+	if got != want {
+		t.Fatalf("NotifyConfig.All() 返回 %d 个 agent，但 NotifyConfig 有 %d 个字段；新增 agent 后请同步 All()", got, want)
+	}
+}

@@ -130,15 +130,10 @@ func loadConfigForFreeze() (config.Config, error) {
 
 // enabledRemoteFreezeChannels 返回任一 agent 上已配置的远程推送渠道（去重、保序）。
 // 不含 system。Webhook 类渠道要求 Enabled 且 URL 非空；飞书仅要求 Enabled。
+// agent 列表走 cfg.Notify.All()，避免这里手写枚举而漏掉新接入的 agent。
 func enabledRemoteFreezeChannels(cfg config.Config) []string {
-	agents := []config.AgentNotifyConfig{
-		cfg.Notify.ClaudeCode,
-		cfg.Notify.Codex,
-		cfg.Notify.ZCode,
-		cfg.Notify.Grok,
-	}
 	enabled := make(map[string]bool, len(state.RemoteFreezeChannels))
-	for _, a := range agents {
+	for _, a := range cfg.Notify.All() {
 		c := a.Channels
 		if c.Feishu.Enabled {
 			enabled["feishu"] = true

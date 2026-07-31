@@ -120,6 +120,24 @@ func TestExtractInputHintEmpty(t *testing.T) {
 	}
 }
 
+// TestPermissionBodyIsBounded 守住通知正文长度上限:
+// message 直接来自 Droid,长度不可控;不截断会把超长正文原样塞进 webhook payload。
+// 上限与 claudehooks 处理内容型文本一致（200 runes）。
+func TestPermissionBodyIsBounded(t *testing.T) {
+	long := strings.Repeat("长", 500)
+	got := permissionBody(long)
+	if n := len([]rune(got)); n > 200 {
+		t.Fatalf("permissionBody 长度 = %d runes, want <= 200", n)
+	}
+	if !strings.HasSuffix(got, "...") {
+		t.Fatalf("permissionBody = %q, 截断后应以 ... 结尾", got)
+	}
+	// 短消息必须原样保留
+	if got := permissionBody("需要授权执行命令"); got != "需要授权执行命令" {
+		t.Fatalf("permissionBody 改动了短消息: %q", got)
+	}
+}
+
 func parseMessageBytes(data []byte) (notify.Message, error) {
 	return ParseMessage(bytes.NewReader(data))
 }
