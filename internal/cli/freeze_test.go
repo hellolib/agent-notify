@@ -117,3 +117,19 @@ func TestEnabledRemoteFreezeChannelsEmptyWhenNoneConfigured(t *testing.T) {
 		t.Fatalf("got %v, want empty", got)
 	}
 }
+
+// TestEnabledRemoteFreezeChannelsCoversDroid 守住「新增 agent 必须同步这里」这条约束:
+// 只配了 Droid 的用户执行 `agent-notify freeze` 时,默认渠道不能解析成空——
+// 否则会直接报「没有已配置的渠道」,冻结功能整个用不了。
+func TestEnabledRemoteFreezeChannelsCoversDroid(t *testing.T) {
+	cfg := config.Default()
+	cfg.Notify.Droid.Channels.Feishu.Enabled = true
+	cfg.Notify.Droid.Channels.Ntfy.Enabled = true
+	cfg.Notify.Droid.Channels.Ntfy.TopicURL = "https://ntfy.sh/demo"
+
+	got := enabledRemoteFreezeChannels(cfg)
+	want := []string{"feishu", "ntfy"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}

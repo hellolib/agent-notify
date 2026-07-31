@@ -91,10 +91,13 @@ func parseNotification(p payload) (notify.Message, error) {
 	}
 }
 
+// permissionBody 构造授权等待通知的正文。
+// message 来自 Droid，长度不可控，按 rune 截断避免超长正文塞满 webhook payload
+// 且不切碎 CJK 字符（issue #33）；上限与 claudehooks 处理内容型文本一致。
 func permissionBody(msg string) string {
 	msg = strings.TrimSpace(msg)
 	if msg != "" {
-		return msg
+		return common.TruncateRunes(msg, 200)
 	}
 	return "操作需要您的授权许可"
 }

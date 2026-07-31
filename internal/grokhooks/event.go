@@ -192,13 +192,17 @@ func inputRequiredMessage(p payload, msg, notifType string) notify.Message {
 	}
 }
 
+// permissionBody 构造授权等待通知的正文。
+// msg 来自 Grok，长度不可控，按 rune 截断避免超长正文塞满 webhook payload；
+// 上限 200 与本文件处理错误消息等内容型文本一致。
 func permissionBody(msg, toolName string) string {
 	tool := strings.TrimSpace(toolName)
 	if strings.TrimSpace(msg) != "" {
+		body := truncate(strings.TrimSpace(msg), 200)
 		if tool != "" {
-			return fmt.Sprintf("工具: %s\n%s", tool, strings.TrimSpace(msg))
+			return fmt.Sprintf("工具: %s\n%s", tool, body)
 		}
-		return strings.TrimSpace(msg)
+		return body
 	}
 	if tool != "" {
 		return fmt.Sprintf("工具: %s\n操作需要您的授权许可", tool)
