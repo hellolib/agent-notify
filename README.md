@@ -14,7 +14,7 @@
 
 ## Overview
 
-Agent Notify hooks into the lifecycle events of AI coding agents (Claude Code, Codex, ZCode, Grok, etc.) and pushes them to your phone and desktop. Get notified the moment your agent needs permission, is waiting for input, finishes a task, or fails — so you never have to babysit a running agent.
+Agent Notify hooks into the lifecycle events of AI coding agents (Claude Code, Codex, ZCode, Grok, Droid, etc.) and pushes them to your phone and desktop. Get notified the moment your agent needs permission, is waiting for input, finishes a task, or fails — so you never have to babysit a running agent.
 
 Supported delivery channels: **OS-native system notifications**, **Feishu/Lark**, **WeChat Work (企业微信)**, **DingTalk (钉钉)**, **Bark (iOS)**, and **ntfy**.
 
@@ -48,20 +48,21 @@ npx agent-notify
 
 ### Supported Events
 
-| Event | Description | Claude Code | Codex | ZCode | Grok |
-|------|------|:---:|:---:|:---:|:----:|
-| `permission_required` | Agent needs authorization (e.g. to run a command) | ✅ | ✅ | ✅ |  ✅  |
-| `input_required` | Agent is waiting for user input | ✅ | — | — |  ✅  |
-| `run_completed` | Task finished | ✅ | ✅ | ✅ |  ✅  |
-| `run_failed` | Task failed | ✅ | — | ✅ |  ✅  |
+| Event | Description | Claude Code | Codex | ZCode | Grok | Droid |
+|------|------|:---:|:---:|:---:|:----:|:-----:|
+| `permission_required` | Agent needs authorization (e.g. to run a command) | ✅ | ✅ | ✅ |  ✅  |  ✅  |
+| `input_required` | Agent is waiting for user input | ✅ | — | — |  ✅  |  ✅  |
+| `run_completed` | Task finished | ✅ | ✅ | ✅ |  ✅  |  ✅  |
+| `run_failed` | Task failed | ✅ | — | ✅ |  ✅  |  —  |
 
 Notes:
 
 - Claude Code subscribes via hooks in `~/.claude/settings.json`: `PermissionRequest`, `Notification`, `Stop`, `PostToolUseFailure`, and `SessionStart`.
-- Codex subscribes via `~/.codex/hooks.json`: `PermissionRequest` and `Stop` (mapped to `permission_required` / `run_completed`), plus `SessionStart`. `input_required` and `run_failed` have no corresponding Codex hook yet, so they are not supported.
+- Codex subscribes via `~/.codex/hooks.json`: `PermissionRequest` and `Stop` (mapped to `permission_required` / `run_completed`). `input_required`, `run_failed`, and the window-capture `SessionStart` hook have no corresponding Codex hook yet, so they are not supported.
 - ZCode subscribes via `~/.zcode/cli/config.json`: `SessionStart`, `PermissionRequest`, `PostToolUseFailure`, and `Stop`, mapped to `permission_required`, `run_failed`, and `run_completed`. ZCode has no `Notification` event (so no `input_required`), and its hook schema is strict — an unknown event name will cause the whole hooks config to be silently dropped.
 - Grok subscribes via `~/.grok/hooks/agent-notify.json`: `SessionStart`, `Notification`, `Stop`, `StopFailure`, and `PostToolUseFailure`. There is no dedicated `PermissionRequest` event; `Notification`s with permission/approval semantics map to `permission_required` (marked *), others map to `input_required`. `StopFailure` / `PostToolUseFailure` map to `run_failed`.
-- **`SessionStart` does not produce a notification.** It is subscribed on every agent solely to capture the terminal window at session start, which powers Linux window-level [Click-to-Focus](#click-to-focus). On macOS/Windows the SessionStart hook is a no-op.
+- Droid subscribes via `~/.factory/hooks.json`: `SessionStart`, `Notification`, and `Stop`. `Notification`s are dispatched by `notification_type` — `permission_prompt` maps to `permission_required` and `idle_prompt` maps to `input_required`; other types (`auth_success`, `elicitation_dialog`) are ignored. `Stop` maps to `run_completed`. Droid has no failure event, so `run_failed` is not supported.
+- **`SessionStart` does not produce a notification.** It is subscribed on the agents that support it solely to capture the terminal window at session start, which powers Linux window-level [Click-to-Focus](#click-to-focus). On macOS/Windows the SessionStart hook is a no-op. (Codex does not expose a `SessionStart` hook.)
 
 ### Supported Platforms
 
@@ -121,6 +122,8 @@ Download failures name the proxy that was used and what to try next, rather than
 > **Note**: Codex integrates through the official hooks system in `~/.codex/hooks.json` and currently subscribes only to `PermissionRequest` and `Stop`. After first install, run `/hooks` inside Codex to complete the trust review.
 >
 > **Grok**: Writes `~/.grok/hooks/agent-notify.json`. Global hooks are always trusted; project hooks (`.grok/hooks/`) require `/hooks-trust` or `--trust`. After install, run `/hooks` (or `Ctrl+L`) inside Grok to confirm they loaded.
+>
+> **Droid**: Writes `~/.factory/hooks.json` (project scope uses `.factory/hooks.json`). After install, run `/hooks` inside Droid to confirm they loaded; project hooks need `/hooks-trust`.
 
 
 > You don't need to edit config files by hand — this section is for reference only.
@@ -133,6 +136,7 @@ Agent integration config locations:
 - Codex: `~/.codex/hooks.json` (writes hooks → command `agent-notify handle-codex-hook`; run `/hooks` inside Codex to complete trust)
 - ZCode: `~/.zcode/cli/config.json` (writes `hooks.events.<Event>` + `hooks.enabled` → command `agent-notify handle-zcode-hook`; restart ZCode for the config to take effect)
 - Grok: `~/.grok/hooks/agent-notify.json` (writes hooks → command `agent-notify handle-grok-hook`; project scope uses `.grok/hooks/agent-notify.json`)
+- Droid: `~/.factory/hooks.json` (writes hooks → command `agent-notify handle-droid-hook`; project scope uses `.factory/hooks.json`)
 
 ### WeChat Work Bot Binding Tip
 

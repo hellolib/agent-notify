@@ -40,6 +40,7 @@ type Service struct {
 	codexIntegration  agentintegrations.Integration
 	zcodeIntegration  agentintegrations.Integration
 	grokIntegration   agentintegrations.Integration
+	droidIntegration  agentintegrations.Integration
 	feishuPreparer    FeishuPreparer
 	configLoader      ConfigLoader
 }
@@ -65,6 +66,7 @@ func NewService(opts ...Option) *Service {
 		codexIntegration:  agentintegrations.NewCodexIntegration(),
 		zcodeIntegration:  agentintegrations.NewZcodeIntegration(),
 		grokIntegration:   agentintegrations.NewGrokIntegration(),
+		droidIntegration:  agentintegrations.NewDroidIntegration(),
 	}
 
 	for _, opt := range opts {
@@ -97,6 +99,11 @@ func WithGrokIntegration(i agentintegrations.Integration) Option {
 	return func(s *Service) { s.grokIntegration = i }
 }
 
+// WithDroidIntegration sets the Droid integration.
+func WithDroidIntegration(i agentintegrations.Integration) Option {
+	return func(s *Service) { s.droidIntegration = i }
+}
+
 // WithFeishuPreparer sets the Feishu preparer.
 func WithFeishuPreparer(p FeishuPreparer) Option {
 	return func(s *Service) { s.feishuPreparer = p }
@@ -117,7 +124,7 @@ func claudeEventOptionsFn() []PromptOption {
 }
 
 // codexEventOptionsFn returns event options for Codex.
-// Only PermissionRequest → permission_required and Stop → run_completed are reliably supported.
+// Codex 官方 hooks 对应 PermissionRequest / Stop;TUI 标签与官方事件名对齐。
 func codexEventOptionsFn() []PromptOption {
 	return []PromptOption{
 		{Label: i18n.T("event.permission_required"), Value: "permission_required"},
@@ -148,6 +155,19 @@ func grokEventOptionsFn() []PromptOption {
 		{Label: i18n.T("event.input_required"), Value: "input_required"},
 		{Label: i18n.T("event.run_completed"), Value: "run_completed"},
 		{Label: i18n.T("event.run_failed"), Value: "run_failed"},
+	}
+}
+
+// droidEventOptionsFn returns event options for Droid.
+// Droid 支持 SessionStart / Notification / Stop，映射为
+// session_start / permission_required|input_required / run_completed。
+// Droid 无失败事件，故不支持 run_failed。session_start 仅用于点击聚焦的
+// 窗口捕获，不作为通知事件，故不列为可选项。
+func droidEventOptionsFn() []PromptOption {
+	return []PromptOption{
+		{Label: i18n.T("event.permission_required"), Value: "permission_required"},
+		{Label: i18n.T("event.input_required"), Value: "input_required"},
+		{Label: i18n.T("event.run_completed"), Value: "run_completed"},
 	}
 }
 
@@ -307,6 +327,19 @@ func (s *Service) disableAgentNotification(cfg config.Config, path, agent string
 		cfg.Notify.Grok.Channels.Slack.WebhookURL = ""
 		cfg.Notify.Grok.Events = nil
 		cfg.Agent.Grok.Enabled = false
+	case "droid":
+		cfg.Notify.Droid.Channels.Feishu.Enabled = false
+		cfg.Notify.Droid.Channels.System.Enabled = false
+		cfg.Notify.Droid.Channels.Wechat.Enabled = false
+		cfg.Notify.Droid.Channels.Wechat.WebhookURL = ""
+		cfg.Notify.Droid.Channels.WechatWork.Enabled = false
+		cfg.Notify.Droid.Channels.DingTalk.Enabled = false
+		cfg.Notify.Droid.Channels.Bark.Enabled = false
+		cfg.Notify.Droid.Channels.Ntfy.Enabled = false
+		cfg.Notify.Droid.Channels.Slack.Enabled = false
+		cfg.Notify.Droid.Channels.Slack.WebhookURL = ""
+		cfg.Notify.Droid.Events = nil
+		cfg.Agent.Droid.Enabled = false
 	}
 
 	if err := s.saveConfig(path, cfg); err != nil {
@@ -331,6 +364,8 @@ func agentName(agent string) string {
 		return "ZCode"
 	case "grok":
 		return "Grok"
+	case "droid":
+		return "Droid"
 	default:
 		return agent
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/hellolib/agent-notify/internal/claudehooks"
 	"github.com/hellolib/agent-notify/internal/common"
 	"github.com/hellolib/agent-notify/internal/config"
+	"github.com/hellolib/agent-notify/internal/droidhooks"
 	"github.com/hellolib/agent-notify/internal/grokhooks"
 	"github.com/hellolib/agent-notify/internal/i18n"
 	"github.com/hellolib/agent-notify/internal/zcodehooks"
@@ -74,6 +75,7 @@ func runInitFlow(ctx context.Context, streams Streams, prompter Prompter, config
 		setup.WithCodexIntegration(agentintegrations.NewCodexIntegration()),
 		setup.WithZcodeIntegration(agentintegrations.NewZcodeIntegration()),
 		setup.WithGrokIntegration(agentintegrations.NewGrokIntegration()),
+		setup.WithDroidIntegration(agentintegrations.NewDroidIntegration()),
 		setup.WithFeishuPreparer(&feishuPreparerAdapter{}),
 	)
 
@@ -152,6 +154,24 @@ func runInstallGrokHooks(scope, binaryPath string) error {
 	return grokhooks.Install(path, common.ResolveBinaryPath(binaryPath))
 }
 
+func runPrintDroidHooks(streams Streams, binaryPath string) error {
+	settings := droidhooks.BuildHookSettings(common.ResolveBinaryPath(binaryPath))
+	data, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(streams.Stdout, string(data))
+	return err
+}
+
+func runInstallDroidHooks(scope, binaryPath string) error {
+	path, err := settingsPathForAgent("droid", scope)
+	if err != nil {
+		return err
+	}
+	return droidhooks.Install(path, common.ResolveBinaryPath(binaryPath))
+}
+
 func runTestFeishu(ctx context.Context, streams Streams) error {
 	svc := tester.NewService(
 		tester.WithFeishuPreparer(&feishuPreparerAdapter{}),
@@ -192,6 +212,9 @@ func runTestWechatWork(ctx context.Context, streams Streams) error {
 		webhookURL = cfg.Notify.Grok.Channels.WechatWork.WebhookURL
 	}
 	if webhookURL == "" {
+		webhookURL = cfg.Notify.Droid.Channels.WechatWork.WebhookURL
+	}
+	if webhookURL == "" {
 		return fmt.Errorf("%s", i18n.T("err.wechat_not_configured"))
 	}
 
@@ -221,6 +244,9 @@ func runInitWechatWork(streams Streams, prompter Prompter) error {
 	if currentURL == "" {
 		currentURL = cfg.Notify.Grok.Channels.WechatWork.WebhookURL
 	}
+	if currentURL == "" {
+		currentURL = cfg.Notify.Droid.Channels.WechatWork.WebhookURL
+	}
 
 	webhookURL, err := prompter.Input(i18n.T("prompt.wechat_webhook"), currentURL)
 	if err != nil {
@@ -248,6 +274,7 @@ func runDoctor(streams Streams) error {
 		doctor.WithCodexIntegration(agentintegrations.NewCodexIntegration()),
 		doctor.WithZcodeIntegration(agentintegrations.NewZcodeIntegration()),
 		doctor.WithGrokIntegration(agentintegrations.NewGrokIntegration()),
+		doctor.WithDroidIntegration(agentintegrations.NewDroidIntegration()),
 	)
 	result, err := svc.Run()
 	if err != nil {
@@ -326,6 +353,15 @@ func printCurrentNotifyConfig(streams Streams) error {
 		statusIcon(cfg.Notify.Grok.Channels.Bark.Enabled),
 		statusIcon(cfg.Notify.Grok.Channels.Ntfy.Enabled),
 		statusIcon(cfg.Notify.Grok.Channels.Slack.Enabled))
+	fmt.Fprintf(streams.Stdout, i18n.T("view.row_format")+"\n", "Droid",
+		statusIcon(cfg.Notify.Droid.Channels.Feishu.Enabled),
+		statusIcon(cfg.Notify.Droid.Channels.System.Enabled),
+		statusIcon(cfg.Notify.Droid.Channels.Wechat.Enabled),
+		statusIcon(cfg.Notify.Droid.Channels.WechatWork.Enabled),
+		statusIcon(cfg.Notify.Droid.Channels.DingTalk.Enabled),
+		statusIcon(cfg.Notify.Droid.Channels.Bark.Enabled),
+		statusIcon(cfg.Notify.Droid.Channels.Ntfy.Enabled),
+		statusIcon(cfg.Notify.Droid.Channels.Slack.Enabled))
 	fmt.Fprintln(streams.Stdout, i18n.T("view.separator"))
 
 	return nil
@@ -374,6 +410,15 @@ func settingsPathForAgent(agent, scope string) (string, error) {
 			return filepath.Join(home, ".grok", "hooks", "agent-notify.json"), nil
 		case "project":
 			return filepath.Join(".grok", "hooks", "agent-notify.json"), nil
+		default:
+			return "", fmt.Errorf("unsupported scope: %s", scope)
+		}
+	case "droid":
+		switch scope {
+		case "user":
+			return filepath.Join(home, ".factory", "hooks.json"), nil
+		case "project":
+			return filepath.Join(".factory", "hooks.json"), nil
 		default:
 			return "", fmt.Errorf("unsupported scope: %s", scope)
 		}

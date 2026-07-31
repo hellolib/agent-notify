@@ -17,6 +17,7 @@ func TestService_CodexBarkChannel(t *testing.T) {
 		WithCodexIntegration(&mockIntegration{name: "Codex", detectInstalled: true, settingsPath: "/tmp/.codex/config.toml"}),
 		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
 		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
+		WithDroidIntegration(&mockIntegration{name: "Droid", detectInstalled: false}),
 		WithConfigLoader(loader),
 	)
 	wantURL := "https://api.day.app/testkey/replace-me"
@@ -59,6 +60,7 @@ func TestService_DisablesExistingBarkWhenDeselected(t *testing.T) {
 		WithCodexIntegration(&mockIntegration{name: "Codex", detectInstalled: false}),
 		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
 		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
+		WithDroidIntegration(&mockIntegration{name: "Droid", detectInstalled: false}),
 		WithConfigLoader(loader),
 	)
 	prompter := &mockPrompter{

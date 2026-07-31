@@ -14,7 +14,7 @@
 
 ## 项目简介
 
-一个面向 AI Agent 的通知配置工具。支持将 Claude Code、Codex、ZCode (Z.ai)、Grok 等 Agent 的事件通知推送到飞书、企业微信、钉钉、Bark、ntfy 和系统通知。
+一个面向 AI Agent 的通知配置工具。支持将 Claude Code、Codex、ZCode (Z.ai)、Grok、Droid 等 Agent 的事件通知推送到飞书、企业微信、钉钉、Bark、ntfy 和系统通知。
 
 <p align="center">
   <img src="assist/demo.gif" alt="Agent Notify 演示" width="700">
@@ -43,20 +43,21 @@ npx agent-notify
 
 ### 支持的事件
 
-| 事件 | 说明 | Claude Code | Codex | ZCode | Grok |
-|------|------|:---:|:---:|:---:|:----:|
-| `permission_required` | Agent 需要授权（如执行命令） | ✅ | ✅ | ✅ |  ✅  |
-| `input_required` | Agent 等待用户输入 | ✅ | — | — |  ✅  |
-| `run_completed` | 任务执行完成 | ✅ | ✅ | ✅ |  ✅  |
-| `run_failed` | 任务执行失败 | ✅ | — | ✅ |  ✅  |
+| 事件 | 说明 | Claude Code | Codex | ZCode | Grok | Droid |
+|------|------|:---:|:---:|:---:|:----:|:-----:|
+| `permission_required` | Agent 需要授权（如执行命令） | ✅ | ✅ | ✅ |  ✅  |  ✅  |
+| `input_required` | Agent 等待用户输入 | ✅ | — | — |  ✅  |  ✅  |
+| `run_completed` | 任务执行完成 | ✅ | ✅ | ✅ |  ✅  |  ✅  |
+| `run_failed` | 任务执行失败 | ✅ | — | ✅ |  ✅  |  —  |
 
 说明：
 
 - Claude Code 通过 `~/.claude/settings.json` 的 hooks 订阅：`PermissionRequest`、`Notification`、`Stop`、`PostToolUseFailure`、`SessionStart`。
-- Codex 通过 `~/.codex/hooks.json` 订阅 `PermissionRequest`、`Stop`（映射到 `permission_required` / `run_completed`）以及 `SessionStart`。`input_required` 与 `run_failed` Codex 目前没有对应 hook，因此暂不支持。
+- Codex 通过 `~/.codex/hooks.json` 订阅 `PermissionRequest`、`Stop`（映射到 `permission_required` / `run_completed`）。`input_required`、`run_failed` 以及用于窗口捕获的 `SessionStart` Codex 目前没有对应 hook，因此暂不支持。
 - ZCode 通过 `~/.zcode/cli/config.json` 订阅 `SessionStart`、`PermissionRequest`、`PostToolUseFailure`、`Stop`，映射到 `permission_required`、`run_failed`、`run_completed`。ZCode 没有 `Notification` 事件（因此不支持 `input_required`），且其 hook 配置格式较为严格——无法识别的事件名称会导致整个 hooks 配置被静默丢弃。
 - Grok 通过 `~/.grok/hooks/agent-notify.json` 订阅 `SessionStart`、`Notification`、`Stop`、`StopFailure`、`PostToolUseFailure`。Grok 没有独立的 `PermissionRequest` 事件，带 permission/approval 语义的 `Notification` 会映射为 `permission_required`（表中 *）；其它通知映射为 `input_required`。`StopFailure` / `PostToolUseFailure` 映射为 `run_failed`。
-- **`SessionStart` 不产生任何通知。** 它在所有 agent 上被订阅，仅用于在会话启动时捕获终端窗口，为 Linux 的窗口级点击聚焦提供支持（见下方「点击聚焦」一节）；在 macOS/Windows 上该 hook 为空操作。
+- Droid 通过 `~/.factory/hooks.json` 订阅 `SessionStart`、`Notification`、`Stop`。`Notification` 按 `notification_type` 分发——`permission_prompt` 映射为 `permission_required`，`idle_prompt` 映射为 `input_required`；其它类型（`auth_success`、`elicitation_dialog`）被忽略。`Stop` 映射为 `run_completed`。Droid 没有失败事件，因此不支持 `run_failed`。
+- **`SessionStart` 不产生任何通知。** 它在支持该事件的 agent 上被订阅，仅用于在会话启动时捕获终端窗口，为 Linux 的窗口级点击聚焦提供支持（见下方「点击聚焦」一节）；在 macOS/Windows 上该 hook 为空操作。（Codex 没有 `SessionStart` hook。）
 
 ### 支持的平台
 
@@ -120,6 +121,8 @@ npm config set https-proxy http://proxy.corp:8080   # 作为兜底被读取
 > **注意**: Codex 通过 `~/.codex/hooks.json` 接入官方 hooks 系统，目前仅订阅 `PermissionRequest`、`Stop` 两个事件。首次安装后请在 codex 内运行 `/hooks` 完成 trust 审核。
 >
 > **Grok**: 写入 `~/.grok/hooks/agent-notify.json`。全局 hooks 始终可信；项目级 hooks（`.grok/hooks/`）需在仓库内运行 `/hooks-trust` 或使用 `--trust`。安装后可在 Grok 中运行 `/hooks`（或 `Ctrl+L`）确认已加载。
+>
+> **Droid**: 写入 `~/.factory/hooks.json`（项目 scope 为 `.factory/hooks.json`）。安装后可在 Droid 中运行 `/hooks` 确认已加载；项目级 hooks 需 `/hooks-trust`。
 
 
 ## 配置说明
@@ -134,6 +137,7 @@ Agent 集成配置位置：
 - Codex: `~/.codex/hooks.json`（写入 hooks → 命令 `agent-notify handle-codex-hook`，需在 codex 内运行 `/hooks` 完成 trust）
 - ZCode: `~/.zcode/cli/config.json`（写入 `hooks.events.<Event>` + `hooks.enabled` → 命令 `agent-notify handle-zcode-hook`；重启 ZCode 使配置生效）
 - Grok: `~/.grok/hooks/agent-notify.json`（写入 hooks → 命令 `agent-notify handle-grok-hook`；项目 scope 为 `.grok/hooks/agent-notify.json`）
+- Droid: `~/.factory/hooks.json`（写入 hooks → 命令 `agent-notify handle-droid-hook`；项目 scope 为 `.factory/hooks.json`）
 
 ### 企业微信机器人绑定小技巧
 

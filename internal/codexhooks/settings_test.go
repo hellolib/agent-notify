@@ -18,7 +18,7 @@ func TestBuildHookSettings_RegistersManagedEvents(t *testing.T) {
 		t.Fatalf("hooks type = %T, want map[string]any", got["hooks"])
 	}
 
-	for _, event := range []string{"SessionStart", "PermissionRequest", "Stop"} {
+	for _, event := range []string{"PermissionRequest", "Stop"} {
 		items, ok := hooks[event].([]map[string]any)
 		if !ok || len(items) != 1 {
 			t.Fatalf("%s entries missing or invalid: %v", event, hooks[event])
@@ -27,16 +27,16 @@ func TestBuildHookSettings_RegistersManagedEvents(t *testing.T) {
 		if !ok || len(entryHooks) != 1 {
 			t.Fatalf("%s command list missing or invalid", event)
 		}
-		if entryHooks[0]["command"] != `"/tmp/agent-notify" handle-codex-hook` {
-			t.Fatalf("%s command = %v, want /tmp/agent-notify handle-codex-hook", event, entryHooks[0]["command"])
+		if entryHooks[0]["command"] != `"/tmp/agent-notify" handle-codex-hook` && entryHooks[0]["command"] != `/tmp/agent-notify handle-codex-hook` {
+			t.Fatalf("%s command = %v, want quoted or unquoted /tmp/agent-notify handle-codex-hook", event, entryHooks[0]["command"])
 		}
 		if entryHooks[0]["type"] != "command" {
 			t.Fatalf("%s type = %v, want command", event, entryHooks[0]["type"])
 		}
 	}
 
-	// 不应注册 Codex 不支持的事件（SessionStart 现在仅用于 Linux 聚焦捕获，已托管）
-	for _, unsupported := range []string{"Notification", "PostToolUseFailure", "UserPromptSubmit", "PreToolUse", "PostToolUse"} {
+	// 不应注册 Codex 不支持的事件
+	for _, unsupported := range []string{"SessionStart", "Notification", "PostToolUseFailure", "UserPromptSubmit", "PreToolUse", "PostToolUse"} {
 		if _, exists := hooks[unsupported]; exists {
 			t.Fatalf("hooks should not contain %s for Codex", unsupported)
 		}
@@ -46,7 +46,7 @@ func TestBuildHookSettings_RegistersManagedEvents(t *testing.T) {
 func TestInstall_MergesExistingHooks(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "hooks.json")
-	existing := `{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"echo hi"}]}]}}`
+	existing := `{"hooks":{"PermissionRequest":[{"hooks":[{"type":"command","command":"echo hi"}]}]}}`
 	if err := os.WriteFile(path, []byte(existing), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestInstall_MergesExistingHooks(t *testing.T) {
 	if !ok {
 		t.Fatal("hooks key missing or wrong type")
 	}
-	for _, key := range []string{"SessionStart", "PermissionRequest", "Stop"} {
+	for _, key := range []string{"PermissionRequest", "Stop"} {
 		if _, exists := hooks[key]; !exists {
 			t.Fatalf("hooks missing key %q after install", key)
 		}

@@ -48,11 +48,11 @@ var catalog = map[string]map[Lang]string{
 	"channel.system": {ZhCN: "系统通知", EnUS: "System"},
 
 	// Event option labels
-	"event.permission_required": {ZhCN: "需要授权 (permission_required)", EnUS: "Permission Required"},
-	"event.input_required":      {ZhCN: "等待输入 (input_required)", EnUS: "Input Required"},
-	"event.run_completed":       {ZhCN: "任务完成 (run_completed)", EnUS: "Task Completed"},
-	"event.run_failed":          {ZhCN: "任务失败 (run_failed)", EnUS: "Task Failed"},
-	"event.session_start":       {ZhCN: "会话开始 (session_start)", EnUS: "Session Start"},
+	"event.permission_required": {ZhCN: "需要授权 (PermissionRequest)", EnUS: "Permission Request"},
+	"event.input_required":      {ZhCN: "等待输入 (Input/Notification)", EnUS: "Input Required"},
+	"event.run_completed":       {ZhCN: "任务完成 (Stop)", EnUS: "Stop (Run Completed)"},
+	"event.run_failed":          {ZhCN: "任务失败 (PostToolUseFailure)", EnUS: "Run Failed"},
+	"event.session_start":       {ZhCN: "会话开始 (SessionStart)", EnUS: "Session Start"},
 
 	// ── Webhook URL prompts ────────────────────────────────────
 	"prompt.wechat_personal_webhook": {ZhCN: "微信推送 API URL（如 https://host/api/notify/xxx）", EnUS: "WeChat notify API URL (e.g. https://host/api/notify/xxx)"},
@@ -186,6 +186,10 @@ var catalog = map[string]map[Lang]string{
 	"setup.grok_hooks_err":     {ZhCN: "获取 grok hooks 路径失败", EnUS: "failed to get Grok hooks path"},
 	"setup.grok_install_err":   {ZhCN: "安装 grok hooks 失败", EnUS: "failed to install Grok hooks"},
 	"setup.grok_hooks_done":    {ZhCN: "grok hooks 安装: %s\n", EnUS: "Grok hooks installed: %s\n"},
+	"setup.droid_tip":          {ZhCN: "提示: 在 Droid 中运行 /hooks 确认已加载；项目 hooks 需 /hooks-trust\n", EnUS: "Tip: Run /hooks in Droid to confirm hooks loaded; project hooks need /hooks-trust\n"},
+	"setup.droid_hooks_err":    {ZhCN: "获取 droid hooks 路径失败", EnUS: "failed to get Droid hooks path"},
+	"setup.droid_install_err":  {ZhCN: "安装 droid hooks 失败", EnUS: "failed to install Droid hooks"},
+	"setup.droid_hooks_done":   {ZhCN: "droid hooks 安装: %s\n", EnUS: "Droid hooks installed: %s\n"},
 
 	// ── Doctor: focus precision ───────────────────────────────
 	"doctor.item_focus_precision":           {ZhCN: "聚焦精度", EnUS: "Focus Precision"},

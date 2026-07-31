@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/hellolib/agent-notify/internal/common"
 )
@@ -13,10 +14,7 @@ const hookCommandMarker = "handle-codex-hook"
 
 // managedEvents 是本插件托管的 Codex 事件列表。
 // PermissionRequest / Stop 对应项目里的 permission_required / run_completed。
-// SessionStart 仅用于 Linux 点击聚焦的窗口捕获（见 agenthooks.Dispatch），
-// 不产生任何通知；其它平台收到即 no-op。
 var managedEvents = []string{
-	"SessionStart",
 	"PermissionRequest",
 	"Stop",
 }
@@ -24,7 +22,7 @@ var managedEvents = []string{
 // BuildHookSettings 生成 Codex hooks.json 所需的 settings 结构。
 func BuildHookSettings(binaryPath string) map[string]any {
 	binaryPath = common.ResolveBinaryPath(binaryPath)
-	command := common.QuotePathForShell(binaryPath) + " " + hookCommandMarker
+	command := buildHookCommand(binaryPath)
 
 	buildEntry := func() []map[string]any {
 		return []map[string]any{
@@ -55,7 +53,7 @@ func Install(path string, binaryPath string) error {
 	}
 
 	binaryPath = common.ResolveBinaryPath(binaryPath)
-	command := common.QuotePathForShell(binaryPath) + " " + hookCommandMarker
+	command := buildHookCommand(binaryPath)
 
 	hooks, err := common.ChildObject(settings, "hooks")
 	if err != nil {
@@ -78,6 +76,16 @@ func Install(path string, binaryPath string) error {
 	// 静默吞掉会让向导显示「安装成功」而集成实际不可用(issue #31)。
 	configTomlPath := filepath.Join(filepath.Dir(path), "config.toml")
 	return EnableHooksFeature(configTomlPath)
+}
+
+// buildHookCommand 为 Codex 构造 command 字段。
+// Windows 平台 Codex 对 JSON 字符串中的双引号和反斜杠解析较严格,
+// 因此使用裸路径;其它平台保留 shell 引号转义。
+func buildHookCommand(binaryPath string) string {
+	if runtime.GOOS == "windows" {
+		return binaryPath + " " + hookCommandMarker
+	}
+	return common.QuotePathForShell(binaryPath) + " " + hookCommandMarker
 }
 
 // IsInstalled 检查 hooks.json 中是否已挂载 agent-notify 的 hook。

@@ -25,6 +25,7 @@ type AgentConfig struct {
 	Codex      AgentTargetConfig `yaml:"codex"`       // Codex 配置
 	ZCode      AgentTargetConfig `yaml:"zcode"`       // ZCode 配置
 	Grok       AgentTargetConfig `yaml:"grok"`        // Grok 配置
+	Droid      AgentTargetConfig `yaml:"droid"`       // Droid 配置
 }
 
 // AgentTargetConfig holds configuration for a specific agent.
@@ -56,6 +57,7 @@ type NotifyConfig struct {
 	Codex      AgentNotifyConfig `yaml:"codex"`       // Codex 通知配置
 	ZCode      AgentNotifyConfig `yaml:"zcode"`       // ZCode 通知配置
 	Grok       AgentNotifyConfig `yaml:"grok"`        // Grok 通知配置
+	Droid      AgentNotifyConfig `yaml:"droid"`       // Droid 通知配置
 }
 
 // AgentNotifyConfig holds notification configuration for a single agent.
@@ -158,7 +160,7 @@ type BehaviorConfig struct {
 
 func Default() Config {
 	allEvents := []string{"permission_required", "input_required", "run_completed", "run_failed"}
-	// Codex hooks 当前可靠支持的两个事件
+	// Codex hooks 支持 PermissionRequest / Stop 两个事件。
 	codexEvents := []string{"permission_required", "run_completed"}
 	// ZCode hooks 支持的事件：与 Claude Code 基本一致，但没有 input_required
 	// （ZCode 没有 Notification 事件）。session_start 仅用于 Linux 点击聚焦的窗口
@@ -168,6 +170,10 @@ func Default() Config {
 	// 无 PermissionRequest；授权等待通过 Notification 映射为 permission_required。
 	// session_start 同样只用于聚焦捕获，不作为通知事件。
 	grokEvents := []string{"permission_required", "input_required", "run_completed", "run_failed"}
+	// Droid hooks 支持 SessionStart / Notification / Stop。
+	// Notification 通过 notification_type 区分 permission_prompt / idle_prompt。
+	// Droid 无失败事件，故不支持 run_failed。session_start 仅用于聚焦捕获。
+	droidEvents := []string{"permission_required", "input_required", "run_completed"}
 
 	// BREAKING (vs pre-Grok defaults): Claude Code is no longer enabled by default,
 	// and System notification is no longer pre-enabled for any agent.
@@ -213,6 +219,10 @@ func Default() Config {
 				Enabled:      false,
 				InstallScope: "user",
 			},
+			Droid: AgentTargetConfig{
+				Enabled:      false,
+				InstallScope: "user",
+			},
 		},
 		Notify: NotifyConfig{
 			ClaudeCode: AgentNotifyConfig{
@@ -229,6 +239,10 @@ func Default() Config {
 			},
 			Grok: AgentNotifyConfig{
 				Events:   append([]string(nil), grokEvents...),
+				Channels: disabledChannels(),
+			},
+			Droid: AgentNotifyConfig{
+				Events:   append([]string(nil), droidEvents...),
 				Channels: disabledChannels(),
 			},
 		},
@@ -295,6 +309,9 @@ func Load(path string) (Config, error) {
 	if cfg.Agent.Grok.InstallScope == "" {
 		cfg.Agent.Grok.InstallScope = "user"
 	}
+	if cfg.Agent.Droid.InstallScope == "" {
+		cfg.Agent.Droid.InstallScope = "user"
+	}
 	if cfg.Behavior.DedupeSeconds == 0 {
 		cfg.Behavior.DedupeSeconds = 10
 	}
@@ -312,6 +329,7 @@ func Load(path string) (Config, error) {
 	cfg.Notify.Codex.Events = ensureEvents(cfg.Notify.Codex, def.Notify.Codex.Events)
 	cfg.Notify.ZCode.Events = ensureEvents(cfg.Notify.ZCode, def.Notify.ZCode.Events)
 	cfg.Notify.Grok.Events = ensureEvents(cfg.Notify.Grok, def.Notify.Grok.Events)
+	cfg.Notify.Droid.Events = ensureEvents(cfg.Notify.Droid, def.Notify.Droid.Events)
 
 	return cfg, nil
 }

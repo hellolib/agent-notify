@@ -29,6 +29,7 @@ type Service struct {
 	codexIntegration  agentintegrations.Integration
 	zcodeIntegration  agentintegrations.Integration
 	grokIntegration   agentintegrations.Integration
+	droidIntegration  agentintegrations.Integration
 }
 
 // NewService creates a new doctor service.
@@ -38,6 +39,7 @@ func NewService(opts ...Option) *Service {
 		codexIntegration:  agentintegrations.NewCodexIntegration(),
 		zcodeIntegration:  agentintegrations.NewZcodeIntegration(),
 		grokIntegration:   agentintegrations.NewGrokIntegration(),
+		droidIntegration:  agentintegrations.NewDroidIntegration(),
 	}
 
 	for _, opt := range opts {
@@ -68,6 +70,11 @@ func WithZcodeIntegration(i agentintegrations.Integration) Option {
 // WithGrokIntegration sets the Grok integration.
 func WithGrokIntegration(i agentintegrations.Integration) Option {
 	return func(s *Service) { s.grokIntegration = i }
+}
+
+// WithDroidIntegration sets the Droid integration.
+func WithDroidIntegration(i agentintegrations.Integration) Option {
+	return func(s *Service) { s.droidIntegration = i }
 }
 
 type DiagnosticStatus string
@@ -130,16 +137,28 @@ type DiagnosticsResult struct {
 	GrokBarkEnabled           bool
 	GrokNtfyEnabled           bool
 	GrokSlackEnabled          bool
+	DroidInstalled            bool
+	DroidHookInstalled        bool
+	DroidFeishuEnabled        bool
+	DroidSystemEnabled        bool
+	DroidWechatEnabled        bool
+	DroidWechatWorkEnabled    bool
+	DroidDingTalkEnabled      bool
+	DroidBarkEnabled          bool
+	DroidNtfyEnabled          bool
+	DroidSlackEnabled         bool
 	ClaudeIntegrationStatus   DiagnosticStatus
 	CodexIntegrationStatus    DiagnosticStatus
 	ZcodeIntegrationStatus    DiagnosticStatus
 	GrokIntegrationStatus     DiagnosticStatus
+	DroidIntegrationStatus    DiagnosticStatus
 
 	// Per-agent system-channel focus precision (effective "app"|"window").
 	ClaudeSystemFocusPrecision string
 	CodexSystemFocusPrecision  string
 	ZcodeSystemFocusPrecision  string
 	GrokSystemFocusPrecision   string
+	DroidSystemFocusPrecision  string
 
 	// Temporary notification freeze (from freeze.json).
 	FreezeActive   bool
@@ -157,6 +176,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.CodexInstalled = s.codexIntegration.DetectInstalled()
 	result.ZcodeInstalled = s.zcodeIntegration != nil && s.zcodeIntegration.DetectInstalled()
 	result.GrokInstalled = s.grokIntegration != nil && s.grokIntegration.DetectInstalled()
+	result.DroidInstalled = s.droidIntegration != nil && s.droidIntegration.DetectInstalled()
 
 	// System notification detection
 	result.SystemNotifyAvailable, result.SystemNotifyName = detectSystemNotification()
@@ -170,7 +190,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.ConfigExists = cfgErr == nil
 
 	// hook 已注册但 command 指向的二进制不存在时,集成实际不可用(issue #34)
-	var claudeBinaryMissing, codexBinaryMissing, zcodeBinaryMissing, grokBinaryMissing bool
+	var claudeBinaryMissing, codexBinaryMissing, zcodeBinaryMissing, grokBinaryMissing, droidBinaryMissing bool
 
 	// Claude hooks settings
 	claudeSettingsPath, _ := s.claudeIntegration.SettingsPath("user")
@@ -208,6 +228,16 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 		}
 	}
 
+	// Droid hooks settings
+	if s.droidIntegration != nil {
+		droidSettingsPath, _ := s.droidIntegration.SettingsPath("user")
+		if droidSettingsPath != "" {
+			installed, err := s.droidIntegration.IsHookInstalled(droidSettingsPath)
+			result.DroidHookInstalled = err == nil && installed
+			droidBinaryMissing = result.DroidHookInstalled && hookBinaryMissing(droidSettingsPath, "handle-droid-hook")
+		}
+	}
+
 	// Config values
 	result.ClaudeFeishuEnabled = cfgLoadErr == nil && cfg.Notify.ClaudeCode.Channels.Feishu.Enabled
 	result.ClaudeSystemEnabled = cfgLoadErr == nil && cfg.Notify.ClaudeCode.Channels.System.Enabled
@@ -241,6 +271,14 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.GrokBarkEnabled = cfgLoadErr == nil && cfg.Notify.Grok.Channels.Bark.Enabled
 	result.GrokNtfyEnabled = cfgLoadErr == nil && cfg.Notify.Grok.Channels.Ntfy.Enabled
 	result.GrokSlackEnabled = cfgLoadErr == nil && cfg.Notify.Grok.Channels.Slack.Enabled
+	result.DroidFeishuEnabled = cfgLoadErr == nil && cfg.Notify.Droid.Channels.Feishu.Enabled
+	result.DroidSystemEnabled = cfgLoadErr == nil && cfg.Notify.Droid.Channels.System.Enabled
+	result.DroidWechatEnabled = cfgLoadErr == nil && cfg.Notify.Droid.Channels.Wechat.Enabled
+	result.DroidWechatWorkEnabled = cfgLoadErr == nil && cfg.Notify.Droid.Channels.WechatWork.Enabled
+	result.DroidDingTalkEnabled = cfgLoadErr == nil && cfg.Notify.Droid.Channels.DingTalk.Enabled
+	result.DroidBarkEnabled = cfgLoadErr == nil && cfg.Notify.Droid.Channels.Bark.Enabled
+	result.DroidNtfyEnabled = cfgLoadErr == nil && cfg.Notify.Droid.Channels.Ntfy.Enabled
+	result.DroidSlackEnabled = cfgLoadErr == nil && cfg.Notify.Droid.Channels.Slack.Enabled
 
 	// Per-agent effective system focus precision, read fresh from the
 	// AGENT_NOTIFY_FOCUS_PRECISION environment variable.
@@ -248,11 +286,13 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.CodexSystemFocusPrecision = config.FocusPrecisionFromEnv()
 	result.ZcodeSystemFocusPrecision = config.FocusPrecisionFromEnv()
 	result.GrokSystemFocusPrecision = config.FocusPrecisionFromEnv()
+	result.DroidSystemFocusPrecision = config.FocusPrecisionFromEnv()
 
 	result.ClaudeIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.ClaudeInstalled, result.ClaudeHookInstalled, claudeBinaryMissing)
 	result.CodexIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.CodexInstalled, result.CodexHookInstalled, codexBinaryMissing)
 	result.ZcodeIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.ZcodeInstalled, result.ZcodeHookInstalled, zcodeBinaryMissing)
 	result.GrokIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.GrokInstalled, result.GrokHookInstalled, grokBinaryMissing)
+	result.DroidIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.DroidInstalled, result.DroidHookInstalled, droidBinaryMissing)
 
 	// Feishu CLI
 	_, feishuCLIConfigErr := feishucli.ParseConfig()
@@ -347,6 +387,13 @@ func (s *Service) Print(output OutputWriter, result *DiagnosticsResult) {
 	grokNotifyStatus := padRight(diagnosticStatusLabel(result.GrokIntegrationStatus), 14)
 	output.Writef(i18n.T("doctor.row_format")+"\n", "Grok", grokInstallStatus, grokNotifyStatus)
 
+	droidInstallStatus := padRight(i18n.T("status.not_installed"), 8)
+	if result.DroidInstalled {
+		droidInstallStatus = padRight(i18n.T("status.installed"), 8)
+	}
+	droidNotifyStatus := padRight(diagnosticStatusLabel(result.DroidIntegrationStatus), 14)
+	output.Writef(i18n.T("doctor.row_format")+"\n", "Droid", droidInstallStatus, droidNotifyStatus)
+
 	output.Writef(i18n.T("doctor.agent_sep") + "\n")
 	output.Writef("\n")
 
@@ -396,6 +443,16 @@ func (s *Service) Print(output OutputWriter, result *DiagnosticsResult) {
 		boolIcon(result.GrokBarkEnabled),
 		boolIcon(result.GrokNtfyEnabled),
 		boolIcon(result.GrokSlackEnabled),
+	)
+	output.Writef(channelRow, "Droid",
+		boolIcon(result.DroidFeishuEnabled),
+		boolIcon(result.DroidSystemEnabled),
+		boolIcon(result.DroidWechatEnabled),
+		boolIcon(result.DroidWechatWorkEnabled),
+		boolIcon(result.DroidDingTalkEnabled),
+		boolIcon(result.DroidBarkEnabled),
+		boolIcon(result.DroidNtfyEnabled),
+		boolIcon(result.DroidSlackEnabled),
 	)
 	output.Writef(i18n.T("doctor.channel_sep") + "\n")
 	output.Writef("\n")
@@ -462,7 +519,7 @@ func focusPrecisionI18nKey(status string) string {
 }
 
 // firstEnabledAgentSystemPrecision returns the effective system focus precision
-// of the first agent (Claude, Codex, ZCode, Grok) with Channels.System.Enabled,
+// of the first agent (Claude, Codex, ZCode, Grok, Droid) with Channels.System.Enabled,
 // or "app" when no agent has system notifications enabled.
 func firstEnabledAgentSystemPrecision(result *DiagnosticsResult) string {
 	precision := config.FocusPrecisionApp
@@ -475,6 +532,8 @@ func firstEnabledAgentSystemPrecision(result *DiagnosticsResult) string {
 		precision = result.ZcodeSystemFocusPrecision
 	case result.GrokSystemEnabled:
 		precision = result.GrokSystemFocusPrecision
+	case result.DroidSystemEnabled:
+		precision = result.DroidSystemFocusPrecision
 	}
 	if precision != config.FocusPrecisionWindow {
 		return config.FocusPrecisionApp

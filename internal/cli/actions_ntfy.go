@@ -65,5 +65,8 @@ func ntfyURLFromConfig(cfg config.Config) string {
 	if cfg.Notify.ZCode.Channels.Ntfy.TopicURL != "" {
 		return cfg.Notify.ZCode.Channels.Ntfy.TopicURL
 	}
-	return cfg.Notify.Grok.Channels.Ntfy.TopicURL
+	if cfg.Notify.Grok.Channels.Ntfy.TopicURL != "" {
+		return cfg.Notify.Grok.Channels.Ntfy.TopicURL
+	}
+	return cfg.Notify.Droid.Channels.Ntfy.TopicURL
 }
