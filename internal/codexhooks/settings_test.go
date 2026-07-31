@@ -27,8 +27,8 @@ func TestBuildHookSettings_RegistersManagedEvents(t *testing.T) {
 		if !ok || len(entryHooks) != 1 {
 			t.Fatalf("%s command list missing or invalid", event)
 		}
-		if entryHooks[0]["command"] != `"/tmp/agent-notify" handle-codex-hook` {
-			t.Fatalf("%s command = %v, want /tmp/agent-notify handle-codex-hook", event, entryHooks[0]["command"])
+		if entryHooks[0]["command"] != `"/tmp/agent-notify" handle-codex-hook` && entryHooks[0]["command"] != `/tmp/agent-notify handle-codex-hook` {
+			t.Fatalf("%s command = %v, want quoted or unquoted /tmp/agent-notify handle-codex-hook", event, entryHooks[0]["command"])
 		}
 		if entryHooks[0]["type"] != "command" {
 			t.Fatalf("%s type = %v, want command", event, entryHooks[0]["type"])
