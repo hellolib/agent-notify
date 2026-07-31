@@ -65,5 +65,8 @@ func dingTalkURLFromConfig(cfg config.Config) string {
 	if cfg.Notify.ZCode.Channels.DingTalk.WebhookURL != "" {
 		return cfg.Notify.ZCode.Channels.DingTalk.WebhookURL
 	}
-	return cfg.Notify.Grok.Channels.DingTalk.WebhookURL
+	if cfg.Notify.Grok.Channels.DingTalk.WebhookURL != "" {
+		return cfg.Notify.Grok.Channels.DingTalk.WebhookURL
+	}
+	return cfg.Notify.Droid.Channels.DingTalk.WebhookURL
 }

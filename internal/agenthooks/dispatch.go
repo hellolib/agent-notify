@@ -135,6 +135,8 @@ func buildSenders(cfg config.Config, msg notify.Message) []notify.Sender {
 		notifyCfg = cfg.Notify.ZCode
 	case "grok":
 		notifyCfg = cfg.Notify.Grok
+	case "droid":
+		notifyCfg = cfg.Notify.Droid
 	}
 
 	if !contains(notifyCfg.Events, msg.Event) {

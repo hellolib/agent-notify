@@ -16,6 +16,7 @@ const (
 	agentCodex      = "codex"
 	agentZcode      = "zcode"
 	agentGrok       = "grok"
+	agentDroid      = "droid"
 	channelSystem   = "system"
 	channelFeishu   = "feishu"
 	channelWechat   = "wechat"
@@ -75,7 +76,7 @@ type configuredAgent struct {
 func (s *Service) selectAgent(prompter Prompter, cfg config.Config) (string, error) {
 	agentOptions, defaultAgent := s.agentOptions(cfg)
 	if len(agentOptions) == 0 {
-		return "", errors.New("Claude Code, Codex, ZCode or Grok not detected; please install one first")
+		return "", errors.New("Claude Code, Codex, ZCode, Grok or Droid not detected; please install one first")
 	}
 	if defaultAgent == "" {
 		defaultAgent = agentOptions[0].Value
@@ -108,6 +109,12 @@ func (s *Service) agentOptions(cfg config.Config) ([]PromptOption, string) {
 		options = append(options, PromptOption{Label: "Grok", Value: agentGrok})
 		if cfg.Agent.Grok.Enabled && defaultAgent == "" {
 			defaultAgent = agentGrok
+		}
+	}
+	if s.droidIntegration != nil && s.droidIntegration.DetectInstalled() {
+		options = append(options, PromptOption{Label: "Droid", Value: agentDroid})
+		if cfg.Agent.Droid.Enabled && defaultAgent == "" {
+			defaultAgent = agentDroid
 		}
 	}
 	return options, defaultAgent
@@ -176,6 +183,8 @@ func eventOptionsForAgent(agent string) []PromptOption {
 		return zcodeEventOptionsFn()
 	case agentGrok:
 		return grokEventOptionsFn()
+	case agentDroid:
+		return droidEventOptionsFn()
 	default:
 		return codexEventOptionsFn()
 	}
@@ -189,6 +198,8 @@ func channelsForAgent(cfg config.Config, agent string) config.ChannelsConfig {
 		return cfg.Notify.ZCode.Channels
 	case agentGrok:
 		return cfg.Notify.Grok.Channels
+	case agentDroid:
+		return cfg.Notify.Droid.Channels
 	default:
 		return cfg.Notify.Codex.Channels
 	}
@@ -202,6 +213,8 @@ func eventsForAgent(cfg config.Config, agent string) []string {
 		return cfg.Notify.ZCode.Events
 	case agentGrok:
 		return cfg.Notify.Grok.Events
+	case agentDroid:
+		return cfg.Notify.Droid.Events
 	default:
 		return cfg.Notify.Codex.Events
 	}
@@ -217,6 +230,8 @@ func (s *Service) configureAgent(req configureAgentRequest) (configuredAgent, er
 		return s.configureZcode(req)
 	case agentGrok:
 		return s.configureGrok(req)
+	case agentDroid:
+		return s.configureDroid(req)
 	default:
 		return configuredAgent{}, fmt.Errorf("unsupported agent: %s", req.agent)
 	}
@@ -346,6 +361,39 @@ func (s *Service) configureGrok(req configureAgentRequest) (configuredAgent, err
 	next.Agent.Grok.InstalledPaths = config.RecordInstalledPath(
 		next.Agent.Grok.InstalledPaths, settingsPath)
 	next.Agent.Grok.Enabled = true
+	return configuredAgent{cfg: next, settingsPath: settingsPath}, nil
+}
+
+// configureDroid 配置 Droid 的通知渠道、事件，并把 hook 写入
+// ~/.factory/hooks.json（user scope）或 .factory/hooks.json（project scope）。
+func (s *Service) configureDroid(req configureAgentRequest) (configuredAgent, error) {
+	next := req.cfg
+	next.Notify.Droid.Channels = applyChannelSelection(next.Notify.Droid.Channels, req.channels)
+	next.Notify.Droid.Events = dedupeStrings(req.events)
+	if err := s.prepareSelectedChannels(req.ctx, req.channels); err != nil {
+		return configuredAgent{}, err
+	}
+	channels, err := promptWebhookURLs(req.prompter, next.Notify.Droid.Channels, req.channels)
+	if err != nil {
+		return configuredAgent{}, err
+	}
+	next.Notify.Droid.Channels = channels
+
+	agentScope := normalizedInstallScope(next.Agent.Droid.InstallScope)
+	settingsPath, err := s.droidIntegration.SettingsPath(agentScope)
+	if err != nil {
+		return configuredAgent{}, fmt.Errorf("%s: %w", i18n.T("setup.droid_hooks_err"), err)
+	}
+	resolvedBinary := common.ResolveBinaryPath(req.binaryPath)
+	if err := s.droidIntegration.Install(settingsPath, resolvedBinary); err != nil {
+		return configuredAgent{}, fmt.Errorf("%s: %w", i18n.T("setup.droid_install_err"), err)
+	}
+	req.output.Writef(i18n.T("setup.droid_hooks_done"), settingsPath)
+	req.output.Writef(i18n.T("setup.droid_tip"))
+	next.Agent.Droid.InstallScope = agentScope
+	next.Agent.Droid.InstalledPaths = config.RecordInstalledPath(
+		next.Agent.Droid.InstalledPaths, settingsPath)
+	next.Agent.Droid.Enabled = true
 	return configuredAgent{cfg: next, settingsPath: settingsPath}, nil
 }
 

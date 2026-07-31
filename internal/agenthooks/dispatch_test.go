@@ -116,6 +116,39 @@ func TestBuildSendersUsesGrokConfigForGrokMessages(t *testing.T) {
 	}
 }
 
+func TestBuildSendersUsesDroidConfigForDroidMessages(t *testing.T) {
+	cfg := config.Default()
+	cfg.Notify.ClaudeCode.Channels.System.Enabled = true
+	cfg.Notify.ClaudeCode.Events = []string{"run_completed"}
+	cfg.Notify.Droid.Channels.System.Enabled = true
+	cfg.Notify.Droid.Channels.Feishu.Enabled = false
+	cfg.Notify.Droid.Events = []string{"run_completed"}
+
+	senders := buildSenders(cfg, notify.Message{Agent: "droid", Event: "run_completed"})
+
+	if len(senders) != 1 {
+		t.Fatalf("len(senders) = %d, want 1", len(senders))
+	}
+	if senders[0].Name() != "system" {
+		t.Fatalf("senders[0] = %q, want system", senders[0].Name())
+	}
+}
+
+// TestBuildSendersDroidEventNotEnabled verifies that a Droid message is
+// dropped when its event is not in the enabled list, and that another agent's
+// enabled event does not leak into Droid dispatch.
+func TestBuildSendersDroidEventNotEnabled(t *testing.T) {
+	cfg := config.Default()
+	cfg.Notify.Droid.Channels.System.Enabled = true
+	cfg.Notify.Droid.Events = []string{"permission_required"}
+
+	senders := buildSenders(cfg, notify.Message{Agent: "droid", Event: "run_completed"})
+
+	if len(senders) != 0 {
+		t.Fatalf("len(senders) = %d, want 0 for disabled event", len(senders))
+	}
+}
+
 func TestBuildSendersAddsBarkForCodex(t *testing.T) {
 	cfg := config.Default()
 	cfg.Notify.Codex.Channels.Bark.Enabled = true

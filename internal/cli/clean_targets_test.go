@@ -85,13 +85,13 @@ func TestHookCleanupTargetsIgnoresRecordsWhenConfigUnreadable(t *testing.T) {
 	}
 }
 
-func TestHookCleanupTargetsCoversAllFourAgents(t *testing.T) {
+func TestHookCleanupTargetsCoversAllFiveAgents(t *testing.T) {
 	targets := hookCleanupTargets(config.Default(), true)
 	var names []string
 	for _, target := range targets {
 		names = append(names, target.integration.Name())
 	}
-	want := []string{"Claude Code", "Codex", "ZCode", "Grok"}
+	want := []string{"Claude Code", "Codex", "ZCode", "Grok", "Droid"}
 	if !slices.Equal(names, want) {
 		t.Fatalf("agents = %v, want %v", names, want)
 	}

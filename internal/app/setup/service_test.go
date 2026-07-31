@@ -136,6 +136,7 @@ func TestService_NoAgentsDetected(t *testing.T) {
 		WithCodexIntegration(&mockIntegration{name: "Codex", detectInstalled: false}),
 		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
 		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
+		WithDroidIntegration(&mockIntegration{name: "Droid", detectInstalled: false}),
 	)
 
 	prompter := &mockPrompter{}
@@ -158,6 +159,7 @@ func TestService_ClaudeIntegration(t *testing.T) {
 		WithCodexIntegration(&mockIntegration{name: "Codex", detectInstalled: false}),
 		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
 		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
+		WithDroidIntegration(&mockIntegration{name: "Droid", detectInstalled: false}),
 		WithFeishuPreparer(&mockFeishuPreparer{}),
 	)
 
@@ -189,6 +191,7 @@ func TestService_CodexIntegration(t *testing.T) {
 		}),
 		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
 		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
+		WithDroidIntegration(&mockIntegration{name: "Droid", detectInstalled: false}),
 		WithFeishuPreparer(&mockFeishuPreparer{}),
 	)
 
@@ -218,6 +221,7 @@ func TestService_UsesInjectedConfigLoader(t *testing.T) {
 		WithCodexIntegration(&mockIntegration{name: "Codex", detectInstalled: false}),
 		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
 		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
+		WithDroidIntegration(&mockIntegration{name: "Droid", detectInstalled: false}),
 		WithConfigLoader(loader),
 	)
 	prompter := &mockPrompter{selectResult: "claude", multiResult: []string{"system"}}
@@ -267,6 +271,7 @@ func TestService_RecordsInstalledPath(t *testing.T) {
 		WithCodexIntegration(&mockIntegration{name: "Codex", detectInstalled: false}),
 		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
 		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
+		WithDroidIntegration(&mockIntegration{name: "Droid", detectInstalled: false}),
 		WithConfigLoader(loader),
 	)
 
@@ -305,6 +310,7 @@ func TestService_DoesNotDuplicateInstalledPathOnReinstall(t *testing.T) {
 		WithCodexIntegration(&mockIntegration{name: "Codex", detectInstalled: false}),
 		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
 		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
+		WithDroidIntegration(&mockIntegration{name: "Droid", detectInstalled: false}),
 		WithConfigLoader(loader),
 	)
 

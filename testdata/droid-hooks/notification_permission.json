@@ -1,0 +1,1 @@
+{"session_id": "sess-droid-1", "transcript_path": "/Users/demo/.factory/projects/demo/session.jsonl", "cwd": "/Users/demo/project", "permission_mode": "auto-medium", "hook_event_name": "Notification", "message": "Droid needs your permission to run this command", "notification_type": "permission_prompt"}

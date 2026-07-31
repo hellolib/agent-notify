@@ -24,7 +24,7 @@ const banner = `
 ║           ██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║            ║
 ║           ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝            ║
 ║                        Agent Notify                            ║
-║    Claude Code / Codex / ZCode / Grok Notification Tool        ║
+║  Claude Code / Codex / ZCode / Grok / Droid Notification Tool  ║
 ╚════════════════════════════════════════════════════════════════╝
 `
 
@@ -329,6 +329,22 @@ func runCleanConfig(streams Streams, prompter Prompter) error {
 	defaultCfg.Notify.Grok.Channels.Slack.Enabled = false
 	defaultCfg.Notify.Grok.Channels.Slack.WebhookURL = ""
 	defaultCfg.Notify.Grok.Events = nil
+	// Clear Droid channel toggles
+	defaultCfg.Notify.Droid.Channels.Feishu.Enabled = false
+	defaultCfg.Notify.Droid.Channels.System.Enabled = false
+	defaultCfg.Notify.Droid.Channels.Wechat.Enabled = false
+	defaultCfg.Notify.Droid.Channels.Wechat.WebhookURL = ""
+	defaultCfg.Notify.Droid.Channels.WechatWork.Enabled = false
+	defaultCfg.Notify.Droid.Channels.WechatWork.WebhookURL = ""
+	defaultCfg.Notify.Droid.Channels.DingTalk.Enabled = false
+	defaultCfg.Notify.Droid.Channels.DingTalk.WebhookURL = ""
+	defaultCfg.Notify.Droid.Channels.Bark.Enabled = false
+	defaultCfg.Notify.Droid.Channels.Bark.WebhookURL = ""
+	defaultCfg.Notify.Droid.Channels.Ntfy.Enabled = false
+	defaultCfg.Notify.Droid.Channels.Ntfy.TopicURL = ""
+	defaultCfg.Notify.Droid.Channels.Slack.Enabled = false
+	defaultCfg.Notify.Droid.Channels.Slack.WebhookURL = ""
+	defaultCfg.Notify.Droid.Events = nil
 	if err := config.Save(cfgPath, defaultCfg); err != nil {
 		return fmt.Errorf("%s: %w", i18n.T("clean.save_default_err"), err)
 	}
