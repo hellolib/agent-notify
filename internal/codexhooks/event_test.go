@@ -10,6 +10,32 @@ import (
 	"github.com/hellolib/agent-notify/internal/notify"
 )
 
+func TestParseSessionStart(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "codex-hooks", "session_start.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	msg, err := parseMessageBytes(data)
+	if err != nil {
+		t.Fatalf("ParseMessage() error = %v", err)
+	}
+	if msg.Agent != "codex" {
+		t.Fatalf("Agent = %q, want codex", msg.Agent)
+	}
+	// session_start 不发通知，但必须带上 session_id / cwd:
+	// Dispatch 用它们把窗口快照按会话缓存，点击通知时再查回来聚焦。
+	if msg.Event != "session_start" {
+		t.Fatalf("Event = %q, want session_start", msg.Event)
+	}
+	if msg.SessionID != "019fa95b-1157-7a40-8c92-aeddffad385a" {
+		t.Fatalf("SessionID = %q, want the payload session_id", msg.SessionID)
+	}
+	if msg.Workspace != "/tmp/demo" {
+		t.Fatalf("Workspace = %q, want /tmp/demo", msg.Workspace)
+	}
+}
+
 func TestParsePermissionRequest(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "codex-hooks", "permission_request.json"))
 	if err != nil {

@@ -58,11 +58,11 @@ npx agent-notify
 Notes:
 
 - Claude Code subscribes via hooks in `~/.claude/settings.json`: `PermissionRequest`, `Notification`, `Stop`, `PostToolUseFailure`, and `SessionStart`.
-- Codex subscribes via `~/.codex/hooks.json`: `PermissionRequest` and `Stop` (mapped to `permission_required` / `run_completed`). `input_required`, `run_failed`, and the window-capture `SessionStart` hook have no corresponding Codex hook yet, so they are not supported.
+- Codex subscribes via `~/.codex/hooks.json`: `PermissionRequest` and `Stop` (mapped to `permission_required` / `run_completed`), plus `SessionStart` for window capture. `input_required` and `run_failed` have no corresponding Codex hook yet, so they are not supported.
 - ZCode subscribes via `~/.zcode/cli/config.json`: `SessionStart`, `PermissionRequest`, `PostToolUseFailure`, and `Stop`, mapped to `permission_required`, `run_failed`, and `run_completed`. ZCode has no `Notification` event (so no `input_required`), and its hook schema is strict — an unknown event name will cause the whole hooks config to be silently dropped.
 - Grok subscribes via `~/.grok/hooks/agent-notify.json`: `SessionStart`, `Notification`, `Stop`, `StopFailure`, and `PostToolUseFailure`. There is no dedicated `PermissionRequest` event; `Notification`s with permission/approval semantics map to `permission_required` (marked *), others map to `input_required`. `StopFailure` / `PostToolUseFailure` map to `run_failed`.
 - Droid subscribes via `~/.factory/hooks.json`: `SessionStart`, `Notification`, and `Stop`. `Notification`s are dispatched by `notification_type` — `permission_prompt` maps to `permission_required` and `idle_prompt` maps to `input_required`; other types (`auth_success`, `elicitation_dialog`) are ignored. `Stop` maps to `run_completed`. Droid has no failure event, so `run_failed` is not supported.
-- **`SessionStart` does not produce a notification.** It is subscribed on the agents that support it solely to capture the terminal window at session start, which powers Linux window-level [Click-to-Focus](#click-to-focus). On macOS/Windows the SessionStart hook is a no-op. (Codex does not expose a `SessionStart` hook.)
+- **`SessionStart` does not produce a notification.** It is subscribed on every agent solely to capture the terminal window at session start, so that clicking a later notification returns to *that* window even if you have switched away since. The capture is used on Linux (always window-level), on Windows (via the bundled toast helper), and on macOS only when `AGENT_NOTIFY_FOCUS_PRECISION=window`. See [Click-to-Focus](#click-to-focus).
 
 ### Supported Platforms
 
