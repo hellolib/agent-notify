@@ -18,7 +18,7 @@ func TestBuildHookSettings_RegistersManagedEvents(t *testing.T) {
 		t.Fatalf("hooks type = %T, want map[string]any", got["hooks"])
 	}
 
-	for _, event := range []string{"PermissionRequest", "Stop"} {
+	for _, event := range []string{"SessionStart", "PermissionRequest", "Stop"} {
 		items, ok := hooks[event].([]map[string]any)
 		if !ok || len(items) != 1 {
 			t.Fatalf("%s entries missing or invalid: %v", event, hooks[event])
@@ -35,10 +35,11 @@ func TestBuildHookSettings_RegistersManagedEvents(t *testing.T) {
 		}
 	}
 
-	// 不应注册 Codex 不支持的事件
-	for _, unsupported := range []string{"SessionStart", "Notification", "PostToolUseFailure", "UserPromptSubmit", "PreToolUse", "PostToolUse"} {
-		if _, exists := hooks[unsupported]; exists {
-			t.Fatalf("hooks should not contain %s for Codex", unsupported)
+	// 不应注册未托管的事件：Notification / PostToolUseFailure 是 Codex 根本没有的事件，
+	// UserPromptSubmit / PreToolUse / PostToolUse 是 Codex 有但本插件不订阅的事件。
+	for _, unmanaged := range []string{"Notification", "PostToolUseFailure", "UserPromptSubmit", "PreToolUse", "PostToolUse"} {
+		if _, exists := hooks[unmanaged]; exists {
+			t.Fatalf("hooks should not contain %s for Codex", unmanaged)
 		}
 	}
 }
@@ -68,7 +69,7 @@ func TestInstall_MergesExistingHooks(t *testing.T) {
 	if !ok {
 		t.Fatal("hooks key missing or wrong type")
 	}
-	for _, key := range []string{"PermissionRequest", "Stop"} {
+	for _, key := range []string{"SessionStart", "PermissionRequest", "Stop"} {
 		if _, exists := hooks[key]; !exists {
 			t.Fatalf("hooks missing key %q after install", key)
 		}

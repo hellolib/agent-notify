@@ -31,6 +31,16 @@ func ParseMessage(stdin io.Reader) (notify.Message, error) {
 	}
 
 	switch p.HookEventName {
+	case "SessionStart":
+		// 仅供点击聚焦捕获窗口用；Dispatch 会拦截、不发通知。
+		return notify.Message{
+			Agent:     "codex",
+			Event:     "session_start",
+			SessionID: p.SessionID,
+			Workspace: p.CWD,
+			Title:     notify.FormatTitle("codex", "session_start"),
+			Body:      notify.DefaultBody("session_start"),
+		}, nil
 	case "PermissionRequest":
 		return notify.Message{
 			Agent:     "codex",
