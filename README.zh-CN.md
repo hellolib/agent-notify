@@ -79,7 +79,7 @@ npx agent-notify
 
 系统渠道默认开启点击聚焦；目标应用/窗口会从 hook 的环境变量与进程树自动识别。
 
-### ❄️ 冻结通知
+### 冻结通知
 
 临时静音远程渠道（飞书、微信等），**不改**各 Agent 的 hooks。默认只冻你已配置的远程渠道；系统通知默认不冻。
 
@@ -90,7 +90,7 @@ agent-notify unfreeze
 agent-notify freeze status
 ```
 
-TUI 菜单里对应 **❄️ 冻结通知**。
+TUI 菜单里对应 **冻结通知**。
 
 ## 安装说明
 

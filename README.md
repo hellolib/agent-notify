@@ -84,7 +84,7 @@ System notifications are clickable — clicking one brings you back to the termi
 
 Click-to-focus is enabled by default for the System channel; the target app/window is detected automatically from the hook's environment and process tree.
 
-### ❄️ Freeze notifications
+### Freeze notifications
 
 Temporarily mute remote channels (Feishu, WeChat, …) without changing agent hooks. Defaults to channels you already configured; system notifications stay on unless you include them.
 
@@ -95,7 +95,7 @@ agent-notify unfreeze
 agent-notify freeze status
 ```
 
-Also available as **❄️ 冻结通知** in the TUI menu.
+Also available as **冻结通知** in the TUI menu.
 
 ## Configuration
 
