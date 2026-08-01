@@ -9,7 +9,7 @@ require (
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/google/uuid v1.6.0
 	github.com/hellolib/client-tools v0.2.0
-	github.com/hellolib/toast v0.5.0
+	github.com/hellolib/toast v0.5.1
 	github.com/larksuite/oapi-sdk-go/v3 v3.5.3
 	github.com/mattn/go-isatty v0.0.20
 	github.com/pelletier/go-toml/v2 v2.3.0
