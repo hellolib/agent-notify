@@ -30,23 +30,42 @@ func readZcodeConfig(t *testing.T, path string) map[string]any {
 	return out
 }
 
-// issue #35:hooks.enabled 是用户所有 ZCode hook 的总开关,
-// 用户显式关闭时不能替他悄悄打开。
-func TestInstallRefusesWhenHooksExplicitlyDisabled(t *testing.T) {
-	original := `{"hooks":{"enabled":false,"events":{"Stop":[{"hooks":[{"type":"command","command":"echo user"}]}]}}}`
-	path := writeZcodeConfig(t, original)
+// 对齐 Codex 的 EnableHooksFeature:hooks.enabled 是用户所有 ZCode hook 的总开关,
+// 用户显式关闭时安装应直接替他打开(true),而不是拒绝安装。
+// (撤销 issue #35「不替用户悄悄打开」的旧决策,改为与 Codex 一致。)
+func TestInstallEnablesWhenExplicitlyDisabled(t *testing.T) {
+	path := writeZcodeConfig(t,
+		`{"hooks":{"enabled":false,"events":{"Stop":[{"hooks":[{"type":"command","command":"echo user"}]}]}}}`)
 
-	err := Install(path, "/tmp/agent-notify")
-	if err == nil {
-		t.Fatal("Install() error = nil, want refusal when hooks.enabled is false")
-	}
-	if !strings.Contains(err.Error(), "hooks.enabled") {
-		t.Fatalf("error should explain the disabled switch, got: %v", err)
+	if err := Install(path, "/tmp/agent-notify"); err != nil {
+		t.Fatalf("Install() error = %v, want success (should flip enabled false→true)", err)
 	}
 
-	data, _ := os.ReadFile(path)
-	if string(data) != original {
-		t.Fatalf("config modified despite refusal:\n%s", data)
+	got := readZcodeConfig(t, path)
+	hooks := got["hooks"].(map[string]any)
+	if hooks["enabled"] != true {
+		t.Fatalf("enabled = %v, want true (should be flipped from false)", hooks["enabled"])
+	}
+
+	// 用户的既有 Stop hook 应保留,并与 agent-notify 的托管 hook 并存。
+	stop := hooks["events"].(map[string]any)["Stop"].([]any)
+	var sawUser, sawManaged bool
+	for _, entry := range stop {
+		for _, h := range entry.(map[string]any)["hooks"].([]any) {
+			cmd, _ := h.(map[string]any)["command"].(string)
+			if strings.Contains(cmd, "echo user") {
+				sawUser = true
+			}
+			if strings.Contains(cmd, hookCommandMarker) {
+				sawManaged = true
+			}
+		}
+	}
+	if !sawUser {
+		t.Fatal("user's existing Stop hook was lost")
+	}
+	if !sawManaged {
+		t.Fatal("agent-notify managed hook not installed")
 	}
 }
 
@@ -137,8 +156,9 @@ func TestInstallRefusesUnknownHooksKey(t *testing.T) {
 	}
 }
 
-// 全新安装再卸载应回到初始状态:我们创建的 enabled 也要一并清掉。
-func TestUninstallRestoresPreInstallShape(t *testing.T) {
+// 全新安装再卸载:agent-notify 的 hook 全部移除,但 enabled 总开关保留——
+// 对齐 Codex 卸载时不碰 [features] hooks 的做法。无 events 即不触发,无害。
+func TestUninstallKeepsEnabledWhenEventsEmpty(t *testing.T) {
 	path := writeZcodeConfig(t, `{"theme":"dark"}`)
 
 	if err := Install(path, "/tmp/agent-notify"); err != nil {
@@ -149,10 +169,17 @@ func TestUninstallRestoresPreInstallShape(t *testing.T) {
 	}
 
 	got := readZcodeConfig(t, path)
-	if _, ok := got["hooks"]; ok {
-		t.Fatalf("hooks block survived uninstall: %v", got["hooks"])
-	}
 	if got["theme"] != "dark" {
 		t.Fatal("unrelated key lost")
+	}
+	hooks, ok := got["hooks"].(map[string]any)
+	if !ok {
+		t.Fatal("hooks block should remain with enabled after uninstall")
+	}
+	if hooks["enabled"] != true {
+		t.Fatalf("enabled = %v, want true (shared switch, kept on uninstall)", hooks["enabled"])
+	}
+	if _, hasEvents := hooks["events"]; hasEvents {
+		t.Fatalf("events should be removed after uninstall: %v", hooks["events"])
 	}
 }
