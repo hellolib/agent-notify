@@ -5,7 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { PassThrough } = require('node:stream');
 const tar = require('tar');
-const { installFromArchive, WINDOWS_FOCUS_HELPER, MAC_FOCUS_HELPER } = require('../lib/install');
+const { installFromArchive, WINDOWS_FOCUS_HELPER, MAC_FOCUS_HELPER, AGENT_LOGO_DIR, FALLBACK_ICON } = require('../lib/install');
 const { downloadToFile } = require('../lib/download');
 
 test('replaces installed binary with extracted binary', async (t) => {
@@ -104,6 +104,94 @@ test('installs mac focus helper when archive contains it', async (t) => {
   // helper must be executable (0o755) on macOS
   const mode = fs.statSync(helperPath).mode;
   assert.equal(mode & 0o111, 0o111, 'mac-focus-helper should be executable');
+});
+
+test('installs per-agent logos and fallback icon when archive contains agentlogo/', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-notify-install-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const installDir = path.join(root, '.agent-notify');
+  const archivePath = path.join(root, 'agent-notify-v0.2.3-linux-amd64.tar.gz');
+  const extractedBinaryName = 'agent-notify-v0.2.3-linux-amd64';
+
+  fs.mkdirSync(path.join(root, 'src'));
+  fs.writeFileSync(path.join(root, 'src', extractedBinaryName), 'new-binary');
+  // release archive 在根目录打包 agentlogo/ 目录与 agent-notify.png
+  fs.mkdirSync(path.join(root, 'src', AGENT_LOGO_DIR));
+  fs.writeFileSync(path.join(root, 'src', AGENT_LOGO_DIR, 'claude.png'), 'claude-logo');
+  fs.writeFileSync(path.join(root, 'src', AGENT_LOGO_DIR, 'openai.png'), 'openai-logo');
+  fs.writeFileSync(path.join(root, 'src', FALLBACK_ICON), 'fallback-logo');
+
+  await tar.c(
+    {
+      gzip: true,
+      file: archivePath,
+      cwd: path.join(root, 'src'),
+    },
+    [extractedBinaryName, AGENT_LOGO_DIR, FALLBACK_ICON],
+  );
+
+  await installFromArchive({
+    archivePath,
+    installDir,
+    binaryNameInArchive: extractedBinaryName,
+    finalBinaryName: 'agent-notify',
+  });
+
+  // agentlogo/<agent>.png -> ~/.agent-notify/agentlogo/<agent>.png
+  assert.equal(
+    fs.readFileSync(path.join(installDir, AGENT_LOGO_DIR, 'claude.png'), 'utf8'),
+    'claude-logo',
+  );
+  assert.equal(
+    fs.readFileSync(path.join(installDir, AGENT_LOGO_DIR, 'openai.png'), 'utf8'),
+    'openai-logo',
+  );
+  // agent-notify.png -> ~/.agent-notify/agent-notify.png
+  assert.equal(fs.readFileSync(path.join(installDir, FALLBACK_ICON), 'utf8'), 'fallback-logo');
+});
+
+test('preserves user-added custom logos when updating agentlogo/', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-notify-install-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const installDir = path.join(root, '.agent-notify');
+  const archivePath = path.join(root, 'agent-notify-v0.2.3-linux-amd64.tar.gz');
+  const extractedBinaryName = 'agent-notify-v0.2.3-linux-amd64';
+
+  // 用户此前自放了自定义 logo，升级前已存在
+  fs.mkdirSync(path.join(installDir, AGENT_LOGO_DIR), { recursive: true });
+  fs.writeFileSync(path.join(installDir, AGENT_LOGO_DIR, 'custom.png'), 'user-custom');
+
+  fs.mkdirSync(path.join(root, 'src'));
+  fs.writeFileSync(path.join(root, 'src', extractedBinaryName), 'new-binary');
+  fs.mkdirSync(path.join(root, 'src', AGENT_LOGO_DIR));
+  fs.writeFileSync(path.join(root, 'src', AGENT_LOGO_DIR, 'claude.png'), 'claude-logo');
+
+  await tar.c(
+    {
+      gzip: true,
+      file: archivePath,
+      cwd: path.join(root, 'src'),
+    },
+    [extractedBinaryName, AGENT_LOGO_DIR],
+  );
+
+  await installFromArchive({
+    archivePath,
+    installDir,
+    binaryNameInArchive: extractedBinaryName,
+    finalBinaryName: 'agent-notify',
+  });
+
+  // release 自带 logo 被覆盖更新
+  assert.equal(
+    fs.readFileSync(path.join(installDir, AGENT_LOGO_DIR, 'claude.png'), 'utf8'),
+    'claude-logo',
+  );
+  // 用户自放 logo 保留 —— agentlogo/ 是图标查找链第一优先级，不应被升级清空
+  assert.equal(
+    fs.readFileSync(path.join(installDir, AGENT_LOGO_DIR, 'custom.png'), 'utf8'),
+    'user-custom',
+  );
 });
 
 test('throws when archive does not contain expected binary', async (t) => {

@@ -96,7 +96,6 @@ func defaultMacFocusHelperPath() string {
 	return ""
 }
 
-
 // tryTerminalNotifier attempts to use terminal-notifier for richer notifications
 func (s *MacOSSender) tryTerminalNotifier(ctx context.Context, msg Message) bool {
 	exe := s.notifierPath()
