@@ -24,7 +24,12 @@ func defaultWindowsToastPush(ctx context.Context, req windowsToastRequest) error
 		toast.WithMessage(req.Body),
 		toast.WithAudio(toast.Default),
 		toast.WithLongDuration(),
-		// No WithIcon → toast falls back to its built-in default terminal icon.
+	}
+
+	// per-agent logo：找到图标才注入；找不到静默走 toast 库默认图标
+	// （文档约定：logo 找不到时静默走系统默认）。
+	if iconPath := AgentLogoPath(req.Agent); iconPath != "" {
+		opts = append(opts, toast.WithIcon(iconPath))
 	}
 
 	if req.ClickToFocus {
