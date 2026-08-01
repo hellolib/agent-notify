@@ -32,6 +32,10 @@ type Request struct {
 	Title    string
 	Body     string
 	WindowID string
+	// Icon 是 per-agent 通知图标的文件路径，由 notify 层经 AgentLogoPath 解析后下传。
+	// 空串表示无图标（D-Bus Notify 用空图标，走桌面默认）。linuxfocus 不 import
+	// notify，故由上层算好路径传入以避免循环依赖。
+	Icon string
 }
 
 func CommandPath(name string) string {
@@ -126,6 +130,7 @@ func StartDetached(ctx context.Context, req Request) error {
 		"--title", req.Title,
 		"--body", req.Body,
 		"--window", req.WindowID,
+		"--icon", req.Icon,
 	)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if devNull, err := os.OpenFile(os.DevNull, os.O_RDWR, 0); err == nil {
@@ -154,7 +159,7 @@ func WaitNotifyAndFocus(ctx context.Context, req Request) error {
 	return ActivateWindow(ctx, req.WindowID)
 }
 
-func SendNotification(ctx context.Context, title, body string) error {
+func SendNotification(ctx context.Context, icon, title, body string) error {
 	_, obj, closeFn, err := notificationBus()
 	if err != nil {
 		return err
@@ -165,7 +170,7 @@ func SendNotification(ctx context.Context, title, body string) error {
 	return obj.CallWithContext(ctx, "org.freedesktop.Notifications.Notify", 0,
 		"AgentNotify",
 		uint32(0),
-		"",
+		icon,
 		title,
 		body,
 		[]string{},
@@ -257,7 +262,7 @@ func waitNotificationAction(ctx context.Context, req Request) (bool, error) {
 	err = obj.CallWithContext(ctx, "org.freedesktop.Notifications.Notify", 0,
 		"AgentNotify",
 		uint32(0),
-		"",
+		req.Icon,
 		req.Title,
 		req.Body,
 		[]string{"default", "打开"},

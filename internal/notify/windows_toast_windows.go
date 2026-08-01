@@ -18,13 +18,27 @@ func defaultWindowsToastPush(ctx context.Context, req windowsToastRequest) error
 		return err
 	}
 
+	// per-agent AppUserModelID：toast 的 attribution row 图标绑定 AppUserModelID
+	// （由 toast 库注册为该 AppID 的 IconUri），不同 agent 要显示不同 head 栏图标
+	// 就必须用不同 AppID。已知 agent 用可读名（兼作 AUMID 与 DisplayName，head 栏
+	// 显示 agent 名）；未知 agent 回退 "agent-notify"。
+	appID := "agent-notify"
+	if name := appDisplayName(req.Agent); name != "" && name != req.Agent {
+		appID = name
+	}
+
 	opts := []toast.NotificationOption{
-		toast.WithAppID("agent-notify"),
+		toast.WithAppID(appID),
 		toast.WithTitle(req.Title),
 		toast.WithMessage(req.Body),
 		toast.WithAudio(toast.Default),
 		toast.WithLongDuration(),
-		// No WithIcon → toast falls back to its built-in default terminal icon.
+	}
+
+	// per-agent attribution 图标：找到 logo 才注入（toast 库将其注册为该 AppID
+	// 的 IconUri，显示在 head 栏）；找不到静默回退 toast 库默认终端图标。
+	if iconPath := AgentLogoPath(req.Agent); iconPath != "" {
+		opts = append(opts, toast.WithIcon(iconPath))
 	}
 
 	if req.ClickToFocus {

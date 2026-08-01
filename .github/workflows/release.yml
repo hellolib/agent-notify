@@ -59,16 +59,23 @@ jobs:
           fi
           binary_name="agent-notify-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}${ext}"
           archive_name="agent-notify-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz"
+          # 将 per-agent logo 资源塞进所有平台 archive（docs/agent-logo-plan.md）：
+          #   agentlogo/<agent>.png  运行时解压到 ~/.agent-notify/agentlogo/
+          #   agent-notify.png       运行时解压到 ~/.agent-notify/（fallback 图标）
+          # 只取 *.png，顺便挡掉 macOS 工作区可能残留的 .DS_Store。
+          mkdir -p agentlogo
+          cp assist/logo/agentlogo/*.png agentlogo/
+          cp assist/agent-notify.png agent-notify.png
           # macOS: 将预置的 terminal-notifier.app 打包进压缩包，用户下载 agent-notify 时一并获得
           if [ "${{ matrix.goos }}" = "darwin" ]; then
             unzip -o -q thirdparty/helper/mac/terminal-notifier-2.0.0.zip -d .
             cp "thirdparty/helper/mac/mac-focus-helper-${{ matrix.goarch }}" mac-focus-helper
-            tar -czvf "${archive_name}" "${binary_name}" terminal-notifier.app mac-focus-helper
+            tar -czvf "${archive_name}" "${binary_name}" terminal-notifier.app mac-focus-helper agentlogo agent-notify.png
           elif [ "${{ matrix.goos }}" = "windows" ]; then
             cp "thirdparty/helper/windows/toast-focus-helper-${{ matrix.goarch }}.exe" toast-focus-helper.exe
-            tar -czvf "${archive_name}" "${binary_name}" toast-focus-helper.exe
+            tar -czvf "${archive_name}" "${binary_name}" toast-focus-helper.exe agentlogo agent-notify.png
           else
-            tar -czvf "${archive_name}" "${binary_name}"
+            tar -czvf "${archive_name}" "${binary_name}" agentlogo agent-notify.png
           fi
 
       - name: Upload artifact

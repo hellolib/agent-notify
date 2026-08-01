@@ -14,6 +14,10 @@ const NOTIFIER_BUNDLE = 'terminal-notifier.app';
 const WINDOWS_FOCUS_HELPER = 'toast-focus-helper.exe';
 // MAC_FOCUS_HELPER 是 macOS release 包内的窗口级聚焦 helper 文件名。
 const MAC_FOCUS_HELPER = 'mac-focus-helper';
+// AGENT_LOGO_DIR 是 release archive 内 per-agent logo 目录名，运行时解压到 ~/.agent-notify/agentlogo/。
+const AGENT_LOGO_DIR = 'agentlogo';
+// FALLBACK_ICON 是 release archive 根目录的 fallback 图标，运行时解压到 ~/.agent-notify/agent-notify.png。
+const FALLBACK_ICON = 'agent-notify.png';
 
 async function installFromArchive({ archivePath, installDir, binaryNameInArchive, finalBinaryName }) {
   fs.mkdirSync(installDir, { recursive: true });
@@ -95,6 +99,31 @@ async function installFromArchive({ archivePath, installDir, binaryNameInArchive
       }
     }
 
+    // per-agent logo 资源（docs/agent-logo-plan.md）：
+    //   agentlogo/<agent>.png -> installDir/agentlogo/  覆盖更新 release 自带 logo，
+    //     但保留用户自放的其它 logo —— agentlogo/ 是图标查找链的第一优先级，用户可覆盖。
+    //   agent-notify.png      -> installDir/  fallback 图标。
+    // 逐文件拷贝（仅顶层文件），避免整目录 rmSync 清掉用户自定义 logo。
+    for (const entry of entries) {
+      if (entry.type !== 'File') continue;
+      if (entry.path.startsWith(AGENT_LOGO_DIR + '/')) {
+        const rel = entry.path.slice(AGENT_LOGO_DIR.length + 1);
+        // 全局 isUnsafeArchivePath 已防 .. 与绝对路径，这里再挡一层子目录，保持 agentlogo/ 扁平。
+        if (!rel || rel.includes('/')) continue;
+        const srcFile = path.join(extractDir, AGENT_LOGO_DIR, rel);
+        const dstDir = path.join(installDir, AGENT_LOGO_DIR);
+        fs.mkdirSync(dstDir, { recursive: true });
+        if (fs.existsSync(srcFile)) {
+          fs.copyFileSync(srcFile, path.join(dstDir, rel));
+        }
+      } else if (entry.path === FALLBACK_ICON) {
+        const srcFile = path.join(extractDir, FALLBACK_ICON);
+        if (fs.existsSync(srcFile)) {
+          fs.copyFileSync(srcFile, path.join(installDir, FALLBACK_ICON));
+        }
+      }
+    }
+
     return finalPath;
   } finally {
     fs.rmSync(tempFinalPath, { force: true });
@@ -107,4 +136,6 @@ module.exports = {
   NOTIFIER_BUNDLE,
   WINDOWS_FOCUS_HELPER,
   MAC_FOCUS_HELPER,
+  AGENT_LOGO_DIR,
+  FALLBACK_ICON,
 };

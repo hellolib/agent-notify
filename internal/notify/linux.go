@@ -14,10 +14,10 @@ type LinuxSender struct {
 	clickToFocus bool
 	startFocus   linuxFocusStarter
 	// sendNotify 发送 D-Bus 桌面通知；抽成字段以便测试注入（默认 linuxfocus.SendNotification）。
-	sendNotify func(ctx context.Context, title, body string) error
+	sendNotify func(ctx context.Context, icon, title, body string) error
 }
 
-type linuxFocusStarter func(ctx context.Context, title, body, windowID string) error
+type linuxFocusStarter func(ctx context.Context, icon, title, body, windowID string) error
 
 func NewLinuxSender(run Runner, clickToFocus bool) *LinuxSender {
 	return &LinuxSender{run: run, clickToFocus: clickToFocus, startFocus: defaultLinuxFocusStarter, sendNotify: linuxfocus.SendNotification}
@@ -34,31 +34,31 @@ func (s *LinuxSender) Send(ctx context.Context, msg Message) error {
 	// Format: notify-send "Title" "Body" [options]
 
 	formattedBody := s.formatBody(msg)
+	icon := AgentLogoPath(msg.Agent)
+
 	if s.clickToFocus && s.startFocus != nil {
-		if err := s.startFocus(ctx, msg.Title, formattedBody, msg.FocusWindowID); err == nil {
+		if err := s.startFocus(ctx, icon, msg.Title, formattedBody, msg.FocusWindowID); err == nil {
 			return nil
 		}
 	}
 
-	// notify-send arguments:
-	// -a "Claude Code" sets app name
-	// -u normal sets urgency
-	// -t 5000 sets timeout in milliseconds (5 seconds)
+	// D-Bus 桌面通知（非交互）。
 	if s.sendNotify != nil {
-		if err := s.sendNotify(ctx, msg.Title, formattedBody); err == nil {
+		if err := s.sendNotify(ctx, icon, msg.Title, formattedBody); err == nil {
 			return nil
 		}
 	}
-	return s.run(ctx, linuxfocus.CommandPath("notify-send"),
-		"-a", "Claude Code",
-		"-u", "normal",
-		"-t", "5000",
-		msg.Title,
-		formattedBody,
-	)
+
+	// notify-send 回退：-a 用 agent 显示名，-i 仅在找到图标时注入（空串走桌面默认）。
+	args := []string{"-a", appDisplayName(msg.Agent), "-u", "normal", "-t", "5000"}
+	if icon != "" {
+		args = append(args, "-i", icon)
+	}
+	args = append(args, msg.Title, formattedBody)
+	return s.run(ctx, linuxfocus.CommandPath("notify-send"), args...)
 }
 
-func defaultLinuxFocusStarter(ctx context.Context, title, body, windowID string) error {
+func defaultLinuxFocusStarter(ctx context.Context, icon, title, body, windowID string) error {
 	windowID = strings.TrimSpace(windowID)
 	if windowID == "" {
 		// 未命中 SessionStart 缓存时，回退到按进程树定位（旧行为）。
@@ -72,6 +72,7 @@ func defaultLinuxFocusStarter(ctx context.Context, title, body, windowID string)
 		Title:    title,
 		Body:     body,
 		WindowID: windowID,
+		Icon:     icon,
 	})
 }
 

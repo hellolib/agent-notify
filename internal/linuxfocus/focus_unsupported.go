@@ -11,6 +11,7 @@ type Request struct {
 	Title    string
 	Body     string
 	WindowID string
+	Icon     string
 }
 
 func ResolveWindowID(context.Context, int) (string, error) {
@@ -29,7 +30,7 @@ func WaitNotifyAndFocus(context.Context, Request) error {
 	return errors.New("linux focus is only supported on linux")
 }
 
-func SendNotification(context.Context, string, string) error {
+func SendNotification(context.Context, string, string, string) error {
 	return errors.New("linux focus is only supported on linux")
 }
 

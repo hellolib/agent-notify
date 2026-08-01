@@ -2,11 +2,18 @@ package notify
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func TestLinuxSenderSendCallsNotifySend(t *testing.T) {
+	// 隔离 HOME：让 AgentLogoPath 确定性返回空（无 logo），避免本机已装图标导致 -i 位置漂移。
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	t.Setenv("USERPROFILE", homeDir)
+
 	var gotName string
 	var gotArgs []string
 
@@ -16,9 +23,9 @@ func TestLinuxSenderSendCallsNotifySend(t *testing.T) {
 		return nil
 	}, false)
 	// 强制 D-Bus 通知失败，确定性地走到 notify-send 回退（避免依赖运行环境是否有活跃 D-Bus）。
-	sender.sendNotify = func(context.Context, string, string) error { return context.Canceled }
+	sender.sendNotify = func(context.Context, string, string, string) error { return context.Canceled }
 
-	msg := Message{Title: "Test Title", Body: "Test Body", Workspace: "/path/to/project"}
+	msg := Message{Agent: "claude_code", Title: "Test Title", Body: "Test Body", Workspace: "/path/to/project"}
 	if err := sender.Send(context.Background(), msg); err != nil {
 		t.Fatalf("Send() error = %v", err)
 	}
@@ -57,7 +64,7 @@ func TestLinuxSenderSendWithoutWorkspace(t *testing.T) {
 		gotArgs = args
 		return nil
 	}, false)
-	sender.sendNotify = func(context.Context, string, string) error { return context.Canceled }
+	sender.sendNotify = func(context.Context, string, string, string) error { return context.Canceled }
 
 	msg := Message{Title: "Title", Body: "Body", Workspace: ""}
 	if err := sender.Send(context.Background(), msg); err != nil {
@@ -126,14 +133,22 @@ func TestLinuxSenderFormatBody(t *testing.T) {
 }
 
 func TestLinuxSenderClickToFocusStartsFocusHelper(t *testing.T) {
+	// 隔离 HOME：msg 未设 Agent，AgentLogoPath("") 应确定性返回空。
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	t.Setenv("USERPROFILE", homeDir)
+
 	runCalled := false
 	startCalled := false
 
 	sender := NewLinuxSenderWithFocusStarter(func(_ context.Context, name string, args ...string) error {
 		runCalled = true
 		return nil
-	}, true, func(_ context.Context, title, body, windowID string) error {
+	}, true, func(_ context.Context, icon, title, body, windowID string) error {
 		startCalled = true
+		if icon != "" {
+			t.Fatalf("icon = %q, want empty when agent unset", icon)
+		}
 		if title != "Title" {
 			t.Fatalf("title = %q, want Title", title)
 		}
@@ -163,10 +178,10 @@ func TestLinuxSenderClickToFocusFallsBackToNotifySend(t *testing.T) {
 	sender := NewLinuxSenderWithFocusStarter(func(_ context.Context, name string, args ...string) error {
 		gotName = name
 		return nil
-	}, true, func(_ context.Context, title, body, windowID string) error {
+	}, true, func(_ context.Context, icon, title, body, windowID string) error {
 		return context.Canceled
 	})
-	sender.sendNotify = func(context.Context, string, string) error { return context.Canceled }
+	sender.sendNotify = func(context.Context, string, string, string) error { return context.Canceled }
 
 	if err := sender.Send(context.Background(), Message{Title: "Title", Body: "Body"}); err != nil {
 		t.Fatalf("Send() error = %v", err)
@@ -180,5 +195,93 @@ func TestLinuxSenderName(t *testing.T) {
 	sender := &LinuxSender{}
 	if sender.Name() != "system" {
 		t.Fatalf("Name() = %q, want system", sender.Name())
+	}
+}
+
+// setupAgentLogoEnv 在 tmpDir 下建好 ~/.agent-notify/agentlogo/<file>，并把 HOME 与
+// USERPROFILE 都指向 tmpDir（这些测试无 build tag、会在 windows-latest 上跑，故两者
+// 都要设），返回期望的图标路径。
+func setupAgentLogoEnv(t *testing.T, filename string) (tmpDir, wantPath string) {
+	t.Helper()
+	tmpDir = t.TempDir()
+	agentlogoDir := filepath.Join(tmpDir, ".agent-notify", "agentlogo")
+	if err := os.MkdirAll(agentlogoDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	wantPath = filepath.Join(agentlogoDir, filename)
+	if err := os.WriteFile(wantPath, []byte("fake"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
+	return tmpDir, wantPath
+}
+
+// D-Bus 非交互通知路径（sendNotify）：clickToFocus 关闭时，AgentLogoPath 解出的图标
+// 应原样下传给 sendNotify。
+func TestLinuxSenderPassesAgentLogoToDBusNotify(t *testing.T) {
+	_, wantIcon := setupAgentLogoEnv(t, "claude.png")
+
+	var gotIcon string
+	sender := NewLinuxSender(func(_ context.Context, name string, _ ...string) error {
+		t.Fatalf("runner should not be called; got %q", name)
+		return nil
+	}, false)
+	sender.sendNotify = func(_ context.Context, icon, _, _ string) error {
+		gotIcon = icon
+		return nil
+	}
+
+	if err := sender.Send(context.Background(), Message{Agent: "claude_code", Title: "T", Body: "B"}); err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if gotIcon != wantIcon {
+		t.Fatalf("sendNotify icon = %q, want %q", gotIcon, wantIcon)
+	}
+}
+
+// click-to-focus 主路径（startFocus）：图标应下传给 startFocus（进而经 Request.Icon
+// → linux-notify-wait --icon → waitNotificationAction 的 D-Bus Notify icon 参）。
+func TestLinuxSenderPassesAgentLogoToFocusStarter(t *testing.T) {
+	_, wantIcon := setupAgentLogoEnv(t, "claude.png")
+
+	var gotIcon string
+	sender := NewLinuxSenderWithFocusStarter(
+		func(_ context.Context, name string, _ ...string) error {
+			t.Fatalf("runner should not be called; got %q", name)
+			return nil
+		}, true, func(_ context.Context, icon, _, _, _ string) error {
+			gotIcon = icon
+			return nil
+		})
+
+	if err := sender.Send(context.Background(), Message{Agent: "claude_code", Title: "T", Body: "B", FocusWindowID: "0x123"}); err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if gotIcon != wantIcon {
+		t.Fatalf("startFocus icon = %q, want %q", gotIcon, wantIcon)
+	}
+}
+
+// notify-send 回退路径：D-Bus 失败后走 notify-send，-i 仅在找到图标时注入，
+// -a 用 agent 显示名（claude_code → "Claude Code"）。
+func TestLinuxSenderNotifySendFallbackInjectsIcon(t *testing.T) {
+	_, wantIcon := setupAgentLogoEnv(t, "claude.png")
+
+	var gotArgs []string
+	sender := NewLinuxSender(func(_ context.Context, _ string, args ...string) error {
+		gotArgs = args
+		return nil
+	}, false)
+	sender.sendNotify = func(context.Context, string, string, string) error { return context.Canceled }
+
+	if err := sender.Send(context.Background(), Message{Agent: "claude_code", Title: "T", Body: "B"}); err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if !sliceContainsPair(gotArgs, "-a", "Claude Code") {
+		t.Fatalf("args = %#v, want -a Claude Code", gotArgs)
+	}
+	if !sliceContainsPair(gotArgs, "-i", wantIcon) {
+		t.Fatalf("args = %#v, want -i %q", gotArgs, wantIcon)
 	}
 }
