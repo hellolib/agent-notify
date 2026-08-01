@@ -326,9 +326,10 @@ func TestMacOSSenderAppIconUsesAgentLogoPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	// Windows 上 os.UserHomeDir() 读 %USERPROFILE%，Unix 读 $HOME；同时设置两者，
+	// 让 AgentLogoPath 在三平台 CI 上都解析到 tmpDir。
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
 
 	var gotArgs []string
 	sender := NewMacOSSenderWithResolver(func(_ context.Context, name string, args ...string) error {
@@ -351,9 +352,10 @@ func TestMacOSSenderAppIconUsesAgentLogoPath(t *testing.T) {
 func TestMacOSSenderAppIconOmittedWhenNoLogo(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	// Windows 上 os.UserHomeDir() 读 %USERPROFILE%，Unix 读 $HOME；同时设置两者，
+	// 让 AgentLogoPath 在三平台 CI 上都解析到 tmpDir。
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
 
 	var gotArgs []string
 	sender := NewMacOSSenderWithResolver(func(_ context.Context, name string, args ...string) error {
@@ -385,9 +387,10 @@ func TestMacOSSenderAppIconForCodex(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	// Windows 上 os.UserHomeDir() 读 %USERPROFILE%，Unix 读 $HOME；同时设置两者，
+	// 让 AgentLogoPath 在三平台 CI 上都解析到 tmpDir。
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
 
 	var gotArgs []string
 	sender := NewMacOSSenderWithResolver(func(_ context.Context, name string, args ...string) error {

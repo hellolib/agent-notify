@@ -16,9 +16,10 @@ func TestAgentLogoPathReturnsAgentSpecificLogo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	// Windows 上 os.UserHomeDir() 读 %USERPROFILE%，Unix 读 $HOME；同时设置两者，
+	// 让 AgentLogoPath 在三平台 CI 上都解析到 tmpDir。
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
 
 	got := AgentLogoPath("claude_code")
 	want := filepath.Join(tmpDir, ".agent-notify", "agentlogo", "claude.png")
@@ -38,9 +39,10 @@ func TestAgentLogoPathFallsBackToDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	// Windows 上 os.UserHomeDir() 读 %USERPROFILE%，Unix 读 $HOME；同时设置两者，
+	// 让 AgentLogoPath 在三平台 CI 上都解析到 tmpDir。
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
 
 	got := AgentLogoPath("codex")
 	want := filepath.Join(tmpDir, ".agent-notify", "agent-notify.png")
@@ -52,9 +54,10 @@ func TestAgentLogoPathFallsBackToDefault(t *testing.T) {
 func TestAgentLogoPathReturnsEmptyWhenNothingFound(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", origHome)
+	// Windows 上 os.UserHomeDir() 读 %USERPROFILE%，Unix 读 $HOME；同时设置两者，
+	// 让 AgentLogoPath 在三平台 CI 上都解析到 tmpDir。
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
 
 	got := AgentLogoPath("claude_code")
 	if got != "" {
