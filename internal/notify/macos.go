@@ -96,23 +96,6 @@ func defaultMacFocusHelperPath() string {
 	return ""
 }
 
-// agentIconPath 按 agent 选择应用图标；图标文件存在才返回，否则返回空串。
-func agentIconPath(agent string) string {
-	var app string
-	switch agent {
-	case "codex":
-		app = "Codex.app"
-	case "zcode":
-		app = "ZCode.app"
-	default:
-		app = "Claude.app"
-	}
-	icon := filepath.Join("/Applications", app, "Contents", "Resources", "AppIcon.icns")
-	if info, err := os.Stat(icon); err == nil && !info.IsDir() {
-		return icon
-	}
-	return ""
-}
 
 // tryTerminalNotifier attempts to use terminal-notifier for richer notifications
 func (s *MacOSSender) tryTerminalNotifier(ctx context.Context, msg Message) bool {
@@ -137,8 +120,8 @@ func (s *MacOSSender) tryTerminalNotifier(ctx context.Context, msg Message) bool
 		}
 	}
 
-	// 图标按 agent 选择，存在才追加
-	if icon := agentIconPath(msg.Agent); icon != "" {
+	// 图标按 agent 选择：优先 agentlogo 专属 logo，回退到 agent-notify.png，都没有则跳过
+	if icon := AgentLogoPath(msg.Agent); icon != "" {
 		args = append(args, "-appIcon", icon)
 	}
 

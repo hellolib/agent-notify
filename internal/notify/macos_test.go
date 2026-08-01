@@ -2,6 +2,8 @@ package notify
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -312,6 +314,97 @@ func sliceContainsPair(args []string, flag, val string) bool {
 		}
 	}
 	return false
+}
+
+func TestMacOSSenderAppIconUsesAgentLogoPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	agentlogoDir := filepath.Join(tmpDir, ".agent-notify", "agentlogo")
+	if err := os.MkdirAll(agentlogoDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(agentlogoDir, "claude.png"), []byte("fake"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	var gotArgs []string
+	sender := NewMacOSSenderWithResolver(func(_ context.Context, name string, args ...string) error {
+		if name == mockExe {
+			gotArgs = args
+		}
+		return nil
+	}, true, "app", mockResolver)
+
+	if err := sender.Send(context.Background(), Message{Agent: "claude_code", Title: "T", Body: "B"}); err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+
+	wantIcon := filepath.Join(tmpDir, ".agent-notify", "agentlogo", "claude.png")
+	if !sliceContainsPair(gotArgs, "-appIcon", wantIcon) {
+		t.Fatalf("args = %#v, want -appIcon %q", gotArgs, wantIcon)
+	}
+}
+
+func TestMacOSSenderAppIconOmittedWhenNoLogo(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	var gotArgs []string
+	sender := NewMacOSSenderWithResolver(func(_ context.Context, name string, args ...string) error {
+		if name == mockExe {
+			gotArgs = args
+		}
+		return nil
+	}, true, "app", mockResolver)
+
+	if err := sender.Send(context.Background(), Message{Agent: "claude_code", Title: "T", Body: "B"}); err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+
+	// 无 agent logo 也无 fallback → 不应出现 -appIcon 参数
+	for _, a := range gotArgs {
+		if a == "-appIcon" {
+			t.Fatalf("args = %#v, unexpected -appIcon when no logo found", gotArgs)
+		}
+	}
+}
+
+func TestMacOSSenderAppIconForCodex(t *testing.T) {
+	tmpDir := t.TempDir()
+	agentlogoDir := filepath.Join(tmpDir, ".agent-notify", "agentlogo")
+	if err := os.MkdirAll(agentlogoDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(agentlogoDir, "openai.png"), []byte("fake"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", origHome)
+
+	var gotArgs []string
+	sender := NewMacOSSenderWithResolver(func(_ context.Context, name string, args ...string) error {
+		if name == mockExe {
+			gotArgs = args
+		}
+		return nil
+	}, true, "app", mockResolver)
+
+	if err := sender.Send(context.Background(), Message{Agent: "codex", Title: "T", Body: "B"}); err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+
+	wantIcon := filepath.Join(tmpDir, ".agent-notify", "agentlogo", "openai.png")
+	if !sliceContainsPair(gotArgs, "-appIcon", wantIcon) {
+		t.Fatalf("args = %#v, want -appIcon %q", gotArgs, wantIcon)
+	}
 }
 
 func TestShortenWorkspace(t *testing.T) {
