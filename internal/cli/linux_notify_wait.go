@@ -19,5 +19,6 @@ func newLinuxNotifyWaitCmd(ctx context.Context) *cobra.Command {
 	cmd.Flags().StringVar(&req.Title, "title", "", "notification title")
 	cmd.Flags().StringVar(&req.Body, "body", "", "notification body")
 	cmd.Flags().StringVar(&req.WindowID, "window", "", "target X11 window id")
+	cmd.Flags().StringVar(&req.Icon, "icon", "", "notification icon file path (per-agent logo)")
 	return cmd
 }
