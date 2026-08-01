@@ -110,8 +110,9 @@ func Install(path string, binaryPath string) error {
 		return err
 	}
 
-	// enabled 是用户所有 ZCode hook 的总开关,不属于我们。
-	// 仅在缺失时创建;用户显式关闭时拒绝安装并说明,而不是静默替他打开。
+	// enabled 是 ZCode hook 的总开关。缺失或显式 false 时统一置 true——
+	// 对齐 Codex 的 EnableHooksFeature:安装即打开开关,否则 hook 永不触发。
+	// 非布尔值仍报错。卸载时不再回退该开关（见 Uninstall）。
 	if err := ensureHooksEnabled(&hooks, path); err != nil {
 		return err
 	}
@@ -176,15 +177,9 @@ func Uninstall(path string) error {
 
 	if events.Len() == 0 {
 		hooks.Delete("events")
-		// events 已空说明没有任何 hook 了,此时留着 enabled=true 只会把
-		// 「我们安装时创建的开关」永久留在用户配置里。仅在其为 true 时清理:
-		// false 一定是用户自己设的(安装时我们从不写 false),必须保留。
-		if raw, ok := hooks.Get("enabled"); ok {
-			var enabled bool
-			if json.Unmarshal(raw, &enabled) == nil && enabled {
-				hooks.Delete("enabled")
-			}
-		}
+		// enabled 是 ZCode hook 的通用总开关,可能被用户自建/其它 hook 使用,
+		// 卸载不碰——对齐 Codex 不动 config.toml 里 [features] hooks 的做法。
+		// 这也避免「安装时把用户 false 翻成 true、卸载又删掉」丢失用户原始意图。
 	} else if err := common.SetChildObject(&hooks, "events", events); err != nil {
 		return err
 	}
@@ -199,8 +194,9 @@ func Uninstall(path string) error {
 	return common.WriteOrderedSettings(path, settings)
 }
 
-// ensureHooksEnabled 保证 hooks.enabled 为 true。缺失时创建;显式 false 或
-// 非布尔值时报错拒绝安装,把决定权交还用户。
+// ensureHooksEnabled 保证 hooks.enabled 为 true。缺失或显式 false 时一律置 true
+// （对齐 Codex 的 EnableHooksFeature：安装即打开 hook 总开关,否则通知不会触发）;
+// 非布尔值属于损坏数据,仍报错把决定权交还用户。
 func ensureHooksEnabled(hooks *common.OrderedObject, path string) error {
 	raw, ok := hooks.Get("enabled")
 	trimmed := bytes.TrimSpace(raw)
@@ -214,8 +210,10 @@ func ensureHooksEnabled(hooks *common.OrderedObject, path string) error {
 		return fmt.Errorf("%s 中 hooks.enabled 不是布尔值(%s),请手动修正后重试", path, trimmed)
 	}
 	if !enabled {
-		return fmt.Errorf("%s 中 hooks.enabled = false(ZCode hook 总开关已关闭),"+
-			"agent-notify 的通知不会触发;请先将其改为 true 再重新安装", path)
+		// 对齐 Codex:用户显式关闭时直接替他打开,而不是拒绝安装。
+		// 卸载时不会回退该开关（见 Uninstall）,与 Codex 不动 [features] hooks 一致。
+		hooks.Set("enabled", json.RawMessage("true"))
+		return nil
 	}
 	return nil
 }
