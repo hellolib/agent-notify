@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assist/brand/bell-only-128.png" alt="Agent Notify" width="90">
+
 # Agent Notify
 
 <p align="center"><b>Notifies you when your agent needs you</b>

@@ -2,10 +2,27 @@
 // 造型参数集中在 GEOMETRY，配色集中在 COLORS —— 改数字即可调整，无需手摆像素。
 const fs = require('node:fs');
 
+// —— 背景模式（BG_MODE 环境变量切换）——
+//  plate      深色圆角底板 + 熄灭底点（默认，App 图标用）
+//  bare       去掉底板，保留熄灭底点（透明背景，底点仍是原来的深紫）
+//  bare-soft  去掉底板，熄灭底点改中性半透明灰（浅色/深色页面都不抢戏）
+//  bell       去掉底板与熄灭底点，只留铃铛本体
+const BG_MODE = process.env.BG_MODE || 'plate';
+const MODES = ['plate', 'bare', 'bare-soft', 'bell'];
+if (!MODES.includes(BG_MODE)) {
+  console.error(`unknown BG_MODE "${BG_MODE}", expected one of: ${MODES.join(', ')}`);
+  process.exit(1);
+}
+const DRAW_PLATE = BG_MODE === 'plate';
+const DRAW_OFF = BG_MODE !== 'bell';
+
 // —— 配色 ——
 const BG_TOP = '#211E3A', BG_BOT = '#151228'; // 底：深靛紫（围绕 #1B1930）
 const V = '#8B7CFF', C = '#22D3EE';           // 铃铛：紫罗兰 → 青
-const OFF = '#2E2A4A';                          // 熄灭底点
+// 熄灭底点：贴着底板时用深紫；底板拿掉后深紫在白底上会变成脏点，
+// 故 bare-soft 换成中性灰 + 低透明度，靠 alpha 同时适配浅色与深色背景。
+const OFF = BG_MODE === 'bare-soft' ? '#7C7A96' : '#2E2A4A';
+const OFF_OPACITY = BG_MODE === 'bare-soft' ? 0.35 : 1;
 
 const toRgb = (h) => ({ r: parseInt(h.slice(1, 3), 16), g: parseInt(h.slice(3, 5), 16), b: parseInt(h.slice(5, 7), 16) });
 const toHex = ({ r, g, b }) => '#' + [r, g, b].map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
@@ -93,25 +110,32 @@ const origin = (CANVAS - N * P) / 2;
 const LIT_R = P * 0.42, OFF_R = P * 0.30;
 const center = (i) => origin + i * P + P / 2;
 
+const offAlpha = OFF_OPACITY < 1 ? ` fill-opacity="${OFF_OPACITY}"` : '';
 let cells = '';
 for (let r = 0; r < N; r++) {
   for (let c = 0; c < N; c++) {
     const cx = center(c), cy = center(r);
-    if (role[r][c] === 0) cells += `  <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${OFF_R.toFixed(1)}" fill="${OFF}"/>\n`;
-    else cells += `  <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${LIT_R.toFixed(1)}" fill="${colorFor(r, c)}"/>\n`;
+    if (role[r][c] === 0) {
+      if (DRAW_OFF) cells += `  <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${OFF_R.toFixed(1)}" fill="${OFF}"${offAlpha}/>\n`;
+    } else cells += `  <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${LIT_R.toFixed(1)}" fill="${colorFor(r, c)}"/>\n`;
   }
 }
 
-const svg = `<svg width="${CANVAS}" height="${CANVAS}" viewBox="0 0 ${CANVAS} ${CANVAS}" xmlns="http://www.w3.org/2000/svg">
-  <defs>
+// 底板只在 plate 模式下输出；其余模式留空 → 透明背景
+const plate = DRAW_PLATE
+  ? `  <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="${BG_TOP}"/>
       <stop offset="1" stop-color="${BG_BOT}"/>
     </linearGradient>
   </defs>
   <rect x="0" y="0" width="${CANVAS}" height="${CANVAS}" rx="${(CANVAS * 0.223).toFixed(0)}" fill="url(#bg)"/>
-${cells}</svg>
+`
+  : '';
+
+const svg = `<svg width="${CANVAS}" height="${CANVAS}" viewBox="0 0 ${CANVAS} ${CANVAS}" xmlns="http://www.w3.org/2000/svg">
+${plate}${cells}</svg>
 `;
 
 fs.writeFileSync(process.argv[2] || 'concept-dotmatrix-bell.svg', svg);
-console.log('wrote', process.argv[2] || 'concept-dotmatrix-bell.svg', `(${N}x${N}, ${CANVAS}px)`);
+console.log('wrote', process.argv[2] || 'concept-dotmatrix-bell.svg', `(${N}x${N}, ${CANVAS}px, bg=${BG_MODE})`);
