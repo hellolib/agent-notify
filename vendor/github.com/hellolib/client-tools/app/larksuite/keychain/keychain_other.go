@@ -1,0 +1,181 @@
+//go:build linux
+
+package keychain
+
+import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+
+	"github.com/google/uuid"
+)
+
+const masterKeyBytes = 32
+const ivBytes = 12
+const tagBytes = 16
+
+func StorageDir(service string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		fmt.Fprintf(os.Stderr, "warning: unable to determine home directory: %v\n", err)
+	}
+	xdgData := filepath.Join(home, ".local", "share")
+	return filepath.Join(xdgData, service)
+}
+
+var safeFileNameRe = regexp.MustCompile(`[^a-zA-Z0-9._-]`)
+
+func safeFileName(account string) string {
+	return safeFileNameRe.ReplaceAllString(account, "_") + ".enc"
+}
+
+func getMasterKey(service string, allowCreate bool) ([]byte, error) {
+	dir := StorageDir(service)
+	keyPath := filepath.Join(dir, "master.key")
+
+	key, err := os.ReadFile(keyPath)
+	if err == nil && len(key) == masterKeyBytes {
+		return key, nil
+	}
+	if err == nil && len(key) != masterKeyBytes {
+		return nil, errors.New("keychain is corrupted")
+	}
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+
+	if !allowCreate {
+		return nil, errNotInitialized
+	}
+
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return nil, err
+	}
+
+	key = make([]byte, masterKeyBytes)
+	if _, err := rand.Read(key); err != nil {
+		return nil, err
+	}
+
+	tmpKeyPath := filepath.Join(dir, "master.key."+uuid.New().String()+".tmp")
+	defer os.Remove(tmpKeyPath)
+
+	if err := os.WriteFile(tmpKeyPath, key, 0600); err != nil {
+		return nil, err
+	}
+
+	if err := os.Rename(tmpKeyPath, keyPath); err != nil {
+		existingKey, readErr := os.ReadFile(keyPath)
+		if readErr == nil && len(existingKey) == masterKeyBytes {
+			return existingKey, nil
+		}
+		return nil, err
+	}
+
+	return key, nil
+}
+
+func encryptData(plaintext string, key []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	iv := make([]byte, ivBytes)
+	if _, err := rand.Read(iv); err != nil {
+		return nil, err
+	}
+
+	ciphertext := aesGCM.Seal(nil, iv, []byte(plaintext), nil)
+	result := make([]byte, 0, ivBytes+len(ciphertext))
+	result = append(result, iv...)
+	result = append(result, ciphertext...)
+	return result, nil
+}
+
+func decryptData(data []byte, key []byte) (string, error) {
+	if len(data) < ivBytes+tagBytes {
+		return "", os.ErrInvalid
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	iv := data[:ivBytes]
+	ciphertext := data[ivBytes:]
+	plaintext, err := aesGCM.Open(nil, iv, ciphertext, nil)
+	if err != nil {
+		return "", err
+	}
+	return string(plaintext), nil
+}
+
+func platformGet(service, account string) (string, error) {
+	path := filepath.Join(StorageDir(service), safeFileName(account))
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	key, err := getMasterKey(service, false)
+	if err != nil {
+		return "", err
+	}
+	plaintext, err := decryptData(data, key)
+	if err != nil {
+		return "", err
+	}
+	return plaintext, nil
+}
+
+func platformSet(service, account, data string) error {
+	key, err := getMasterKey(service, true)
+	if err != nil {
+		return err
+	}
+	dir := StorageDir(service)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	encrypted, err := encryptData(data, key)
+	if err != nil {
+		return err
+	}
+
+	targetPath := filepath.Join(dir, safeFileName(account))
+	tmpPath := filepath.Join(dir, safeFileName(account)+"."+uuid.New().String()+".tmp")
+	defer os.Remove(tmpPath)
+
+	if err := os.WriteFile(tmpPath, encrypted, 0600); err != nil {
+		return err
+	}
+
+	if err := os.Rename(tmpPath, targetPath); err != nil {
+		return err
+	}
+	return nil
+}
+
+func platformRemove(service, account string) error {
+	err := os.Remove(filepath.Join(StorageDir(service), safeFileName(account)))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}

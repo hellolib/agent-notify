@@ -1,4 +1,4 @@
-.PHONY: build test run clean install lint fmt vet help tag npm-publish release
+.PHONY: build test run dev dev-serve dev-test-hook dev-approve dev-reject dev-approval-on dev-approval-off clean install lint fmt vet help tag npm-publish release
 
 # Binary name
 BINARY_NAME=agent-notify
@@ -56,6 +56,76 @@ test-coverage:
 run:
 	@echo "Running $(BINARY_NAME)..."
 	$(GOCMD) run ./cmd/$(BINARY_NAME)
+
+## dev: Run with local feishu DNS-fix proxy if present (for dev on polluted-DNS machines)
+dev:
+	@echo "Running $(BINARY_NAME) (dev, with feishu-env if available)..."
+	@if [ -f "$$HOME/.agent-notify/feishu-env.sh" ]; then \
+		bash -lc 'set --; source "$$HOME/.agent-notify/feishu-env.sh" >/dev/null 2>&1; exec $(GOCMD) run ./cmd/$(BINARY_NAME)'; \
+	else \
+		$(GOCMD) run ./cmd/$(BINARY_NAME); \
+	fi
+
+# ---- 远程审批本地测试 ----
+
+## dev-serve: 启动飞书 WebSocket 长连接审批服务（需飞书代理）
+dev-serve:
+	@echo "Starting callback server (dev)..."
+	@if [ -f "$$HOME/.agent-notify/feishu-env.sh" ]; then \
+		bash -lc 'set --; source "$$HOME/.agent-notify/feishu-env.sh" >/dev/null 2>&1; exec $(GOCMD) run ./cmd/$(BINARY_NAME) serve --listen 127.0.0.1:7896'; \
+	else \
+		$(GOCMD) run ./cmd/$(BINARY_NAME) serve --listen 127.0.0.1:7896; \
+	fi
+
+## dev-test-hook: 模拟 Codex PermissionRequest hook（阻塞等待远程审批）
+dev-test-hook:
+	@echo "Simulating Codex PermissionRequest hook (blocks until approved/rejected/timeout)..."
+	@payload='{"hook_event_name":"PermissionRequest","session_id":"test-dev","cwd":"/tmp","tool_name":"Bash","permission_mode":"default","tool_input":{"command":"git status"}}'; \
+	if [ -f "$$HOME/.agent-notify/feishu-env.sh" ]; then \
+		echo "$$payload" | bash -lc 'set --; source "$$HOME/.agent-notify/feishu-env.sh" >/dev/null 2>&1; exec $(GOCMD) run ./cmd/$(BINARY_NAME) handle-codex-hook'; \
+	else \
+		echo "$$payload" | $(GOCMD) run ./cmd/$(BINARY_NAME) handle-codex-hook; \
+	fi
+
+## dev-approve: 自动审批最新的 pending 请求（模拟飞书点"允许"）
+dev-approve:
+	@rid=$$(ls -t $$HOME/.agent-notify/pending-requests/*.json 2>/dev/null | head -1); \
+	if [ -z "$$rid" ]; then echo "没有 pending 请求，请先在另一个终端运行 make dev-test-hook"; exit 1; fi; \
+	rid=$$(basename "$$rid" .json); \
+	echo "审批: $$rid (allow)"; \
+	curl -s -X POST http://127.0.0.1:7896/feishu/callback \
+		-H 'Content-Type: application/json' \
+		-d "{\"action\":{\"value\":{\"action\":\"allow\",\"request_id\":\"$$rid\"}}}"
+
+## dev-reject: 自动拒绝最新的 pending 请求（模拟飞书点"拒绝"）
+dev-reject:
+	@rid=$$(ls -t $$HOME/.agent-notify/pending-requests/*.json 2>/dev/null | head -1); \
+	if [ -z "$$rid" ]; then echo "没有 pending 请求，请先在另一个终端运行 make dev-test-hook"; exit 1; fi; \
+	rid=$$(basename "$$rid" .json); \
+	echo "拒绝: $$rid (reject)"; \
+	curl -s -X POST http://127.0.0.1:7896/feishu/callback \
+		-H 'Content-Type: application/json' \
+		-d "{\"action\":{\"value\":{\"action\":\"reject\",\"request_id\":\"$$rid\"}}}"
+
+## dev-approval-on: 启用远程审批（修改 ~/.agent-notify/config.yaml）
+dev-approval-on:
+	@cfg="$$HOME/.agent-notify/config.yaml"; \
+	if grep -qE '^remote_approval:' "$$cfg"; then \
+		sed -i -E '/^remote_approval:/{n;s/enabled:.*/enabled: true/}' "$$cfg"; \
+	else \
+		printf '\nremote_approval:\n  enabled: true\n  wait_seconds: 30\n' >> "$$cfg"; \
+	fi
+	@echo "远程审批已启用 (~/.agent-notify/config.yaml)"
+
+## dev-approval-off: 关闭远程审批
+dev-approval-off:
+	@cfg="$$HOME/.agent-notify/config.yaml"; \
+	if grep -qE '^remote_approval:' "$$cfg"; then \
+		sed -i -E '/^remote_approval:/{n;s/enabled:.*/enabled: false/}' "$$cfg"; \
+	else \
+		printf '\nremote_approval:\n  enabled: false\n  wait_seconds: 30\n' >> "$$cfg"; \
+	fi
+	@echo "远程审批已关闭 (~/.agent-notify/config.yaml)"
 
 ## clean: Clean build artifacts
 clean:

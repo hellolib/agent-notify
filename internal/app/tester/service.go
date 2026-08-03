@@ -111,7 +111,12 @@ func (s *Service) TestFeishu(ctx context.Context) (*TestFeishuResult, error) {
 			return nil, err
 		}
 	}
-	msg := notify.Message{Event: "permission_required", Title: i18n.T("test.msg_title"), Body: i18n.T("test.msg_body")}
+	msg := notify.Message{
+		Event:   "permission_required",
+		Title:   i18n.T("test.msg_title"),
+		Body:    i18n.T("test.msg_body"),
+		Actions: defaultTestActions(),
+	}
 	if err := s.feishuNotificationSender().Send(ctx, msg); err != nil {
 		return nil, err
 	}
@@ -295,4 +300,13 @@ func (s *Service) slackNotificationSender(webhookURL string) notify.Sender {
 		return s.slackSender
 	}
 	return notify.NewSlackSender(webhookURL)
+}
+
+// defaultTestActions 返回测试通知用的示例按钮（模拟 Codex default 模式 3 按钮）。
+func defaultTestActions() []notify.Action {
+	return []notify.Action{
+		{Label: "允许", Value: "allow", Style: "primary"},
+		{Label: "允许整个会话", Value: "allow_session", Style: "default"},
+		{Label: "拒绝", Value: "reject", Style: "danger"},
+	}
 }

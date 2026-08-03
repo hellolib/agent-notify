@@ -11,10 +11,20 @@ import (
 
 // Config is the root configuration structure for agent-notify.
 type Config struct {
-	Version  int            `yaml:"version"`  // 配置版本号
-	Agent    AgentConfig    `yaml:"agent"`    // Agent 安装配置
-	Notify   NotifyConfig   `yaml:"notify"`   // 通知配置
-	Behavior BehaviorConfig `yaml:"behavior"` // 行为配置
+	Version        int                  `yaml:"version"`         // 配置版本号
+	Agent          AgentConfig          `yaml:"agent"`           // Agent 安装配置
+	Notify         NotifyConfig         `yaml:"notify"`          // 通知配置
+	Behavior       BehaviorConfig       `yaml:"behavior"`        // 行为配置
+	RemoteApproval RemoteApprovalConfig `yaml:"remote_approval"` // 远程审批配置
+}
+
+// RemoteApprovalConfig 远程审批配置（飞书按钮点击远程授权 Codex）。
+type RemoteApprovalConfig struct {
+	Enabled        bool   `yaml:"enabled"`         // 是否启用远程审批
+	WaitSeconds    int    `yaml:"wait_seconds"`    // hook 阻塞等待远程审批的秒数；超时后回退终端菜单。默认 30
+	TimeoutSeconds int    `yaml:"timeout_seconds"` // 已废弃：原 590 秒硬超时，现由 wait_seconds 替代
+	RelayURL       string `yaml:"relay_url"`       // 已废弃：改用飞书 WebSocket 长连接，无需公网中继
+	RelayToken     string `yaml:"relay_token"`     // 已废弃：同上
 }
 
 // AgentConfig holds configuration for supported agents.
@@ -218,6 +228,10 @@ func Default() Config {
 			SendTimeoutSeconds: 5,
 			Locale:             "zh-CN",
 		},
+		RemoteApproval: RemoteApprovalConfig{
+			Enabled:        false,
+			TimeoutSeconds: DefaultTimeoutSec,
+		},
 	}
 }
 
@@ -284,6 +298,9 @@ func Load(path string) (Config, error) {
 	}
 	if cfg.Behavior.Locale == "" {
 		cfg.Behavior.Locale = "zh-CN"
+	}
+	if cfg.RemoteApproval.TimeoutSeconds == 0 {
+		cfg.RemoteApproval.TimeoutSeconds = DefaultTimeoutSec
 	}
 
 	// Channel-only setup (e.g. menu → 微信) enables webhooks without writing events.

@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/hellolib/agent-notify/internal/feishucli"
+	"github.com/hellolib/agent-notify/internal/state"
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkapplication "github.com/larksuite/oapi-sdk-go/v3/service/application/v6"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
@@ -153,6 +155,45 @@ func (s *FeishuSender) buildCard(msg Message) map[string]any {
 			},
 		})
 	}
+	// 有 RequestID 时才添加详情按钮
+	if msg.RequestID != "" {
+		elements = append(elements, map[string]any{
+			"tag": "action",
+			"actions": []any{
+				map[string]any{
+					"tag":  "button",
+					"text": map[string]any{"tag": "plain_text", "content": "📋 查看详情"},
+					"type": "default",
+					"value": map[string]any{
+						"action":     "view_detail",
+						"request_id": msg.RequestID,
+					},
+				},
+			},
+		})
+	}
+	if len(msg.Actions) > 0 {
+		buttons := make([]any, 0, len(msg.Actions))
+		for _, a := range msg.Actions {
+			buttons = append(buttons, map[string]any{
+				"tag": "button",
+				"text": map[string]any{
+					"tag":     "plain_text",
+					"content": a.Label,
+				},
+				"type": a.Style,
+				"value": map[string]any{
+					"action":     a.Value,
+					"request_id": msg.RequestID,
+				},
+			})
+		}
+		elements = append(elements, map[string]any{
+			"tag":     "action",
+			"actions": buttons,
+		})
+	}
+
 	elements = append(elements,
 		map[string]any{
 			"tag": "hr",
@@ -174,8 +215,21 @@ func (s *FeishuSender) buildCard(msg Message) map[string]any {
 		},
 		"header": map[string]any{
 			"title": map[string]any{
-				"tag":     "plain_text",
-				"content": fmt.Sprintf("%s %s", emoji, msg.Title),
+				"tag": "plain_text",
+				"content": func() string {
+					projectName := ""
+					if msg.Workspace != "" {
+						parts := strings.Split(msg.Workspace, "/")
+						projectName = parts[len(parts)-1]
+					}
+					if msg.Event == "permission_required" && msg.RequestID != "" {
+						return fmt.Sprintf("%s %s | 📦 %s\n%s req: %s | session: %s", emoji, msg.Title, projectName, emoji, state.ShortID(msg.RequestID), state.ShortID(msg.SessionID))
+					}
+					if projectName != "" {
+						return fmt.Sprintf("%s %s | 📦 %s", emoji, msg.Title, projectName)
+					}
+					return fmt.Sprintf("%s %s", emoji, msg.Title)
+				}(),
 			},
 			"template": s.getHeaderColor(msg.Event),
 		},

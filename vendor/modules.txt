@@ -1,0 +1,228 @@
+# github.com/AlecAivazis/survey/v2 v2.3.7
+## explicit; go 1.13
+github.com/AlecAivazis/survey/v2
+github.com/AlecAivazis/survey/v2/core
+github.com/AlecAivazis/survey/v2/terminal
+# github.com/BurntSushi/xgb v0.0.0-20210121224620-deaf085860bc
+## explicit
+github.com/BurntSushi/xgb
+github.com/BurntSushi/xgb/shape
+github.com/BurntSushi/xgb/xinerama
+github.com/BurntSushi/xgb/xproto
+# github.com/BurntSushi/xgbutil v0.0.0-20190907113008-ad855c713046
+## explicit
+github.com/BurntSushi/xgbutil
+github.com/BurntSushi/xgbutil/ewmh
+github.com/BurntSushi/xgbutil/xevent
+github.com/BurntSushi/xgbutil/xprop
+# github.com/danieljoos/wincred v1.2.3
+## explicit; go 1.18
+github.com/danieljoos/wincred
+# github.com/godbus/dbus/v5 v5.2.2
+## explicit; go 1.20
+github.com/godbus/dbus/v5
+# github.com/gogo/protobuf v1.3.2
+## explicit; go 1.15
+github.com/gogo/protobuf/gogoproto
+github.com/gogo/protobuf/proto
+github.com/gogo/protobuf/protoc-gen-gogo/descriptor
+# github.com/google/uuid v1.6.0
+## explicit
+github.com/google/uuid
+# github.com/gorilla/websocket v1.5.0
+## explicit; go 1.12
+github.com/gorilla/websocket
+# github.com/hellolib/client-tools v0.2.0
+## explicit; go 1.25.0
+github.com/hellolib/client-tools/app/larksuite
+github.com/hellolib/client-tools/app/larksuite/cmdutil
+github.com/hellolib/client-tools/app/larksuite/core
+github.com/hellolib/client-tools/app/larksuite/keychain
+github.com/hellolib/client-tools/app/larksuite/output
+github.com/hellolib/client-tools/app/larksuite/validate
+github.com/hellolib/client-tools/utils
+# github.com/hellolib/toast v0.4.0
+## explicit; go 1.23.12
+github.com/hellolib/toast
+# github.com/inconshreveable/mousetrap v1.1.0
+## explicit; go 1.18
+github.com/inconshreveable/mousetrap
+# github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
+## explicit
+github.com/kballard/go-shellquote
+# github.com/larksuite/oapi-sdk-go/v3 v3.5.3
+## explicit; go 1.13
+github.com/larksuite/oapi-sdk-go/v3
+github.com/larksuite/oapi-sdk-go/v3/cache
+github.com/larksuite/oapi-sdk-go/v3/card
+github.com/larksuite/oapi-sdk-go/v3/core
+github.com/larksuite/oapi-sdk-go/v3/event
+github.com/larksuite/oapi-sdk-go/v3/event/dispatcher
+github.com/larksuite/oapi-sdk-go/v3/event/dispatcher/callback
+github.com/larksuite/oapi-sdk-go/v3/service/acs
+github.com/larksuite/oapi-sdk-go/v3/service/acs/v1
+github.com/larksuite/oapi-sdk-go/v3/service/admin
+github.com/larksuite/oapi-sdk-go/v3/service/admin/v1
+github.com/larksuite/oapi-sdk-go/v3/service/aily
+github.com/larksuite/oapi-sdk-go/v3/service/aily/v1
+github.com/larksuite/oapi-sdk-go/v3/service/apaas
+github.com/larksuite/oapi-sdk-go/v3/service/apaas/v1
+github.com/larksuite/oapi-sdk-go/v3/service/application
+github.com/larksuite/oapi-sdk-go/v3/service/application/v6
+github.com/larksuite/oapi-sdk-go/v3/service/approval
+github.com/larksuite/oapi-sdk-go/v3/service/approval/v4
+github.com/larksuite/oapi-sdk-go/v3/service/attendance
+github.com/larksuite/oapi-sdk-go/v3/service/attendance/v1
+github.com/larksuite/oapi-sdk-go/v3/service/auth
+github.com/larksuite/oapi-sdk-go/v3/service/auth/v3
+github.com/larksuite/oapi-sdk-go/v3/service/authen
+github.com/larksuite/oapi-sdk-go/v3/service/authen/v1
+github.com/larksuite/oapi-sdk-go/v3/service/baike
+github.com/larksuite/oapi-sdk-go/v3/service/baike/v1
+github.com/larksuite/oapi-sdk-go/v3/service/base
+github.com/larksuite/oapi-sdk-go/v3/service/base/v2
+github.com/larksuite/oapi-sdk-go/v3/service/bitable
+github.com/larksuite/oapi-sdk-go/v3/service/bitable/v1
+github.com/larksuite/oapi-sdk-go/v3/service/block
+github.com/larksuite/oapi-sdk-go/v3/service/block/v2
+github.com/larksuite/oapi-sdk-go/v3/service/board
+github.com/larksuite/oapi-sdk-go/v3/service/board/v1
+github.com/larksuite/oapi-sdk-go/v3/service/calendar
+github.com/larksuite/oapi-sdk-go/v3/service/calendar/v4
+github.com/larksuite/oapi-sdk-go/v3/service/cardkit
+github.com/larksuite/oapi-sdk-go/v3/service/cardkit/v1
+github.com/larksuite/oapi-sdk-go/v3/service/compensation
+github.com/larksuite/oapi-sdk-go/v3/service/compensation/v1
+github.com/larksuite/oapi-sdk-go/v3/service/contact
+github.com/larksuite/oapi-sdk-go/v3/service/contact/v3
+github.com/larksuite/oapi-sdk-go/v3/service/corehr
+github.com/larksuite/oapi-sdk-go/v3/service/corehr/v1
+github.com/larksuite/oapi-sdk-go/v3/service/corehr/v2
+github.com/larksuite/oapi-sdk-go/v3/service/directory
+github.com/larksuite/oapi-sdk-go/v3/service/directory/v1
+github.com/larksuite/oapi-sdk-go/v3/service/docs
+github.com/larksuite/oapi-sdk-go/v3/service/docs/v1
+github.com/larksuite/oapi-sdk-go/v3/service/document_ai
+github.com/larksuite/oapi-sdk-go/v3/service/document_ai/v1
+github.com/larksuite/oapi-sdk-go/v3/service/docx
+github.com/larksuite/oapi-sdk-go/v3/service/docx/v1
+github.com/larksuite/oapi-sdk-go/v3/service/drive
+github.com/larksuite/oapi-sdk-go/v3/service/drive/v1
+github.com/larksuite/oapi-sdk-go/v3/service/drive/v2
+github.com/larksuite/oapi-sdk-go/v3/service/ehr
+github.com/larksuite/oapi-sdk-go/v3/service/ehr/v1
+github.com/larksuite/oapi-sdk-go/v3/service/event
+github.com/larksuite/oapi-sdk-go/v3/service/event/v1
+github.com/larksuite/oapi-sdk-go/v3/service/ext
+github.com/larksuite/oapi-sdk-go/v3/service/helpdesk
+github.com/larksuite/oapi-sdk-go/v3/service/helpdesk/v1
+github.com/larksuite/oapi-sdk-go/v3/service/hire
+github.com/larksuite/oapi-sdk-go/v3/service/hire/v1
+github.com/larksuite/oapi-sdk-go/v3/service/hire/v2
+github.com/larksuite/oapi-sdk-go/v3/service/human_authentication
+github.com/larksuite/oapi-sdk-go/v3/service/human_authentication/v1
+github.com/larksuite/oapi-sdk-go/v3/service/im
+github.com/larksuite/oapi-sdk-go/v3/service/im/v1
+github.com/larksuite/oapi-sdk-go/v3/service/im/v2
+github.com/larksuite/oapi-sdk-go/v3/service/lingo
+github.com/larksuite/oapi-sdk-go/v3/service/lingo/v1
+github.com/larksuite/oapi-sdk-go/v3/service/mail
+github.com/larksuite/oapi-sdk-go/v3/service/mail/v1
+github.com/larksuite/oapi-sdk-go/v3/service/mdm
+github.com/larksuite/oapi-sdk-go/v3/service/mdm/v1
+github.com/larksuite/oapi-sdk-go/v3/service/mdm/v3
+github.com/larksuite/oapi-sdk-go/v3/service/meeting_room
+github.com/larksuite/oapi-sdk-go/v3/service/meeting_room/v1
+github.com/larksuite/oapi-sdk-go/v3/service/minutes
+github.com/larksuite/oapi-sdk-go/v3/service/minutes/v1
+github.com/larksuite/oapi-sdk-go/v3/service/moments
+github.com/larksuite/oapi-sdk-go/v3/service/moments/v1
+github.com/larksuite/oapi-sdk-go/v3/service/okr
+github.com/larksuite/oapi-sdk-go/v3/service/okr/v1
+github.com/larksuite/oapi-sdk-go/v3/service/optical_char_recognition
+github.com/larksuite/oapi-sdk-go/v3/service/optical_char_recognition/v1
+github.com/larksuite/oapi-sdk-go/v3/service/passport
+github.com/larksuite/oapi-sdk-go/v3/service/passport/v1
+github.com/larksuite/oapi-sdk-go/v3/service/payroll
+github.com/larksuite/oapi-sdk-go/v3/service/payroll/v1
+github.com/larksuite/oapi-sdk-go/v3/service/performance
+github.com/larksuite/oapi-sdk-go/v3/service/performance/v2
+github.com/larksuite/oapi-sdk-go/v3/service/personal_settings
+github.com/larksuite/oapi-sdk-go/v3/service/personal_settings/v1
+github.com/larksuite/oapi-sdk-go/v3/service/report
+github.com/larksuite/oapi-sdk-go/v3/service/report/v1
+github.com/larksuite/oapi-sdk-go/v3/service/search
+github.com/larksuite/oapi-sdk-go/v3/service/search/v2
+github.com/larksuite/oapi-sdk-go/v3/service/security_and_compliance
+github.com/larksuite/oapi-sdk-go/v3/service/security_and_compliance/v1
+github.com/larksuite/oapi-sdk-go/v3/service/security_and_compliance/v2
+github.com/larksuite/oapi-sdk-go/v3/service/sheets
+github.com/larksuite/oapi-sdk-go/v3/service/sheets/v3
+github.com/larksuite/oapi-sdk-go/v3/service/speech_to_text
+github.com/larksuite/oapi-sdk-go/v3/service/speech_to_text/v1
+github.com/larksuite/oapi-sdk-go/v3/service/task
+github.com/larksuite/oapi-sdk-go/v3/service/task/v1
+github.com/larksuite/oapi-sdk-go/v3/service/task/v2
+github.com/larksuite/oapi-sdk-go/v3/service/tenant
+github.com/larksuite/oapi-sdk-go/v3/service/tenant/v2
+github.com/larksuite/oapi-sdk-go/v3/service/translation
+github.com/larksuite/oapi-sdk-go/v3/service/translation/v1
+github.com/larksuite/oapi-sdk-go/v3/service/vc
+github.com/larksuite/oapi-sdk-go/v3/service/vc/v1
+github.com/larksuite/oapi-sdk-go/v3/service/verification
+github.com/larksuite/oapi-sdk-go/v3/service/verification/v1
+github.com/larksuite/oapi-sdk-go/v3/service/wiki
+github.com/larksuite/oapi-sdk-go/v3/service/wiki/v1
+github.com/larksuite/oapi-sdk-go/v3/service/wiki/v2
+github.com/larksuite/oapi-sdk-go/v3/service/workplace
+github.com/larksuite/oapi-sdk-go/v3/service/workplace/v1
+github.com/larksuite/oapi-sdk-go/v3/ws
+# github.com/mattn/go-colorable v0.1.14
+## explicit; go 1.18
+github.com/mattn/go-colorable
+# github.com/mattn/go-isatty v0.0.20
+## explicit; go 1.15
+github.com/mattn/go-isatty
+# github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
+## explicit
+github.com/mgutz/ansi
+# github.com/pelletier/go-toml/v2 v2.3.0
+## explicit; go 1.21.0
+github.com/pelletier/go-toml/v2
+github.com/pelletier/go-toml/v2/internal/characters
+github.com/pelletier/go-toml/v2/internal/tracker
+github.com/pelletier/go-toml/v2/unstable
+# github.com/spf13/cobra v1.10.2
+## explicit; go 1.15
+github.com/spf13/cobra
+# github.com/spf13/pflag v1.0.10
+## explicit; go 1.12
+github.com/spf13/pflag
+# github.com/zalando/go-keyring v0.2.8
+## explicit; go 1.18
+github.com/zalando/go-keyring
+github.com/zalando/go-keyring/internal/shellescape
+github.com/zalando/go-keyring/secret_service
+# golang.org/x/sys v0.42.0
+## explicit; go 1.25.0
+golang.org/x/sys/plan9
+golang.org/x/sys/unix
+golang.org/x/sys/windows
+golang.org/x/sys/windows/registry
+# golang.org/x/term v0.41.0
+## explicit; go 1.25.0
+golang.org/x/term
+# golang.org/x/text v0.35.0
+## explicit; go 1.25.0
+golang.org/x/text/cases
+golang.org/x/text/internal
+golang.org/x/text/internal/language
+golang.org/x/text/internal/language/compact
+golang.org/x/text/internal/tag
+golang.org/x/text/language
+golang.org/x/text/transform
+golang.org/x/text/unicode/norm
+golang.org/x/text/width
+# gopkg.in/yaml.v3 v3.0.1
+## explicit
+gopkg.in/yaml.v3

@@ -35,7 +35,7 @@ type focusFile struct {
 
 // FocusWindowsPath 返回与 state.json 同目录下的 focus-windows.json 路径。
 func FocusWindowsPath(statePath string) string {
-	return filepath.Join(filepath.Dir(statePath), focusWindowsFileName)
+	return filepath.Join(BaseDir(statePath), focusWindowsFileName)
 }
 
 // NewFocusStore 构造一个基于给定文件路径的 FocusStore。
