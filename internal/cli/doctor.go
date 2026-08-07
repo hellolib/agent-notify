@@ -23,6 +23,7 @@ func newDoctorCmd(streams Streams) *cobra.Command {
 				doctor.WithZcodeIntegration(agentintegrations.NewZcodeIntegration()),
 				doctor.WithGrokIntegration(agentintegrations.NewGrokIntegration()),
 				doctor.WithDroidIntegration(agentintegrations.NewDroidIntegration()),
+				doctor.WithOpenCodeIntegration(agentintegrations.NewOpenCodeIntegration()),
 			)
 			result, err := svc.Run()
 			if err != nil {

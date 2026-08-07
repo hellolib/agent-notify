@@ -27,6 +27,8 @@ func appDisplayName(agent string) string {
 		return "Grok"
 	case "droid":
 		return "Droid"
+	case "opencode":
+		return "OpenCode"
 	default:
 		return agent
 	}

@@ -26,6 +26,7 @@ type AgentConfig struct {
 	ZCode      AgentTargetConfig `yaml:"zcode"`       // ZCode 配置
 	Grok       AgentTargetConfig `yaml:"grok"`        // Grok 配置
 	Droid      AgentTargetConfig `yaml:"droid"`       // Droid 配置
+	OpenCode   AgentTargetConfig `yaml:"opencode"`     // OpenCode 配置
 }
 
 // AgentTargetConfig holds configuration for a specific agent.
@@ -58,6 +59,7 @@ type NotifyConfig struct {
 	ZCode      AgentNotifyConfig `yaml:"zcode"`       // ZCode 通知配置
 	Grok       AgentNotifyConfig `yaml:"grok"`        // Grok 通知配置
 	Droid      AgentNotifyConfig `yaml:"droid"`       // Droid 通知配置
+	OpenCode   AgentNotifyConfig `yaml:"opencode"`     // OpenCode 通知配置
 }
 
 // All 按固定顺序返回全部 agent 的通知配置，供只读遍历使用。
@@ -67,7 +69,7 @@ type NotifyConfig struct {
 // enabledRemoteFreezeChannels 仍只遍历前四个，导致只配 Droid 的用户完全冻结不了。
 // TestNotifyConfigAllCoversEveryAgent 会在字段数与此处不一致时失败。
 func (n NotifyConfig) All() []AgentNotifyConfig {
-	return []AgentNotifyConfig{n.ClaudeCode, n.Codex, n.ZCode, n.Grok, n.Droid}
+	return []AgentNotifyConfig{n.ClaudeCode, n.Codex, n.ZCode, n.Grok, n.Droid, n.OpenCode}
 }
 
 // AgentNotifyConfig holds notification configuration for a single agent.
@@ -185,6 +187,9 @@ func Default() Config {
 	// Notification 通过 notification_type 区分 permission_prompt / idle_prompt。
 	// Droid 无失败事件，故不支持 run_failed。session_start 仅用于聚焦捕获。
 	droidEvents := []string{"permission_required", "input_required", "run_completed"}
+	// OpenCode 插件订阅 session.created / permission.asked / session.status /
+	// session.idle / session.error。session_start 仅用于聚焦捕获。
+	opencodeEvents := []string{"permission_required", "input_required", "run_completed", "run_failed"}
 
 	// BREAKING (vs pre-Grok defaults): Claude Code is no longer enabled by default,
 	// and System notification is no longer pre-enabled for any agent.
@@ -234,6 +239,10 @@ func Default() Config {
 				Enabled:      false,
 				InstallScope: "user",
 			},
+			OpenCode: AgentTargetConfig{
+				Enabled:      false,
+				InstallScope: "user",
+			},
 		},
 		Notify: NotifyConfig{
 			ClaudeCode: AgentNotifyConfig{
@@ -254,6 +263,10 @@ func Default() Config {
 			},
 			Droid: AgentNotifyConfig{
 				Events:   append([]string(nil), droidEvents...),
+				Channels: disabledChannels(),
+			},
+			OpenCode: AgentNotifyConfig{
+				Events:   append([]string(nil), opencodeEvents...),
 				Channels: disabledChannels(),
 			},
 		},

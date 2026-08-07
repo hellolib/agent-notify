@@ -36,13 +36,14 @@ type OutputWriter interface {
 
 // Service handles the init/setup flow for agent-notify.
 type Service struct {
-	claudeIntegration agentintegrations.Integration
-	codexIntegration  agentintegrations.Integration
-	zcodeIntegration  agentintegrations.Integration
-	grokIntegration   agentintegrations.Integration
-	droidIntegration  agentintegrations.Integration
-	feishuPreparer    FeishuPreparer
-	configLoader      ConfigLoader
+	claudeIntegration   agentintegrations.Integration
+	codexIntegration    agentintegrations.Integration
+	zcodeIntegration    agentintegrations.Integration
+	grokIntegration     agentintegrations.Integration
+	droidIntegration    agentintegrations.Integration
+	opencodeIntegration agentintegrations.Integration
+	feishuPreparer      FeishuPreparer
+	configLoader        ConfigLoader
 }
 
 // ConfigLoader loads and saves configuration.
@@ -62,11 +63,12 @@ type SetupResult struct {
 // NewService creates a new setup service.
 func NewService(opts ...Option) *Service {
 	s := &Service{
-		claudeIntegration: agentintegrations.NewClaudeIntegration(),
-		codexIntegration:  agentintegrations.NewCodexIntegration(),
-		zcodeIntegration:  agentintegrations.NewZcodeIntegration(),
-		grokIntegration:   agentintegrations.NewGrokIntegration(),
-		droidIntegration:  agentintegrations.NewDroidIntegration(),
+		claudeIntegration:   agentintegrations.NewClaudeIntegration(),
+		codexIntegration:    agentintegrations.NewCodexIntegration(),
+		zcodeIntegration:    agentintegrations.NewZcodeIntegration(),
+		grokIntegration:     agentintegrations.NewGrokIntegration(),
+		droidIntegration:    agentintegrations.NewDroidIntegration(),
+		opencodeIntegration: agentintegrations.NewOpenCodeIntegration(),
 	}
 
 	for _, opt := range opts {
@@ -102,6 +104,11 @@ func WithGrokIntegration(i agentintegrations.Integration) Option {
 // WithDroidIntegration sets the Droid integration.
 func WithDroidIntegration(i agentintegrations.Integration) Option {
 	return func(s *Service) { s.droidIntegration = i }
+}
+
+// WithOpenCodeIntegration sets the OpenCode integration.
+func WithOpenCodeIntegration(i agentintegrations.Integration) Option {
+	return func(s *Service) { s.opencodeIntegration = i }
 }
 
 // WithFeishuPreparer sets the Feishu preparer.
@@ -168,6 +175,20 @@ func droidEventOptionsFn() []PromptOption {
 		{Label: i18n.T("event.permission_required"), Value: "permission_required"},
 		{Label: i18n.T("event.input_required"), Value: "input_required"},
 		{Label: i18n.T("event.run_completed"), Value: "run_completed"},
+	}
+}
+
+// opencodeEventOptionsFn returns event options for OpenCode.
+// OpenCode 插件支持 session.created / permission.asked / session.status /
+// session.idle / session.error，
+// 映射为 session_start / permission_required / input_required / run_completed / run_failed。
+// session_start 仅用于点击聚焦的窗口捕获，不作为通知事件，故不列为可选项。
+func opencodeEventOptionsFn() []PromptOption {
+	return []PromptOption{
+		{Label: i18n.T("event.permission_required"), Value: "permission_required"},
+		{Label: i18n.T("event.input_required"), Value: "input_required"},
+		{Label: i18n.T("event.run_completed"), Value: "run_completed"},
+		{Label: i18n.T("event.run_failed"), Value: "run_failed"},
 	}
 }
 
@@ -340,6 +361,19 @@ func (s *Service) disableAgentNotification(cfg config.Config, path, agent string
 		cfg.Notify.Droid.Channels.Slack.WebhookURL = ""
 		cfg.Notify.Droid.Events = nil
 		cfg.Agent.Droid.Enabled = false
+	case "opencode":
+		cfg.Notify.OpenCode.Channels.Feishu.Enabled = false
+		cfg.Notify.OpenCode.Channels.System.Enabled = false
+		cfg.Notify.OpenCode.Channels.Wechat.Enabled = false
+		cfg.Notify.OpenCode.Channels.Wechat.WebhookURL = ""
+		cfg.Notify.OpenCode.Channels.WechatWork.Enabled = false
+		cfg.Notify.OpenCode.Channels.DingTalk.Enabled = false
+		cfg.Notify.OpenCode.Channels.Bark.Enabled = false
+		cfg.Notify.OpenCode.Channels.Ntfy.Enabled = false
+		cfg.Notify.OpenCode.Channels.Slack.Enabled = false
+		cfg.Notify.OpenCode.Channels.Slack.WebhookURL = ""
+		cfg.Notify.OpenCode.Events = nil
+		cfg.Agent.OpenCode.Enabled = false
 	}
 
 	if err := s.saveConfig(path, cfg); err != nil {
@@ -366,6 +400,8 @@ func agentName(agent string) string {
 		return "Grok"
 	case "droid":
 		return "Droid"
+	case "opencode":
+		return "OpenCode"
 	default:
 		return agent
 	}

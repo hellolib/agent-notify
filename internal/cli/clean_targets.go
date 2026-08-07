@@ -33,6 +33,7 @@ func hookCleanupTargets(cfg config.Config, recorded bool) []hookCleanupTarget {
 		{agentintegrations.NewZcodeIntegration(), cfg.Agent.ZCode},
 		{agentintegrations.NewGrokIntegration(), cfg.Agent.Grok},
 		{agentintegrations.NewDroidIntegration(), cfg.Agent.Droid},
+		{agentintegrations.NewOpenCodeIntegration(), cfg.Agent.OpenCode},
 	}
 
 	targets := make([]hookCleanupTarget, 0, len(specs))

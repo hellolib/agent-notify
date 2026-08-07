@@ -17,6 +17,7 @@ const (
 	agentZcode      = "zcode"
 	agentGrok       = "grok"
 	agentDroid      = "droid"
+	agentOpencode   = "opencode"
 	channelSystem   = "system"
 	channelFeishu   = "feishu"
 	channelWechat   = "wechat"
@@ -76,7 +77,7 @@ type configuredAgent struct {
 func (s *Service) selectAgent(prompter Prompter, cfg config.Config) (string, error) {
 	agentOptions, defaultAgent := s.agentOptions(cfg)
 	if len(agentOptions) == 0 {
-		return "", errors.New("Claude Code, Codex, ZCode, Grok or Droid not detected; please install one first")
+		return "", errors.New("Claude Code, Codex, ZCode, Grok, Droid or OpenCode not detected; please install one first")
 	}
 	if defaultAgent == "" {
 		defaultAgent = agentOptions[0].Value
@@ -115,6 +116,12 @@ func (s *Service) agentOptions(cfg config.Config) ([]PromptOption, string) {
 		options = append(options, PromptOption{Label: "Droid", Value: agentDroid})
 		if cfg.Agent.Droid.Enabled && defaultAgent == "" {
 			defaultAgent = agentDroid
+		}
+	}
+	if s.opencodeIntegration != nil && s.opencodeIntegration.DetectInstalled() {
+		options = append(options, PromptOption{Label: "OpenCode", Value: agentOpencode})
+		if cfg.Agent.OpenCode.Enabled && defaultAgent == "" {
+			defaultAgent = agentOpencode
 		}
 	}
 	return options, defaultAgent
@@ -185,6 +192,8 @@ func eventOptionsForAgent(agent string) []PromptOption {
 		return grokEventOptionsFn()
 	case agentDroid:
 		return droidEventOptionsFn()
+	case agentOpencode:
+		return opencodeEventOptionsFn()
 	default:
 		return codexEventOptionsFn()
 	}
@@ -200,6 +209,8 @@ func channelsForAgent(cfg config.Config, agent string) config.ChannelsConfig {
 		return cfg.Notify.Grok.Channels
 	case agentDroid:
 		return cfg.Notify.Droid.Channels
+	case agentOpencode:
+		return cfg.Notify.OpenCode.Channels
 	default:
 		return cfg.Notify.Codex.Channels
 	}
@@ -215,6 +226,8 @@ func eventsForAgent(cfg config.Config, agent string) []string {
 		return cfg.Notify.Grok.Events
 	case agentDroid:
 		return cfg.Notify.Droid.Events
+	case agentOpencode:
+		return cfg.Notify.OpenCode.Events
 	default:
 		return cfg.Notify.Codex.Events
 	}
@@ -232,6 +245,8 @@ func (s *Service) configureAgent(req configureAgentRequest) (configuredAgent, er
 		return s.configureGrok(req)
 	case agentDroid:
 		return s.configureDroid(req)
+	case agentOpencode:
+		return s.configureOpenCode(req)
 	default:
 		return configuredAgent{}, fmt.Errorf("unsupported agent: %s", req.agent)
 	}
@@ -394,6 +409,40 @@ func (s *Service) configureDroid(req configureAgentRequest) (configuredAgent, er
 	next.Agent.Droid.InstalledPaths = config.RecordInstalledPath(
 		next.Agent.Droid.InstalledPaths, settingsPath)
 	next.Agent.Droid.Enabled = true
+	return configuredAgent{cfg: next, settingsPath: settingsPath}, nil
+}
+
+// configureOpenCode 配置 OpenCode 的通知渠道、事件，并写入 agent-notify 插件
+// 到 ~/.agent-notify/opencode-plugin.js，同时把插件路径注册到
+// ~/.config/opencode/opencode.json（user scope）或 ./opencode.json（project scope）。
+func (s *Service) configureOpenCode(req configureAgentRequest) (configuredAgent, error) {
+	next := req.cfg
+	next.Notify.OpenCode.Channels = applyChannelSelection(next.Notify.OpenCode.Channels, req.channels)
+	next.Notify.OpenCode.Events = dedupeStrings(req.events)
+	if err := s.prepareSelectedChannels(req.ctx, req.channels); err != nil {
+		return configuredAgent{}, err
+	}
+	channels, err := promptWebhookURLs(req.prompter, next.Notify.OpenCode.Channels, req.channels)
+	if err != nil {
+		return configuredAgent{}, err
+	}
+	next.Notify.OpenCode.Channels = channels
+
+	agentScope := normalizedInstallScope(next.Agent.OpenCode.InstallScope)
+	settingsPath, err := s.opencodeIntegration.SettingsPath(agentScope)
+	if err != nil {
+		return configuredAgent{}, fmt.Errorf("%s: %w", i18n.T("setup.opencode_hooks_err"), err)
+	}
+	resolvedBinary := common.ResolveBinaryPath(req.binaryPath)
+	if err := s.opencodeIntegration.Install(settingsPath, resolvedBinary); err != nil {
+		return configuredAgent{}, fmt.Errorf("%s: %w", i18n.T("setup.opencode_install_err"), err)
+	}
+	req.output.Writef(i18n.T("setup.opencode_hooks_done"), settingsPath)
+	req.output.Writef(i18n.T("setup.opencode_tip"))
+	next.Agent.OpenCode.InstallScope = agentScope
+	next.Agent.OpenCode.InstalledPaths = config.RecordInstalledPath(
+		next.Agent.OpenCode.InstalledPaths, settingsPath)
+	next.Agent.OpenCode.Enabled = true
 	return configuredAgent{cfg: next, settingsPath: settingsPath}, nil
 }
 

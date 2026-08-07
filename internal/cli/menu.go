@@ -24,7 +24,7 @@ const banner = `
 ║           ██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║            ║
 ║           ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝            ║
 ║                        Agent Notify                            ║
-║  Claude Code / Codex / ZCode / Grok / Droid Notification Tool  ║
+║  Claude / Codex / ZCode / Grok / Droid / OpenCode Notify Tool  ║
 ╚════════════════════════════════════════════════════════════════╝
 `
 
@@ -345,6 +345,22 @@ func runCleanConfig(streams Streams, prompter Prompter) error {
 	defaultCfg.Notify.Droid.Channels.Slack.Enabled = false
 	defaultCfg.Notify.Droid.Channels.Slack.WebhookURL = ""
 	defaultCfg.Notify.Droid.Events = nil
+	// Clear OpenCode channel toggles
+	defaultCfg.Notify.OpenCode.Channels.Feishu.Enabled = false
+	defaultCfg.Notify.OpenCode.Channels.System.Enabled = false
+	defaultCfg.Notify.OpenCode.Channels.Wechat.Enabled = false
+	defaultCfg.Notify.OpenCode.Channels.Wechat.WebhookURL = ""
+	defaultCfg.Notify.OpenCode.Channels.WechatWork.Enabled = false
+	defaultCfg.Notify.OpenCode.Channels.WechatWork.WebhookURL = ""
+	defaultCfg.Notify.OpenCode.Channels.DingTalk.Enabled = false
+	defaultCfg.Notify.OpenCode.Channels.DingTalk.WebhookURL = ""
+	defaultCfg.Notify.OpenCode.Channels.Bark.Enabled = false
+	defaultCfg.Notify.OpenCode.Channels.Bark.WebhookURL = ""
+	defaultCfg.Notify.OpenCode.Channels.Ntfy.Enabled = false
+	defaultCfg.Notify.OpenCode.Channels.Ntfy.TopicURL = ""
+	defaultCfg.Notify.OpenCode.Channels.Slack.Enabled = false
+	defaultCfg.Notify.OpenCode.Channels.Slack.WebhookURL = ""
+	defaultCfg.Notify.OpenCode.Events = nil
 	if err := config.Save(cfgPath, defaultCfg); err != nil {
 		return fmt.Errorf("%s: %w", i18n.T("clean.save_default_err"), err)
 	}

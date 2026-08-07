@@ -16,6 +16,7 @@ import (
 	"github.com/hellolib/agent-notify/internal/common"
 	"github.com/hellolib/agent-notify/internal/config"
 	"github.com/hellolib/agent-notify/internal/droidhooks"
+	"github.com/hellolib/agent-notify/internal/opencodehooks"
 	"github.com/hellolib/agent-notify/internal/grokhooks"
 	"github.com/hellolib/agent-notify/internal/i18n"
 	"github.com/hellolib/agent-notify/internal/zcodehooks"
@@ -76,6 +77,7 @@ func runInitFlow(ctx context.Context, streams Streams, prompter Prompter, config
 		setup.WithZcodeIntegration(agentintegrations.NewZcodeIntegration()),
 		setup.WithGrokIntegration(agentintegrations.NewGrokIntegration()),
 		setup.WithDroidIntegration(agentintegrations.NewDroidIntegration()),
+		setup.WithOpenCodeIntegration(agentintegrations.NewOpenCodeIntegration()),
 		setup.WithFeishuPreparer(&feishuPreparerAdapter{}),
 	)
 
@@ -170,6 +172,32 @@ func runInstallDroidHooks(scope, binaryPath string) error {
 		return err
 	}
 	return droidhooks.Install(path, common.ResolveBinaryPath(binaryPath))
+}
+
+func runPrintOpenCodeHooks(streams Streams, binaryPath string) error {
+	pluginPath, err := agentintegrations.PluginFilePath()
+	if err != nil {
+		return err
+	}
+	settings := opencodehooks.BuildPluginSettings(common.ResolveBinaryPath(binaryPath), pluginPath)
+	data, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(streams.Stdout, string(data))
+	return err
+}
+
+func runInstallOpenCodeHooks(scope, binaryPath string) error {
+	path, err := settingsPathForAgent("opencode", scope)
+	if err != nil {
+		return err
+	}
+	pluginPath, err := agentintegrations.PluginFilePath()
+	if err != nil {
+		return err
+	}
+	return opencodehooks.Install(path, pluginPath, common.ResolveBinaryPath(binaryPath))
 }
 
 func runTestFeishu(ctx context.Context, streams Streams) error {
@@ -362,6 +390,15 @@ func printCurrentNotifyConfig(streams Streams) error {
 		statusIcon(cfg.Notify.Droid.Channels.Bark.Enabled),
 		statusIcon(cfg.Notify.Droid.Channels.Ntfy.Enabled),
 		statusIcon(cfg.Notify.Droid.Channels.Slack.Enabled))
+	fmt.Fprintf(streams.Stdout, i18n.T("view.row_format")+"\n", "OpenCode",
+		statusIcon(cfg.Notify.OpenCode.Channels.Feishu.Enabled),
+		statusIcon(cfg.Notify.OpenCode.Channels.System.Enabled),
+		statusIcon(cfg.Notify.OpenCode.Channels.Wechat.Enabled),
+		statusIcon(cfg.Notify.OpenCode.Channels.WechatWork.Enabled),
+		statusIcon(cfg.Notify.OpenCode.Channels.DingTalk.Enabled),
+		statusIcon(cfg.Notify.OpenCode.Channels.Bark.Enabled),
+		statusIcon(cfg.Notify.OpenCode.Channels.Ntfy.Enabled),
+		statusIcon(cfg.Notify.OpenCode.Channels.Slack.Enabled))
 	fmt.Fprintln(streams.Stdout, i18n.T("view.separator"))
 
 	return nil
@@ -419,6 +456,19 @@ func settingsPathForAgent(agent, scope string) (string, error) {
 			return filepath.Join(home, ".factory", "hooks.json"), nil
 		case "project":
 			return filepath.Join(".factory", "hooks.json"), nil
+		default:
+			return "", fmt.Errorf("unsupported scope: %s", scope)
+		}
+	case "opencode":
+		switch scope {
+		case "user":
+			xdgConfig := os.Getenv("XDG_CONFIG_HOME")
+			if xdgConfig != "" {
+				return filepath.Join(xdgConfig, "opencode", "opencode.json"), nil
+			}
+			return filepath.Join(home, ".config", "opencode", "opencode.json"), nil
+		case "project":
+			return filepath.Join("opencode.json"), nil
 		default:
 			return "", fmt.Errorf("unsupported scope: %s", scope)
 		}

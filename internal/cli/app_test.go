@@ -100,7 +100,7 @@ func TestRunWithoutArgsShowsMenuAndExits(t *testing.T) {
 		t.Fatalf("Run() error = %v", err)
 	}
 	// 检查 banner 中的关键字
-	for _, want := range []string{"Agent Notify", "Claude Code"} {
+	for _, want := range []string{"Agent Notify", "Claude"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Fatalf("stdout = %q, want %q", stdout.String(), want)
 		}
