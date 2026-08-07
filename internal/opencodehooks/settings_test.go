@@ -131,10 +131,14 @@ func TestUninstallPreservesUserPlugins(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "opencode.json")
 	pluginPath := filepath.Join(dir, "opencode-plugin.js")
-	existing := `{
-  "plugin": ["~/.config/opencode/plugins/my-plugin.js", "` + pluginPath + `"]
+		pluginPathJSON, err := json.Marshal(pluginPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		existing := `{
+  "plugin": ["~/.config/opencode/plugins/my-plugin.js", ` + string(pluginPathJSON) + `]
 }`
-	if err := os.WriteFile(configPath, []byte(existing), 0o644); err != nil {
+		if err := os.WriteFile(configPath, []byte(existing), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	// 先写插件文件以便 Uninstall 能删除它
