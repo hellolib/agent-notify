@@ -1,10 +1,20 @@
-.PHONY: build test run clean install lint fmt vet help tag npm-publish release check-release-version
+.PHONY: build test run clean install local lint fmt vet help tag npm-publish release check-release-version
 
 # Binary name
 BINARY_NAME=agent-notify
 
 # Build directory
 BUILD_DIR=bin
+
+# 二进制扩展名：Windows 为 .exe，其余平台为空。用于 install 到 ~/.agent-notify。
+EXE_EXT:=
+ifeq ($(OS),Windows_NT)
+EXE_EXT:=.exe
+endif
+
+# npx launcher 把发布版二进制解压到 ~/.agent-notify/；make local 直接覆盖它，
+# 这样本地开发者改完代码立即生效，不必等发布 / 走 npx 下载流程。
+LOCAL_INSTALL_DIR=$(HOME)/.agent-notify
 
 # Go parameters
 GOCMD=go
@@ -67,6 +77,14 @@ clean:
 install:
 	@echo "Installing $(BINARY_NAME)..."
 	$(GOCMD) install ./cmd/$(BINARY_NAME)
+
+## local: Build then copy the binary into ~/.agent-notify/, replacing the npx-installed one
+local: build
+	@echo "Installing $(BINARY_NAME) to $(LOCAL_INSTALL_DIR)/..."
+	@mkdir -p $(LOCAL_INSTALL_DIR)
+	@cp $(BUILD_DIR)/$(BINARY_NAME) $(LOCAL_INSTALL_DIR)/$(BINARY_NAME)$(EXE_EXT)
+	@chmod +x $(LOCAL_INSTALL_DIR)/$(BINARY_NAME)$(EXE_EXT)
+	@echo "Done: replaced $(LOCAL_INSTALL_DIR)/$(BINARY_NAME)$(EXE_EXT)"
 
 ## lint: Run linters
 lint:
