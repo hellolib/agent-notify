@@ -64,7 +64,10 @@ func (s *MacOSSender) Send(ctx context.Context, msg Message) error {
 
 	// Fallback to osascript with improved content
 	formattedBody := s.formatBody(msg)
-	script := fmt.Sprintf(`display notification %q with title %q sound name "Submarine"`, formattedBody, msg.Title)
+	// osascript 的 display notification 无法引用"系统默认提示音"（sound name 必须是
+	// /System/Library/Sounds 里的真实文件名，不存在 default），故兜底路径不带 sound name，
+	// 静音。主路径 terminal-notifier 用 -sound default 落地默认音，兜底仅在它缺失时触发。
+	script := fmt.Sprintf(`display notification %q with title %q`, formattedBody, msg.Title)
 	return s.run(ctx, "osascript", "-e", script)
 }
 
@@ -107,7 +110,7 @@ func (s *MacOSSender) tryTerminalNotifier(ctx context.Context, msg Message) bool
 		"-title", msg.Title,
 		"-subtitle", time.Now().Format("15:04:05"),
 		"-message", s.formatBody(msg),
-		"-sound", "Submarine",
+		"-sound", "default", // terminal-notifier 支持 "default" 特殊值，播放系统默认通知音
 		"-group", fmt.Sprintf("com.agent-notify.%s", msg.Agent),
 	}
 
