@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -14,8 +15,8 @@ func TestDefaultConfigUsesAgentScopedNotifyConfig(t *testing.T) {
 	cfg := Default()
 	allEvents := []string{"permission_required", "input_required", "run_completed", "run_failed"}
 
-	if cfg.Version != 1 {
-		t.Fatalf("Version = %d, want 1", cfg.Version)
+	if cfg.Version != currentConfigVersion {
+		t.Fatalf("Version = %d, want %d", cfg.Version, currentConfigVersion)
 	}
 	// No agent or channel is pre-enabled: first-time view config stays clean
 	// until the user explicitly configures an agent / channel.
@@ -407,5 +408,120 @@ func TestNotifyConfigAllCoversEveryAgent(t *testing.T) {
 	want := reflect.TypeOf(NotifyConfig{}).NumField()
 	if got != want {
 		t.Fatalf("NotifyConfig.All() 返回 %d 个 agent，但 NotifyConfig 有 %d 个字段；新增 agent 后请同步 All()", got, want)
+	}
+}
+
+// 回归：OpenCode 支持上线前写下的老配置（无 opencode 段）加载后，
+// 各字段必须拿到 Default() 的值，而不是 Go 零值。
+// 旧实现把 YAML 解析进零值结构体再手工补字段，补漏的 click_to_focus
+// 就变成了 false——OpenCode 用户因此点不动通知。
+func TestLoadFillsDefaultsForAgentAddedAfterConfigWasWritten(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	legacy := `version: 1
+agent:
+    claude_code:
+        enabled: true
+        install_scope: user
+notify:
+    claude_code:
+        events:
+            - permission_required
+        channels:
+            system:
+                enabled: true
+                click_to_focus: true
+`
+	if err := os.WriteFile(path, []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	def := Default()
+	if !cfg.Notify.OpenCode.Channels.System.ClickToFocus {
+		t.Error("opencode click_to_focus = false, want true (default)")
+	}
+	if cfg.Agent.OpenCode.InstallScope != def.Agent.OpenCode.InstallScope {
+		t.Errorf("opencode install_scope = %q, want %q", cfg.Agent.OpenCode.InstallScope, def.Agent.OpenCode.InstallScope)
+	}
+	if !reflect.DeepEqual(cfg.Notify.OpenCode.Events, def.Notify.OpenCode.Events) {
+		t.Errorf("opencode events = %#v, want %#v", cfg.Notify.OpenCode.Events, def.Notify.OpenCode.Events)
+	}
+	// 行为默认值同样不能因为改用 Default() 起手而丢失
+	if cfg.Behavior.DedupeSeconds != def.Behavior.DedupeSeconds {
+		t.Errorf("dedupe_seconds = %d, want %d", cfg.Behavior.DedupeSeconds, def.Behavior.DedupeSeconds)
+	}
+	if cfg.Behavior.Locale != def.Behavior.Locale {
+		t.Errorf("locale = %q, want %q", cfg.Behavior.Locale, def.Behavior.Locale)
+	}
+}
+
+// v1 里被固化到磁盘的 click_to_focus: false 应在加载时一次性翻回 true，
+// 并把版本号推到 currentConfigVersion。
+func TestLoadMigratesPersistedClickToFocusFalse(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	v1 := `version: 1
+notify:
+    opencode:
+        events:
+            - permission_required
+        channels:
+            system:
+                enabled: true
+                click_to_focus: false
+    claude_code:
+        channels:
+            system:
+                enabled: true
+                click_to_focus: false
+`
+	if err := os.WriteFile(path, []byte(v1), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !cfg.Notify.OpenCode.Channels.System.ClickToFocus {
+		t.Error("opencode click_to_focus was not migrated to true")
+	}
+	if !cfg.Notify.ClaudeCode.Channels.System.ClickToFocus {
+		t.Error("claude_code click_to_focus was not migrated to true")
+	}
+	if cfg.Version != currentConfigVersion {
+		t.Errorf("Version = %d, want %d after migration", cfg.Version, currentConfigVersion)
+	}
+}
+
+// 迁移只跑一次：已经是当前版本的配置里，显式的 false 必须被尊重。
+func TestLoadRespectsExplicitFalseAtCurrentVersion(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	current := fmt.Sprintf(`version: %d
+notify:
+    opencode:
+        events:
+            - permission_required
+        channels:
+            system:
+                enabled: true
+                click_to_focus: false
+`, currentConfigVersion)
+	if err := os.WriteFile(path, []byte(current), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.Notify.OpenCode.Channels.System.ClickToFocus {
+		t.Error("explicit click_to_focus: false at current version was overridden by the migration")
 	}
 }
