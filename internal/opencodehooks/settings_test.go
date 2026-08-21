@@ -131,14 +131,14 @@ func TestUninstallPreservesUserPlugins(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "opencode.json")
 	pluginPath := filepath.Join(dir, "opencode-plugin.js")
-		pluginPathJSON, err := json.Marshal(pluginPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-		existing := `{
+	pluginPathJSON, err := json.Marshal(pluginPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	existing := `{
   "plugin": ["~/.config/opencode/plugins/my-plugin.js", ` + string(pluginPathJSON) + `]
 }`
-		if err := os.WriteFile(configPath, []byte(existing), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte(existing), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	// 先写插件文件以便 Uninstall 能删除它
@@ -192,4 +192,129 @@ func readJSON(t *testing.T, path string) map[string]any {
 		t.Fatal(err)
 	}
 	return got
+}
+
+// 文件不存在时不得创建：用户可能刚卸载过，写回等于让集成复活。
+func TestRefreshPluginIfStaleSkipsMissingFile(t *testing.T) {
+	pluginPath := filepath.Join(t.TempDir(), "opencode-plugin.js")
+
+	refreshed, err := RefreshPluginIfStale(pluginPath)
+	if err != nil {
+		t.Fatalf("RefreshPluginIfStale() error = %v", err)
+	}
+	if refreshed {
+		t.Fatal("RefreshPluginIfStale() = true, want false for missing file")
+	}
+	if _, err := os.Stat(pluginPath); !os.IsNotExist(err) {
+		t.Fatal("plugin file was created, want it left absent")
+	}
+}
+
+// 内容一致时不应写盘，避免每次交互命令都刷新 mtime。
+func TestRefreshPluginIfStaleNoopWhenCurrent(t *testing.T) {
+	pluginPath := filepath.Join(t.TempDir(), "opencode-plugin.js")
+	binary := "/tmp/agent-notify"
+	if err := WritePluginFile(pluginPath, binary); err != nil {
+		t.Fatalf("WritePluginFile() error = %v", err)
+	}
+	before, err := os.Stat(pluginPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	refreshed, err := RefreshPluginIfStale(pluginPath)
+	if err != nil {
+		t.Fatalf("RefreshPluginIfStale() error = %v", err)
+	}
+	if refreshed {
+		t.Fatal("RefreshPluginIfStale() = true, want false for up-to-date file")
+	}
+	after, err := os.Stat(pluginPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !before.ModTime().Equal(after.ModTime()) {
+		t.Fatal("plugin file was rewritten despite identical content")
+	}
+}
+
+// 核心场景：二进制升级后磁盘上还是旧插件（缺 question.asked 订阅）。
+func TestRefreshPluginIfStaleRewritesOutdated(t *testing.T) {
+	pluginPath := filepath.Join(t.TempDir(), "opencode-plugin.js")
+	binary := "/tmp/agent-notify"
+	stale := strings.Replace(string(renderPlugin(binary)), "\n      \"question.asked\",", "", 1)
+	if err := os.WriteFile(pluginPath, []byte(stale), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	refreshed, err := RefreshPluginIfStale(pluginPath)
+	if err != nil {
+		t.Fatalf("RefreshPluginIfStale() error = %v", err)
+	}
+	if !refreshed {
+		t.Fatal("RefreshPluginIfStale() = false, want true for outdated plugin")
+	}
+	got, err := os.ReadFile(pluginPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(renderPlugin(binary)) {
+		t.Fatal("plugin file content does not match embedded version after refresh")
+	}
+	if !strings.Contains(string(got), "question.asked") {
+		t.Fatal("refreshed plugin still missing question.asked subscription")
+	}
+}
+
+// 自愈只更新 JS 逻辑，绝不改动已烘焙的二进制路径——否则 dev 构建或 go test
+// 的临时二进制会把用户的插件劫持到一个转瞬即逝的路径上。
+func TestRefreshPluginIfStalePreservesBakedBinaryPath(t *testing.T) {
+	pluginPath := filepath.Join(t.TempDir(), "opencode-plugin.js")
+	installed := "/Users/demo/.agent-notify/agent-notify"
+	stale := strings.Replace(string(renderPlugin(installed)), "\n      \"question.asked\",", "", 1)
+	if err := os.WriteFile(pluginPath, []byte(stale), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	refreshed, err := RefreshPluginIfStale(pluginPath)
+	if err != nil {
+		t.Fatalf("RefreshPluginIfStale() error = %v", err)
+	}
+	if !refreshed {
+		t.Fatal("RefreshPluginIfStale() = false, want true for outdated plugin")
+	}
+	got, err := os.ReadFile(pluginPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), installed) {
+		t.Fatalf("baked binary path was not preserved; content = %q", string(got))
+	}
+	if string(got) != string(renderPlugin(installed)) {
+		t.Fatal("refreshed content does not match embedded version rendered with the original path")
+	}
+}
+
+// 认不出烘焙路径时不猜测、不覆盖，交给向导处理。
+func TestRefreshPluginIfStaleSkipsUnrecognizableFile(t *testing.T) {
+	pluginPath := filepath.Join(t.TempDir(), "opencode-plugin.js")
+	garbage := "// hand-written by the user\nexport const server = () => ({});\n"
+	if err := os.WriteFile(pluginPath, []byte(garbage), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	refreshed, err := RefreshPluginIfStale(pluginPath)
+	if err != nil {
+		t.Fatalf("RefreshPluginIfStale() error = %v", err)
+	}
+	if refreshed {
+		t.Fatal("RefreshPluginIfStale() = true, want false for unrecognizable file")
+	}
+	got, err := os.ReadFile(pluginPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != garbage {
+		t.Fatal("unrecognizable file was overwritten, want it left untouched")
+	}
 }

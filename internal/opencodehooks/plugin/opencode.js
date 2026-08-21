@@ -12,6 +12,7 @@ export const server = ({ directory }) => ({
     const subscribed = new Set([
       "session.created",
       "permission.asked",
+      "question.asked",
       "session.status",
       "session.idle",
       "session.error",

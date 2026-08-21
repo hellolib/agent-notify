@@ -16,9 +16,9 @@ import (
 	"github.com/hellolib/agent-notify/internal/common"
 	"github.com/hellolib/agent-notify/internal/config"
 	"github.com/hellolib/agent-notify/internal/droidhooks"
-	"github.com/hellolib/agent-notify/internal/opencodehooks"
 	"github.com/hellolib/agent-notify/internal/grokhooks"
 	"github.com/hellolib/agent-notify/internal/i18n"
+	"github.com/hellolib/agent-notify/internal/opencodehooks"
 	"github.com/hellolib/agent-notify/internal/zcodehooks"
 	"github.com/mattn/go-isatty"
 )

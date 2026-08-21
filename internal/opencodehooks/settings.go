@@ -1,11 +1,13 @@
 package opencodehooks
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/hellolib/agent-notify/internal/common"
@@ -158,14 +160,66 @@ func containsPlugin(entries []json.RawMessage, pluginPath string) bool {
 	return false
 }
 
+// renderPlugin 渲染最终写盘的插件 JS 内容，binaryPath 烘焙进占位符。
+// WritePluginFile 与 RefreshPluginIfStale 共用，确保「写入」与「比对」用的是同一份内容。
+func renderPlugin(binaryPath string) []byte {
+	return []byte(strings.ReplaceAll(PluginJS, "__AGENT_NOTIFY_BINARY__", binaryPath))
+}
+
 // WritePluginFile 把插件 JS 内容写到 pluginPath，binaryPath 烘焙进 JS。
 func WritePluginFile(pluginPath, binaryPath string) error {
-	content := PluginJS
-	content = strings.ReplaceAll(content, "__AGENT_NOTIFY_BINARY__", binaryPath)
 	if err := os.MkdirAll(filepath.Dir(pluginPath), 0o755); err != nil {
 		return err
 	}
-	return common.WriteFileAtomic(pluginPath, []byte(content), 0o644)
+	return common.WriteFileAtomic(pluginPath, renderPlugin(binaryPath), 0o644)
+}
+
+// binaryConstRe 匹配插件 JS 里烘焙的二进制路径常量。
+var binaryConstRe = regexp.MustCompile(`(?m)^const BINARY = "([^"]*)";$`)
+
+// bakedBinaryPath 从磁盘上的插件 JS 中取出已烘焙的二进制路径。
+func bakedBinaryPath(content []byte) (string, bool) {
+	m := binaryConstRe.FindSubmatch(content)
+	if m == nil {
+		return "", false
+	}
+	return string(m[1]), true
+}
+
+// RefreshPluginIfStale 在磁盘上的插件文件与当前二进制内嵌的版本不一致时重写它。
+//
+// 背景：Install 只在用户重跑向导时调用，而二进制升级（npx 下载新版本）不会触碰
+// ~/.agent-notify/opencode-plugin.js。于是新版本新增的订阅事件对存量用户永远不
+// 生效——修好的 bug 送不到手上。
+//
+// 只更新 JS 逻辑，保留文件里已烘焙的二进制路径：重新指定二进制位置是 Install
+// 的职责（用户在向导里明确选过）。若改用 os.Executable()，任何碰巧在跑的二进制
+// ——dev 构建、go test 的临时二进制——都会把用户的插件劫持到一个转瞬即逝的路径上。
+//
+// 用内容比对而非版本号：同时覆盖版本升级、本地 dev 构建和文件被截断损坏，且不需要
+// 把 Version 从 internal/cli 传进来（cli 已 import 本包，反向引用会形成循环依赖）。
+//
+// 以下两种情况一律不动文件，交给向导处理：
+//   - 文件不存在：用户可能刚卸载过，写回等于让集成「复活」；
+//   - 认不出烘焙路径：文件已被改得面目全非，不猜测、不覆盖。
+//
+// 返回值表示是否实际重写过。OpenCode 仅在启动时加载插件，重写后下次重启生效。
+func RefreshPluginIfStale(pluginPath string) (bool, error) {
+	actual, err := os.ReadFile(pluginPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	binaryPath, ok := bakedBinaryPath(actual)
+	if !ok {
+		return false, nil
+	}
+	if bytes.Equal(actual, renderPlugin(binaryPath)) {
+		return false, nil
+	}
+	return true, WritePluginFile(pluginPath, binaryPath)
 }
 
 // BuildPluginSettings 生成用于 print-hooks 命令的插件配置 JSON 结构。
