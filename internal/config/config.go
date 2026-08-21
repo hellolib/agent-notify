@@ -26,7 +26,7 @@ type AgentConfig struct {
 	ZCode      AgentTargetConfig `yaml:"zcode"`       // ZCode 配置
 	Grok       AgentTargetConfig `yaml:"grok"`        // Grok 配置
 	Droid      AgentTargetConfig `yaml:"droid"`       // Droid 配置
-	OpenCode   AgentTargetConfig `yaml:"opencode"`     // OpenCode 配置
+	OpenCode   AgentTargetConfig `yaml:"opencode"`    // OpenCode 配置
 }
 
 // AgentTargetConfig holds configuration for a specific agent.
@@ -59,7 +59,7 @@ type NotifyConfig struct {
 	ZCode      AgentNotifyConfig `yaml:"zcode"`       // ZCode 通知配置
 	Grok       AgentNotifyConfig `yaml:"grok"`        // Grok 通知配置
 	Droid      AgentNotifyConfig `yaml:"droid"`       // Droid 通知配置
-	OpenCode   AgentNotifyConfig `yaml:"opencode"`     // OpenCode 通知配置
+	OpenCode   AgentNotifyConfig `yaml:"opencode"`    // OpenCode 通知配置
 }
 
 // All 按固定顺序返回全部 agent 的通知配置，供只读遍历使用。
@@ -170,6 +170,10 @@ type BehaviorConfig struct {
 	Locale             string `yaml:"locale"`               // 语言设置，如: zh-CN, en-US
 }
 
+// currentConfigVersion 是配置结构的当前版本号。
+// 每次升版都要在 Load 里补一段对应迁移，见 migrateV1ToV2。
+const currentConfigVersion = 2
+
 func Default() Config {
 	allEvents := []string{"permission_required", "input_required", "run_completed", "run_failed"}
 	// Codex hooks 托管 SessionStart / PermissionRequest / Stop 三个事件。
@@ -217,7 +221,7 @@ func Default() Config {
 	}
 
 	return Config{
-		Version: 1,
+		Version: currentConfigVersion,
 		Agent: AgentConfig{
 			ClaudeCode: AgentTargetConfig{
 				Enabled:      false,
@@ -311,39 +315,27 @@ func Load(path string) (Config, error) {
 		return Config{}, err
 	}
 
-	// 先解析到空结构体，避免默认值干扰
-	cfg := Config{}
+	// 先单独把版本号读出来：下面要把 YAML 解析进 Default()，而 Default() 自带
+	// 当前版本号，解析完就分不清原文件本来是哪个版本了。
+	var meta struct {
+		Version int `yaml:"version"`
+	}
+	if err := yaml.Unmarshal(data, &meta); err != nil {
+		return Config{}, err
+	}
+
+	// 解析进 Default() 而非零值结构体：YAML 里没写的字段直接保留默认值。
+	// 早先是解析进零值再手工补一串字段，补漏一个就意味着该字段的默认值在
+	// Load 与 Default 之间相反——click_to_focus 正是这么丢的（默认 true，
+	// 零值 false），新增 agent 时尤其容易漏。
+	cfg := Default()
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return Config{}, err
 	}
 
-	// 填充默认值（仅对未设置的字段）
-	if cfg.Version == 0 {
-		cfg.Version = 1
-	}
-	if cfg.Agent.ClaudeCode.InstallScope == "" {
-		cfg.Agent.ClaudeCode.InstallScope = "user"
-	}
-	if cfg.Agent.Codex.InstallScope == "" {
-		cfg.Agent.Codex.InstallScope = "user"
-	}
-	if cfg.Agent.ZCode.InstallScope == "" {
-		cfg.Agent.ZCode.InstallScope = "user"
-	}
-	if cfg.Agent.Grok.InstallScope == "" {
-		cfg.Agent.Grok.InstallScope = "user"
-	}
-	if cfg.Agent.Droid.InstallScope == "" {
-		cfg.Agent.Droid.InstallScope = "user"
-	}
-	if cfg.Behavior.DedupeSeconds == 0 {
-		cfg.Behavior.DedupeSeconds = 10
-	}
-	if cfg.Behavior.SendTimeoutSeconds == 0 {
-		cfg.Behavior.SendTimeoutSeconds = 5
-	}
-	if cfg.Behavior.Locale == "" {
-		cfg.Behavior.Locale = "zh-CN"
+	if meta.Version < currentConfigVersion {
+		migrateV1ToV2(&cfg)
+		cfg.Version = currentConfigVersion
 	}
 
 	// Channel-only setup (e.g. menu → 微信) enables webhooks without writing events.
@@ -354,8 +346,31 @@ func Load(path string) (Config, error) {
 	cfg.Notify.ZCode.Events = ensureEvents(cfg.Notify.ZCode, def.Notify.ZCode.Events)
 	cfg.Notify.Grok.Events = ensureEvents(cfg.Notify.Grok, def.Notify.Grok.Events)
 	cfg.Notify.Droid.Events = ensureEvents(cfg.Notify.Droid, def.Notify.Droid.Events)
+	cfg.Notify.OpenCode.Events = ensureEvents(cfg.Notify.OpenCode, def.Notify.OpenCode.Events)
 
 	return cfg, nil
+}
+
+// migrateV1ToV2 把 v1 配置里被错误固化的 click_to_focus: false 翻回 true。
+//
+// v1 的 Load 把 YAML 解析进零值结构体，于是 YAML 里没写 click_to_focus 的 agent
+// 段拿到 Go 零值 false，而 Default() 给的是 true。任何在某个 agent 支持上线之前
+// 就已存在的配置，都会在向导下次保存时把这个 false 固化到磁盘——OpenCode 用户
+// 因此普遍点不动通知。
+//
+// 代价是明知的：真的手动关过该开关的人会被重新打开一次。v1 的 bool 存不下
+// 「没写」与「写了 false」的差别，只能二选一，这里选让绝大多数人可用。
+func migrateV1ToV2(cfg *Config) {
+	for _, system := range []*SystemChannelConfig{
+		&cfg.Notify.ClaudeCode.Channels.System,
+		&cfg.Notify.Codex.Channels.System,
+		&cfg.Notify.ZCode.Channels.System,
+		&cfg.Notify.Grok.Channels.System,
+		&cfg.Notify.Droid.Channels.System,
+		&cfg.Notify.OpenCode.Channels.System,
+	} {
+		system.ClickToFocus = true
+	}
 }
 
 // ensureEvents keeps existing events. When channels are enabled but events were never
