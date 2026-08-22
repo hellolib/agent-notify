@@ -318,3 +318,34 @@ func TestRefreshPluginIfStaleSkipsUnrecognizableFile(t *testing.T) {
 		t.Fatal("unrecognizable file was overwritten, want it left untouched")
 	}
 }
+
+// Windows 回归：旧版在 core.autocrlf=true 的 Windows 上写出的插件文件是 CRLF
+// 行尾。binaryConstRe 必须容忍 \r，否则认不出烘焙路径、自愈静默失效——这正是
+// CI 上 Windows job 红掉的两个用例的根因（go:embed 的 JS 被 git 转成 CRLF）。
+func TestRefreshPluginIfStaleHandlesCRLFLineEndings(t *testing.T) {
+	pluginPath := filepath.Join(t.TempDir(), "opencode-plugin.js")
+	installed := `C:\Users\demo\.agent-notify\agent-notify.exe`
+	// 用 renderPlugin 生成内容，再把 LF 全部换成 CRLF，模拟旧 Windows 落盘的文件。
+	stale := strings.ReplaceAll(string(renderPlugin(installed)), "\n", "\r\n")
+	if err := os.WriteFile(pluginPath, []byte(stale), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	refreshed, err := RefreshPluginIfStale(pluginPath)
+	if err != nil {
+		t.Fatalf("RefreshPluginIfStale() error = %v", err)
+	}
+	if !refreshed {
+		t.Fatal("RefreshPluginIfStale() = false, want true for CRLF plugin file (regex failed to tolerate \\r)")
+	}
+	got, err := os.ReadFile(pluginPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), installed) {
+		t.Fatalf("baked binary path was not preserved; content = %q", string(got))
+	}
+	if string(got) != string(renderPlugin(installed)) {
+		t.Fatal("refreshed content does not match embedded version rendered with the original path")
+	}
+}
