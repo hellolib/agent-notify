@@ -175,7 +175,10 @@ func WritePluginFile(pluginPath, binaryPath string) error {
 }
 
 // binaryConstRe 匹配插件 JS 里烘焙的二进制路径常量。
-var binaryConstRe = regexp.MustCompile(`(?m)^const BINARY = "([^"]*)";$`)
+// 用 \r?$ 而非 $：$ 在多行模式下匹配 \n 之前的位置，而 CRLF 行里 \r 夹在
+// ; 和 \n 之间会撑断 ";\$" 锚点。Windows 上 git autocrlf 会把 go:embed 的
+// plugin/opencode.js 转成 CRLF，旧插件文件也可能带 CRLF，必须容忍。
+var binaryConstRe = regexp.MustCompile(`(?m)^const BINARY = "([^"]*)";\r?$`)
 
 // bakedBinaryPath 从磁盘上的插件 JS 中取出已烘焙的二进制路径。
 func bakedBinaryPath(content []byte) (string, bool) {
