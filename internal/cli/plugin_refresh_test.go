@@ -17,6 +17,7 @@ func TestIsHeadlessInvocation(t *testing.T) {
 		{"opencode 安装", []string{"opencode", "--scope", "user"}, false},
 		{"claude hook", []string{"handle-claude-hook"}, true},
 		{"codex hook", []string{"handle-codex-hook"}, true},
+		{"codex notify", []string{"handle-codex-notify", `{}`}, true},
 		{"zcode hook", []string{"handle-zcode-hook"}, true},
 		{"grok hook", []string{"handle-grok-hook"}, true},
 		{"droid hook", []string{"handle-droid-hook"}, true},

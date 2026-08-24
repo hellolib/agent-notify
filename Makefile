@@ -1,4 +1,4 @@
-.PHONY: build test run clean install local lint fmt vet help tag npm-publish release check-release-version
+.PHONY: build build-windows-focus-helper test run clean install local lint fmt vet help tag npm-publish release check-release-version
 
 # Binary name
 BINARY_NAME=agent-notify
@@ -49,6 +49,11 @@ build-all:
 	GOOS=linux GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 ./cmd/$(BINARY_NAME)
 	GOOS=windows GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe ./cmd/$(BINARY_NAME)
 	GOOS=windows GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-arm64.exe ./cmd/$(BINARY_NAME)
+
+## build-windows-focus-helper: Rebuild bundled Windows click-to-focus helpers
+build-windows-focus-helper:
+	GOOS=windows GOARCH=amd64 $(GOBUILD) -trimpath -ldflags "-s -w -H windowsgui" -o thirdparty/helper/windows/toast-focus-helper-amd64.exe ./cmd/toast-focus-helper
+	GOOS=windows GOARCH=arm64 $(GOBUILD) -trimpath -ldflags "-s -w -H windowsgui" -o thirdparty/helper/windows/toast-focus-helper-arm64.exe ./cmd/toast-focus-helper
 
 ## test: Run tests
 test:

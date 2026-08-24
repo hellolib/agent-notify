@@ -35,6 +35,9 @@ func TestWindowsSenderSendPushesToastRequest(t *testing.T) {
 	if got.FocusCapture != msg.FocusCapture {
 		t.Fatalf("FocusCapture = %q, want %q", got.FocusCapture, msg.FocusCapture)
 	}
+	if got.Workspace != msg.Workspace {
+		t.Fatalf("Workspace = %q, want %q", got.Workspace, msg.Workspace)
+	}
 	if got.Agent != "codex" {
 		t.Fatalf("Agent = %q, want %q", got.Agent, "codex")
 	}

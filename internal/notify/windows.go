@@ -12,6 +12,7 @@ type windowsToastRequest struct {
 	// Agent 是触发通知的 agent 名（claude_code/codex/zcode/grok/droid 等），
 	// 用于经 icon.go 的 AgentLogoPath 解析 per-agent logo 图标路径。
 	Agent        string
+	Workspace    string
 	ClickToFocus bool
 	FocusDebug   bool
 	LogPath      string
@@ -47,6 +48,7 @@ func (s *WindowsSender) Send(ctx context.Context, msg Message) error {
 		Title:        msg.Title,
 		Body:         s.formatBody(msg),
 		Agent:        msg.Agent,
+		Workspace:    msg.Workspace,
 		ClickToFocus: s.clickToFocus,
 		FocusDebug:   s.focusDebug,
 		LogPath:      focusHelperLogPath(s.focusDebug),

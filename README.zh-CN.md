@@ -55,12 +55,12 @@ npx agent-notify
 说明：
 
 - Claude Code 通过 `~/.claude/settings.json` 的 hooks 订阅：`PermissionRequest`、`Notification`、`Stop`、`PostToolUseFailure`、`SessionStart`。
-- Codex 通过 `~/.codex/hooks.json` 订阅 `PermissionRequest`、`Stop`（映射到 `permission_required` / `run_completed`）以及 `SessionStart`。`input_required` 与 `run_failed` Codex 目前没有对应 hook，因此暂不支持。
+- Codex 通过 `~/.codex/hooks.json` 订阅 `PermissionRequest`、`Stop`（映射到 `permission_required` / `run_completed`）以及 `SessionStart`。同时会在 `~/.codex/config.toml` 安装托管的顶层 `notify` 命令，为 VS Code 等可能不执行 hook 或无法完成 trust 流程的 IDE/app-server 客户端提供 `run_completed` 兜底；已有且与 agent-notify 无关的自定义 `notify` 命令会保留。`input_required` 与 `run_failed` Codex 目前没有对应 hook，因此暂不支持。
 - OpenCode 使用 JS 插件而非原生 hooks：插件写入 `~/.agent-notify/opencode-plugin.js`（二进制路径烘焙进 JS），路径注册到 `~/.config/opencode/opencode.json`（user）或 `./opencode.json`（project）的 `plugin` 数组。插件订阅 `session.created`→`session_start`、`permission.asked`→`permission_required`、`session.status`(idle)→`input_required`、`session.idle`→`run_completed`、`session.error`→`run_failed`。
 - ZCode 通过 `~/.zcode/cli/config.json` 订阅 `SessionStart`、`PermissionRequest`、`PostToolUseFailure`、`Stop`，映射到 `permission_required`、`run_failed`、`run_completed`。ZCode 没有 `Notification` 事件（因此不支持 `input_required`），且其 hook 配置格式较为严格——无法识别的事件名称会导致整个 hooks 配置被静默丢弃。
 - Grok 通过 `~/.grok/hooks/agent-notify.json` 订阅 `SessionStart`、`Notification`、`Stop`、`StopFailure`、`PostToolUseFailure`。Grok 没有独立的 `PermissionRequest` 事件，带 permission/approval 语义的 `Notification` 会映射为 `permission_required`（表中 *）；其它通知映射为 `input_required`。`StopFailure` / `PostToolUseFailure` 映射为 `run_failed`。
 - Droid 通过 `~/.factory/hooks.json` 订阅 `SessionStart`、`Notification`、`Stop`，映射为 `session_start` / `permission_required`|`input_required` / `run_completed`。Droid 无失败事件，故不支持 `run_failed`。`session_start` 仅用于点击聚焦的窗口捕获，不作为通知事件。
-- **`SessionStart` 不产生任何通知。** 它在所有 agent 上被订阅，仅用于在会话启动时捕获终端窗口，为 Linux 的窗口级点击聚焦提供支持（见下方「点击聚焦」一节）；在 macOS/Windows 上该 hook 为空操作。
+- **`SessionStart` 不产生任何通知。** 它在所有 agent 上被订阅，仅用于捕获会话来源的终端/IDE 窗口，为窗口级点击聚焦提供支持（见下方「点击聚焦」一节）。
 
 ### 支持的平台
 
@@ -76,11 +76,11 @@ npx agent-notify
 
 - **macOS** — 默认应用级（激活 agent 所在的终端/IDE 应用）。若要窗口级（多窗口时也精确跳回那一个），在登录 shell 环境（如 `~/.zshrc`）里设置 `AGENT_NOTIFY_FOCUS_PRECISION=window`；这会用到内置 helper 并需要「辅助功能」权限。不设置则保持应用级。
 - **Linux（X11）** — 窗口级。在会话启动时（通过 `SessionStart` hook）捕获精确的终端窗口，点击时跳回，因此能区分单进程多窗口终端（deepin-terminal、GNOME Terminal 等）的兄弟窗口。原生 Wayland 窗口无法定位。
-- **Windows** — 通过内置 helper 跳回终端窗口。
+- **Windows** — 通过内置 helper 跳回来源终端/IDE 窗口。优先使用 `SessionStart` 捕获；Codex IDE 通知没有捕获缓存时，会用工作区路径唯一匹配祖先进程的窗口标题，因此可以区分共用同一 `Code.exe` 进程的多个 VS Code 窗口。点击通知不会取消已最大化窗口的最大化状态；最小化窗口会先恢复。
 
 > **`AGENT_NOTIFY_FOCUS_PRECISION`** 接受 `window`（窗口级）或 `app`（应用级，默认值）。取值不区分大小写、会去除首尾空白；未设置或无法识别的值都回退为 `app`。该变量**仅对 macOS 生效**——Linux 始终是窗口级，Windows 用自己的 helper。
 
-系统渠道默认开启点击聚焦；目标应用/窗口会从 hook 的环境变量与进程树自动识别。
+系统渠道默认开启点击聚焦；目标应用/窗口会从 hook 环境、会话捕获、工作区与进程树自动识别。
 
 ## 安装说明
 
@@ -95,7 +95,7 @@ npx agent-notify
 
 之后每次运行都会检查本地二进制版本：不存在则自动下载，版本落后则自动更新，否则直接运行。launcher 不会持久修改 PATH，始终用绝对路径执行。
 
-> **注意**: Codex 通过 `~/.codex/hooks.json` 接入官方 hooks 系统，目前仅订阅 `PermissionRequest`、`Stop` 两个事件。首次安装后请在 codex 内运行 `/hooks` 完成 trust 审核。
+> **注意**: Codex 通过 `~/.codex/hooks.json` 的官方 hooks 处理 `PermissionRequest`、`Stop` 与会话窗口捕获。首次安装后请在 Codex CLI 内运行 `/hooks` 完成 trust 审核。`~/.codex/config.toml` 中的托管 `notify` 兜底可让 VS Code 等 IDE/app-server 客户端无需该 trust 步骤也能收到完成通知。
 >
 > **Grok**: 写入 `~/.grok/hooks/agent-notify.json`。全局 hooks 始终可信；项目级 hooks（`.grok/hooks/`）需在仓库内运行 `/hooks-trust` 或使用 `--trust`。安装后可在 Grok 中运行 `/hooks`（或 `Ctrl+L`）确认已加载。
 
@@ -109,7 +109,7 @@ agent-notify 自身配置位于 `~/.agent-notify/config.yaml`。**新安装默�
 Agent 集成配置位置：
 
 - Claude Code: `~/.claude/settings.json`（写入 hooks → 命令 `agent-notify handle-claude-hook`）
-- Codex: `~/.codex/hooks.json`（写入 hooks → 命令 `agent-notify handle-codex-hook`，需在 codex 内运行 `/hooks` 完成 trust）
+- Codex: `~/.codex/hooks.json`（hooks → `agent-notify handle-codex-hook`）与 `~/.codex/config.toml`（完成通知兜底 → `agent-notify handle-codex-notify`；Codex CLI 内需运行 `/hooks` 信任 hooks）
 - OpenCode: `~/.config/opencode/opencode.json`（写入 `plugin` 数组 → `~/.agent-notify/opencode-plugin.js`，命令 `agent-notify handle-opencode-hook`；项目 scope 为 `./opencode.json`）
 - ZCode: `~/.zcode/cli/config.json`（写入 `hooks.events.<Event>` + `hooks.enabled` → 命令 `agent-notify handle-zcode-hook`；重启 ZCode 使配置生效）
 - Grok: `~/.grok/hooks/agent-notify.json`（写入 hooks → 命令 `agent-notify handle-grok-hook`；项目 scope 为 `.grok/hooks/agent-notify.json`）

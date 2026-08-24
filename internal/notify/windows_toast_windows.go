@@ -52,6 +52,14 @@ func defaultWindowsToastPush(ctx context.Context, req windowsToastRequest) error
 			if req.FocusDebug && req.LogPath != "" {
 				appendFocusSendDiag(req.LogPath, "[send] used SessionStart cache: "+args+"\n")
 			}
+		} else if args, reason, ok := focusArgumentsFromWorkspace(req); ok {
+			opts = append(opts,
+				toast.WithActivationType("protocol"),
+				toast.WithActivationArguments(args),
+			)
+			if req.FocusDebug && req.LogPath != "" {
+				appendFocusSendDiag(req.LogPath, "[send] used workspace title: "+reason+" args="+args+"\n")
+			}
 		} else if act, diag, err := toast.PrepareFocusActivationVerbose(os.Getppid(), req.LogPath); err == nil {
 			// 兜底：缓存 miss / 失效 / 指纹不符 → 按进程树选窗（多窗时可能不精确）。
 			opts = append(opts,
@@ -65,6 +73,21 @@ func defaultWindowsToastPush(ctx context.Context, req windowsToastRequest) error
 	}
 
 	return toast.Push(req.Body, opts...)
+}
+
+// focusArgumentsFromWorkspace 处理 Codex IDE/app-server 没有 SessionStart 缓存的场景。
+// 多个 VS Code 窗口共用 Code.exe 时，用 notify payload 的 cwd 唯一匹配窗口标题。
+func focusArgumentsFromWorkspace(req windowsToastRequest) (args, reason string, ok bool) {
+	chain := toast.EnumerateAncestorWindows(uint32(os.Getppid()))
+	hwnd, _, reason := selectWorkspaceWindow(chain, req.Workspace)
+	if hwnd == 0 {
+		return "", reason, false
+	}
+	act, err := toast.FocusActivationForWindow(os.Getppid(), hwnd, req.LogPath)
+	if err != nil {
+		return "", err.Error(), false
+	}
+	return act.Arguments, reason, true
 }
 
 // focusArgumentsFromCapture 命中 SessionStart 缓存、且缓存句柄经复核仍可用并标题一致时，
