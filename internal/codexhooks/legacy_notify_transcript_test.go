@@ -137,6 +137,19 @@ func TestVSCodeNotifyClient(t *testing.T) {
 	}
 }
 
+func TestCodexDesktopNotifyClient(t *testing.T) {
+	for _, client := range []string{"Codex Desktop", "codex-desktop", " codex_desktop "} {
+		if !isCodexDesktopNotifyClient(client) {
+			t.Fatalf("isCodexDesktopNotifyClient(%q) = false", client)
+		}
+	}
+	for _, client := range []string{"codex-vscode", "codex-tui", "desktop"} {
+		if isCodexDesktopNotifyClient(client) {
+			t.Fatalf("isCodexDesktopNotifyClient(%q) = true", client)
+		}
+	}
+}
+
 func writeLegacyTranscript(
 	t *testing.T,
 	now time.Time,

@@ -14,7 +14,7 @@ func TestWindowsSenderSendPushesToastRequest(t *testing.T) {
 		return nil
 	}, true, false)
 
-	msg := Message{Agent: "codex", Title: "Test Title", Body: "Test Body", Workspace: "/path/to/project", FocusCapture: `{"hwnd":"120a3e","title":"pwsh"}`}
+	msg := Message{Agent: "codex", Title: "Test Title", Body: "Test Body", Workspace: "/path/to/project", ActivationURI: "codex://threads/thread-1", FocusCapture: `{"hwnd":"120a3e","title":"pwsh"}`}
 	if err := sender.Send(context.Background(), msg); err != nil {
 		t.Fatalf("Send() error = %v", err)
 	}
@@ -34,6 +34,9 @@ func TestWindowsSenderSendPushesToastRequest(t *testing.T) {
 	}
 	if got.FocusCapture != msg.FocusCapture {
 		t.Fatalf("FocusCapture = %q, want %q", got.FocusCapture, msg.FocusCapture)
+	}
+	if got.ActivationURI != msg.ActivationURI {
+		t.Fatalf("ActivationURI = %q, want %q", got.ActivationURI, msg.ActivationURI)
 	}
 	if got.Workspace != msg.Workspace {
 		t.Fatalf("Workspace = %q, want %q", got.Workspace, msg.Workspace)

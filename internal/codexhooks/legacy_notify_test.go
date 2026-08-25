@@ -69,6 +69,33 @@ func TestParseLegacyNotifyFallsBackToDefaultBody(t *testing.T) {
 	}
 }
 
+func TestParseLegacyNotifyBuildsCodexDesktopActivationURI(t *testing.T) {
+	msg, err := ParseLegacyNotify(`{
+  "type":"agent-turn-complete",
+  "thread-id":"019ff54e-d894-7d43-9dfc-fa3fb41479e7",
+  "client":"Codex Desktop"
+}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg.ActivationURI != "codex://threads/019ff54e-d894-7d43-9dfc-fa3fb41479e7" {
+		t.Fatalf("ActivationURI = %q", msg.ActivationURI)
+	}
+}
+
+func TestParseLegacyNotifyOmitsDesktopActivationURIForOtherClients(t *testing.T) {
+	for _, client := range []string{"codex-vscode", "codex-tui", ""} {
+		raw := `{"type":"agent-turn-complete","thread-id":"thread-1","client":"` + client + `"}`
+		msg, err := ParseLegacyNotify(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if msg.ActivationURI != "" {
+			t.Fatalf("client %q ActivationURI = %q, want empty", client, msg.ActivationURI)
+		}
+	}
+}
+
 func TestParseLegacyNotifyRejectsUnsupportedAndInvalidPayloads(t *testing.T) {
 	for _, raw := range []string{
 		`not-json`,

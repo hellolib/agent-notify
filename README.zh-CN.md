@@ -76,7 +76,7 @@ npx agent-notify
 
 - **macOS** — 默认应用级（激活 agent 所在的终端/IDE 应用）。若要窗口级（多窗口时也精确跳回那一个），在登录 shell 环境（如 `~/.zshrc`）里设置 `AGENT_NOTIFY_FOCUS_PRECISION=window`；这会用到内置 helper 并需要「辅助功能」权限。不设置则保持应用级。
 - **Linux（X11）** — 窗口级。在会话启动时（通过 `SessionStart` hook）捕获精确的终端窗口，点击时跳回，因此能区分单进程多窗口终端（deepin-terminal、GNOME Terminal 等）的兄弟窗口。原生 Wayland 窗口无法定位。
-- **Windows** — 通过内置 helper 跳回来源终端/IDE 窗口。优先使用 `SessionStart` 捕获；Codex IDE 通知没有捕获缓存时，会用工作区路径唯一匹配祖先进程的窗口标题，因此可以区分共用同一 `Code.exe` 进程的多个 VS Code 窗口。点击通知不会取消已最大化窗口的最大化状态；最小化窗口会先恢复。
+- **Windows** — 通过内置 helper 跳回来源终端/IDE 窗口。Codex 桌面端通知使用应用的 `codex://threads/<thread-id>` 深层链接，可激活桌面端并打开通知所属对话。其它客户端优先使用 `SessionStart` 捕获；Codex IDE 通知没有捕获缓存时，会用工作区路径唯一匹配祖先进程的窗口标题，因此可以区分共用同一 `Code.exe` 进程的多个 VS Code 窗口。点击通知不会取消已最大化窗口的最大化状态；最小化窗口会先恢复。
 
 > **`AGENT_NOTIFY_FOCUS_PRECISION`** 接受 `window`（窗口级）或 `app`（应用级，默认值）。取值不区分大小写、会去除首尾空白；未设置或无法识别的值都回退为 `app`。该变量**仅对 macOS 生效**——Linux 始终是窗口级，Windows 用自己的 helper。
 

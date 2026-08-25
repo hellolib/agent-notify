@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -53,7 +54,7 @@ func legacyNotifyMessage(p legacyNotifyPayload) notify.Message {
 		}
 	}
 
-	return notify.Message{
+	msg := notify.Message{
 		Agent:     "codex",
 		Event:     "run_completed",
 		SessionID: p.ThreadID,
@@ -61,6 +62,12 @@ func legacyNotifyMessage(p legacyNotifyPayload) notify.Message {
 		Title:     notify.FormatTitle("codex", "run_completed"),
 		Body:      body,
 	}
+	if isCodexDesktopNotifyClient(p.Client) {
+		if threadID := strings.TrimSpace(p.ThreadID); threadID != "" {
+			msg.ActivationURI = "codex://threads/" + url.PathEscape(threadID)
+		}
+	}
+	return msg
 }
 
 func HandleLegacyNotify(ctx context.Context, cfg config.Config, statePath, logPath, raw string) error {

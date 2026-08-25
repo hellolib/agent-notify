@@ -4,7 +4,9 @@ package notify
 
 import (
 	"context"
+	"net/url"
 	"os"
+	"strings"
 
 	"github.com/hellolib/agent-notify/internal/winfocus"
 	"github.com/hellolib/toast"
@@ -42,9 +44,18 @@ func defaultWindowsToastPush(ctx context.Context, req windowsToastRequest) error
 	}
 
 	if req.ClickToFocus {
-		// 优先用 SessionStart 缓存的精确窗口（复核句柄仍可用且标题一致）；命中即写入
-		// 带该 HWND 的 anfocus:，点击直接回到那扇窗——这是多 WT 窗口定位准的关键路径。
-		if args, ok := focusArgumentsFromCapture(req); ok {
+		// 桌面应用 deep link 能同时激活应用和定位会话，因此优先于窗口句柄匹配。
+		if args, ok := activationURIFromRequest(req); ok {
+			opts = append(opts,
+				toast.WithActivationType("protocol"),
+				toast.WithActivationArguments(args),
+			)
+			if req.FocusDebug && req.LogPath != "" {
+				appendFocusSendDiag(req.LogPath, "[send] used activation URI: "+args+"\n")
+			}
+			// 其次用 SessionStart 缓存的精确窗口（复核句柄仍可用且标题一致）；命中即写入
+			// 带该 HWND 的 anfocus:，点击直接回到那扇窗——这是多 WT 窗口定位准的关键路径。
+		} else if args, ok := focusArgumentsFromCapture(req); ok {
 			opts = append(opts,
 				toast.WithActivationType("protocol"),
 				toast.WithActivationArguments(args),
@@ -73,6 +84,18 @@ func defaultWindowsToastPush(ctx context.Context, req windowsToastRequest) error
 	}
 
 	return toast.Push(req.Body, opts...)
+}
+
+func activationURIFromRequest(req windowsToastRequest) (string, bool) {
+	raw := strings.TrimSpace(req.ActivationURI)
+	if raw == "" {
+		return "", false
+	}
+	parsed, err := url.ParseRequestURI(raw)
+	if err != nil || parsed.Scheme == "" {
+		return "", false
+	}
+	return raw, true
 }
 
 // focusArgumentsFromWorkspace 处理 Codex IDE/app-server 没有 SessionStart 缓存的场景。

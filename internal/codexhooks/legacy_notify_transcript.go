@@ -60,8 +60,15 @@ type legacyTranscriptCandidate struct {
 }
 
 func isVSCodeNotifyClient(client string) bool {
-	normalized := strings.NewReplacer("-", "_", " ", "_").Replace(strings.ToLower(client))
-	return strings.Contains(normalized, "vscode")
+	return strings.Contains(normalizeNotifyClient(client), "vscode")
+}
+
+func isCodexDesktopNotifyClient(client string) bool {
+	return normalizeNotifyClient(client) == "codex_desktop"
+}
+
+func normalizeNotifyClient(client string) string {
+	return strings.NewReplacer("-", "_", " ", "_").Replace(strings.ToLower(strings.TrimSpace(client)))
 }
 
 // VS Code can start a persisted task while a stale app-server agent turn is still finishing.
