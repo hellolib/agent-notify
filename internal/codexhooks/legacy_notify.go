@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/hellolib/agent-notify/internal/agenthooks"
@@ -25,14 +27,25 @@ type legacyNotifyPayload struct {
 }
 
 func ParseLegacyNotify(raw string) (notify.Message, error) {
+	p, err := parseLegacyNotifyPayload(raw)
+	if err != nil {
+		return notify.Message{}, err
+	}
+	return legacyNotifyMessage(p), nil
+}
+
+func parseLegacyNotifyPayload(raw string) (legacyNotifyPayload, error) {
 	var p legacyNotifyPayload
 	if err := json.Unmarshal([]byte(raw), &p); err != nil {
-		return notify.Message{}, fmt.Errorf("decode Codex notify payload: %w", err)
+		return legacyNotifyPayload{}, fmt.Errorf("decode Codex notify payload: %w", err)
 	}
 	if p.Type != "agent-turn-complete" {
-		return notify.Message{}, fmt.Errorf("unsupported Codex notify event: %s", p.Type)
+		return legacyNotifyPayload{}, fmt.Errorf("unsupported Codex notify event: %s", p.Type)
 	}
+	return p, nil
+}
 
+func legacyNotifyMessage(p legacyNotifyPayload) notify.Message {
 	body := notify.DefaultBody("run_completed")
 	if p.LastAssistantMessage != nil {
 		if hint := truncateMessage(strings.TrimSpace(*p.LastAssistantMessage), 200); hint != "" {
@@ -47,13 +60,60 @@ func ParseLegacyNotify(raw string) (notify.Message, error) {
 		Workspace: p.CWD,
 		Title:     notify.FormatTitle("codex", "run_completed"),
 		Body:      body,
-	}, nil
+	}
 }
 
 func HandleLegacyNotify(ctx context.Context, cfg config.Config, statePath, logPath, raw string) error {
-	msg, err := ParseLegacyNotify(raw)
+	p, err := parseLegacyNotifyPayload(raw)
 	if err != nil {
 		return state.AppendLog(logPath, fmt.Sprintf("skip event: %v", err))
 	}
+	msg := legacyNotifyMessage(p)
+
+	if isVSCodeNotifyClient(p.Client) {
+		codexHome, homeErr := codexHomeDir()
+		if homeErr != nil {
+			_ = state.AppendLog(logPath, fmt.Sprintf(
+				"Codex notify completion verification unavailable client=%s thread=%s turn=%s err=%v",
+				p.Client, p.ThreadID, p.TurnID, homeErr,
+			))
+		} else {
+			completion, verifyErr := waitForLegacyNotifyCompletion(
+				ctx,
+				codexHome,
+				p,
+				legacyNotifyCompletionWait,
+			)
+			if verifyErr != nil {
+				_ = state.AppendLog(logPath, fmt.Sprintf(
+					"Codex notify completion verification failed client=%s thread=%s turn=%s err=%v",
+					p.Client, p.ThreadID, p.TurnID, verifyErr,
+				))
+			} else {
+				switch completion.State {
+				case legacyTurnRunning:
+					return state.AppendLog(logPath, fmt.Sprintf(
+						"skip premature Codex notify client=%s thread=%s turn=%s transcript=%s",
+						p.Client, p.ThreadID, p.TurnID, completion.TranscriptPath,
+					))
+				case legacyTurnComplete:
+					if hint := truncateMessage(strings.TrimSpace(completion.LastAgentMessage), 200); hint != "" {
+						msg.Body = hint
+					}
+				}
+			}
+		}
+	}
 	return agenthooks.Dispatch(ctx, cfg, statePath, logPath, msg)
+}
+
+func codexHomeDir() (string, error) {
+	if home := strings.TrimSpace(os.Getenv("CODEX_HOME")); home != "" {
+		return filepath.Clean(home), nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".codex"), nil
 }
