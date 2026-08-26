@@ -17,6 +17,9 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	if !isHeadlessInvocation(args) {
 		refreshOpenCodePlugin()
 	}
+	if shouldRefreshCodexNotify(args) {
+		refreshCodexNotifyCommand()
+	}
 
 	streams := Streams{
 		Stdin:  stdin,

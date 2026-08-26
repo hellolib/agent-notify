@@ -60,12 +60,12 @@ npx agent-notify
 Notes:
 
 - Claude Code subscribes via hooks in `~/.claude/settings.json`: `PermissionRequest`, `Notification`, `Stop`, `PostToolUseFailure`, and `SessionStart`.
-- Codex subscribes via `~/.codex/hooks.json`: `PermissionRequest` and `Stop` (mapped to `permission_required` / `run_completed`), plus `SessionStart`. `input_required` and `run_failed` have no corresponding Codex hook yet, so they are not supported.
+- Codex subscribes via `~/.codex/hooks.json`: `PermissionRequest` and `Stop` (mapped to `permission_required` / `run_completed`), plus `SessionStart`. It also installs a managed top-level `notify` command in `~/.codex/config.toml` as a `run_completed` fallback for IDE/app-server clients such as VS Code, where hooks may not run or complete their trust flow. Existing unrelated custom `notify` commands are preserved. `input_required` and `run_failed` have no corresponding Codex hook yet, so they are not supported.
 - OpenCode uses a JS plugin instead of native hooks: the plugin is written to `~/.agent-notify/opencode-plugin.js` (binary path baked into JS), and its path is registered in `~/.config/opencode/opencode.json` (user) or `./opencode.json` (project) `plugin` array. The plugin subscribes to `session.created`→`session_start`, `permission.asked`→`permission_required`, `question.asked`→`input_required`, `session.status`(idle)→`input_required`, `session.idle`→`run_completed`, `session.error`→`run_failed`.
 - ZCode subscribes via `~/.zcode/cli/config.json`: `SessionStart`, `PermissionRequest`, `PostToolUseFailure`, and `Stop`, mapped to `permission_required`, `run_failed`, and `run_completed`. ZCode has no `Notification` event (so no `input_required`), and its hook schema is strict — an unknown event name will cause the whole hooks config to be silently dropped.
 - Grok subscribes via `~/.grok/hooks/agent-notify.json`: `SessionStart`, `Notification`, `Stop`, `StopFailure`, and `PostToolUseFailure`. There is no dedicated `PermissionRequest` event; `Notification`s with permission/approval semantics map to `permission_required` (marked *), others map to `input_required`. `StopFailure` / `PostToolUseFailure` map to `run_failed`.
 - Droid subscribes via `~/.factory/hooks.json`: `SessionStart`, `Notification`, `Stop`, mapped to `session_start` / `permission_required`|`input_required` / `run_completed`. Droid has no failure event, so `run_failed` is not supported. `session_start` is only used for click-to-focus window capture, not as a notification event.
-- **`SessionStart` does not produce a notification.** It is subscribed on every agent solely to capture the terminal window at session start, which powers Linux window-level [Click-to-Focus](#click-to-focus). On macOS/Windows the SessionStart hook is a no-op.
+- **`SessionStart` does not produce a notification.** It is subscribed on every agent solely to capture the originating terminal/IDE window for window-level [Click-to-Focus](#click-to-focus).
 
 ### Supported Platforms
 
@@ -81,11 +81,11 @@ System notifications are clickable — clicking one brings you back to the termi
 
 - **macOS** — App-level by default (activates the agent's terminal/IDE app). For window-level focus (return to the exact window even when several are open), set `AGENT_NOTIFY_FOCUS_PRECISION=window` in your login shell environment (e.g. `~/.zshrc`); this uses a bundled helper and requires Accessibility permission. Unset stays app-level.
 - **Linux (X11)** — Window-level. The exact terminal window is captured at session start (via the `SessionStart` hook) and re-focused on click, so it distinguishes sibling windows of single-process terminals (deepin-terminal, GNOME Terminal, etc.). Native Wayland windows can't be targeted.
-- **Windows** — Returns to the terminal window via a bundled helper.
+- **Windows** — Returns to the originating terminal/IDE window via a bundled helper. Codex Desktop notifications use the app's `codex://threads/<thread-id>` deep link, which activates the desktop app and opens the originating conversation. Session-start captures are preferred for other clients. For Codex IDE notifications without a capture, the workspace path is matched uniquely against ancestor window titles, allowing several VS Code windows that share one `Code.exe` process to be distinguished. Clicking a notification preserves a maximized window's state; minimized windows are restored first.
 
 > **`AGENT_NOTIFY_FOCUS_PRECISION`** accepts `window` (window-level) or `app` (app-level — the default). Values are case-insensitive and whitespace-trimmed; anything unset or unrecognized falls back to `app`. This variable **only affects macOS** — Linux is always window-level, and Windows uses its own helper.
 
-Click-to-focus is enabled by default for the System channel; the target app/window is detected automatically from the hook's environment and process tree.
+Click-to-focus is enabled by default for the System channel; the target app/window is detected automatically from the hook's environment, session capture, workspace, and process tree.
 
 
 
@@ -99,7 +99,7 @@ On first run, the launcher downloads the platform-specific binary matching the c
 
 On every subsequent run it checks the local binary version: it downloads if missing, updates if outdated, and otherwise runs directly. The launcher never persistently modifies `PATH` — it always executes via an absolute path.
 
-> **Note**: Codex integrates through the official hooks system in `~/.codex/hooks.json` and currently subscribes only to `PermissionRequest` and `Stop`. After first install, run `/hooks` inside Codex to complete the trust review.
+> **Note**: Codex uses official hooks in `~/.codex/hooks.json` for `PermissionRequest`, `Stop`, and session window capture. After first install, run `/hooks` inside Codex CLI to complete the trust review. A managed `notify` fallback in `~/.codex/config.toml` provides completion notifications to IDE/app-server clients such as VS Code without that trust step.
 >
 > **Grok**: Writes `~/.grok/hooks/agent-notify.json`. Global hooks are always trusted; project hooks (`.grok/hooks/`) require `/hooks-trust` or `--trust`. After install, run `/hooks` (or `Ctrl+L`) inside Grok to confirm they loaded.
 
@@ -111,7 +111,7 @@ Agent Notify's own config lives at `~/.agent-notify/config.yaml`. **New installs
 Agent integration config locations:
 
 - Claude Code: `~/.claude/settings.json` (writes hooks → command `agent-notify handle-claude-hook`)
-- Codex: `~/.codex/hooks.json` (writes hooks → command `agent-notify handle-codex-hook`; run `/hooks` inside Codex to complete trust)
+- Codex: `~/.codex/hooks.json` (hooks → `agent-notify handle-codex-hook`) and `~/.codex/config.toml` (completion fallback → `agent-notify handle-codex-notify`; run `/hooks` inside Codex CLI to trust hooks)
 - OpenCode: `~/.config/opencode/opencode.json` (writes `plugin` array → `~/.agent-notify/opencode-plugin.js`, command `agent-notify handle-opencode-hook`; project scope uses `./opencode.json`)
 - ZCode: `~/.zcode/cli/config.json` (writes `hooks.events.<Event>` + `hooks.enabled` → command `agent-notify handle-zcode-hook`; restart ZCode for the config to take effect)
 - Grok: `~/.grok/hooks/agent-notify.json` (writes hooks → command `agent-notify handle-grok-hook`; project scope uses `.grok/hooks/agent-notify.json`)

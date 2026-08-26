@@ -1,6 +1,7 @@
 package codexhooks
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
@@ -77,7 +78,31 @@ func Install(path string, binaryPath string) error {
 	// 失败必须显式上抛:features.hooks 未开启时 Codex 不会执行任何 hook,
 	// 静默吞掉会让向导显示「安装成功」而集成实际不可用(issue #31)。
 	configTomlPath := filepath.Join(filepath.Dir(path), "config.toml")
-	return EnableHooksFeature(configTomlPath)
+	originalConfig, readErr := os.ReadFile(configTomlPath)
+	configExisted := readErr == nil
+	var originalMode os.FileMode = 0o644
+	if configExisted {
+		if info, statErr := os.Stat(configTomlPath); statErr == nil {
+			originalMode = info.Mode().Perm()
+		}
+	}
+	if err := EnableHooksFeature(configTomlPath); err != nil {
+		return err
+	}
+	if err := EnsureNotifyCommand(configTomlPath, binaryPath); err != nil {
+		return err
+	}
+	// 两次最小编辑都使用备份写入时，第二次会把备份覆盖成中间状态。
+	// 安装成功后把同一次安装开始前的原始配置放回备份。
+	if configExisted {
+		if finalConfig, err := os.ReadFile(configTomlPath); err == nil && !bytes.Equal(originalConfig, finalConfig) {
+			backupPath := configTomlPath + common.BackupSuffix
+			if err := common.WriteFileAtomic(backupPath, originalConfig, originalMode); err == nil {
+				_ = os.Chmod(backupPath, originalMode)
+			}
+		}
+	}
+	return nil
 }
 
 // buildHookCommand 为 Codex 构造 command 字段。
@@ -107,8 +132,9 @@ func IsInstalled(path string) (bool, error) {
 // config.toml 中的 [features] hooks 开关不动 —— 那是通用开关，可能被其他 hook 使用。
 // 文件不存在时是 no-op。
 func Uninstall(path string) error {
+	configTomlPath := filepath.Join(filepath.Dir(path), "config.toml")
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-		return nil
+		return RemoveNotifyCommand(configTomlPath)
 	}
 
 	settings, err := common.ReadOrderedSettings(path)
@@ -116,11 +142,11 @@ func Uninstall(path string) error {
 		return err
 	}
 	if _, ok := settings.Get("hooks"); !ok {
-		return nil
+		return RemoveNotifyCommand(configTomlPath)
 	}
 	hooks, err := common.ChildObject(settings, "hooks")
 	if err != nil {
-		return nil
+		return RemoveNotifyCommand(configTomlPath)
 	}
 
 	if err := common.UninstallManagedHooks(&hooks, hookCommandMarker); err != nil {
@@ -133,5 +159,8 @@ func Uninstall(path string) error {
 		return err
 	}
 
-	return common.WriteOrderedSettings(path, settings)
+	if err := common.WriteOrderedSettings(path, settings); err != nil {
+		return err
+	}
+	return RemoveNotifyCommand(configTomlPath)
 }

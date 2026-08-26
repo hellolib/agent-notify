@@ -44,6 +44,7 @@ func NewRootCmd(ctx context.Context, streams Streams) *cobra.Command {
 		newUnfreezeCmd(streams),
 		newHandleClaudeHookCmd(ctx, streams),
 		newHandleCodexHookCmd(ctx, streams),
+		newHandleCodexNotifyCmd(ctx, streams),
 		newHandleZcodeHookCmd(ctx, streams),
 		newHandleGrokHookCmd(ctx, streams),
 		newHandleDroidHookCmd(ctx, streams),

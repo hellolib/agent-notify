@@ -12,9 +12,13 @@ type windowsToastRequest struct {
 	// Agent 是触发通知的 agent 名（claude_code/codex/zcode/grok/droid 等），
 	// 用于经 icon.go 的 AgentLogoPath 解析 per-agent logo 图标路径。
 	Agent        string
+	Workspace    string
 	ClickToFocus bool
 	FocusDebug   bool
 	LogPath      string
+	// ActivationURI 非空时优先于 HWND / workspace / 进程树聚焦，用于直接激活
+	// 支持 deep link 的宿主应用并定位到对应会话。
+	ActivationURI string
 	// FocusCapture 是 SessionStart 缓存的窗口快照 JSON（winfocus {"hwnd","title"}）；
 	// 命中且复核通过时用它拼 anfocus:，否则退回进程树兜底。macOS / Windows 发送端分别
 	// 消费自己的快照格式。
@@ -44,13 +48,15 @@ func (s *WindowsSender) Send(ctx context.Context, msg Message) error {
 		return err
 	}
 	return s.push(ctx, windowsToastRequest{
-		Title:        msg.Title,
-		Body:         s.formatBody(msg),
-		Agent:        msg.Agent,
-		ClickToFocus: s.clickToFocus,
-		FocusDebug:   s.focusDebug,
-		LogPath:      focusHelperLogPath(s.focusDebug),
-		FocusCapture: msg.FocusCapture,
+		Title:         msg.Title,
+		Body:          s.formatBody(msg),
+		Agent:         msg.Agent,
+		Workspace:     msg.Workspace,
+		ClickToFocus:  s.clickToFocus,
+		FocusDebug:    s.focusDebug,
+		LogPath:       focusHelperLogPath(s.focusDebug),
+		ActivationURI: msg.ActivationURI,
+		FocusCapture:  msg.FocusCapture,
 	})
 }
 

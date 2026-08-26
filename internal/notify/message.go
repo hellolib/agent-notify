@@ -10,6 +10,9 @@ type Message struct {
 	Title     string
 	Body      string
 	SourceApp SourceApp
+	// ActivationURI 是点击系统通知时应优先打开的应用协议 URI。它用于已有稳定
+	// deep link 的宿主应用；为空时各平台继续使用窗口捕获和进程树定位。
+	ActivationURI string
 	// FocusWindowID 是 Linux 点击聚焦的目标 X11 窗口 ID（十进制字符串），
 	// 由 dispatch 依据 SessionStart 缓存填充；为空则回退按进程树定位。仅 Linux 使用。
 	FocusWindowID string
