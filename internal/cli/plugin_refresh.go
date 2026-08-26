@@ -1,9 +1,13 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/hellolib/agent-notify/internal/agentintegrations"
+	"github.com/hellolib/agent-notify/internal/codexhooks"
+	"github.com/hellolib/agent-notify/internal/common"
 	"github.com/hellolib/agent-notify/internal/opencodehooks"
 )
 
@@ -19,6 +23,10 @@ func isHeadlessInvocation(args []string) bool {
 	}
 	name := args[0]
 	return strings.HasPrefix(name, "handle-") || name == "linux-notify-wait"
+}
+
+func shouldRefreshCodexNotify(args []string) bool {
+	return !isHeadlessInvocation(args) || len(args) > 0 && args[0] == "handle-codex-hook"
 }
 
 // refreshOpenCodePlugin 把过期的 opencode 插件 JS 重写为当前二进制内嵌的版本。
@@ -38,4 +46,24 @@ func refreshOpenCodePlugin() {
 		return
 	}
 	_, _ = opencodehooks.RefreshPluginIfStale(pluginPath)
+}
+
+// refreshCodexNotifyCommand 修复 Codex Desktop 启动或更新后重新接管顶层 notify 的场景。
+// 仅当 agent-notify 的 Codex hooks 仍安装时才执行，避免卸载后把集成复活。
+func refreshCodexNotifyCommand() {
+	integration := agentintegrations.NewCodexIntegration()
+	hooksPath, err := integration.SettingsPath("user")
+	if err != nil {
+		return
+	}
+	installed, err := integration.IsHookInstalled(hooksPath)
+	if err != nil || !installed {
+		return
+	}
+	binaryPath, err := os.Executable()
+	if err != nil {
+		return
+	}
+	configPath := filepath.Join(filepath.Dir(hooksPath), "config.toml")
+	_ = codexhooks.EnsureNotifyCommand(configPath, common.ResolveBinaryPath(binaryPath))
 }

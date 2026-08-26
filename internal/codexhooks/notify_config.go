@@ -17,7 +17,8 @@ const notifyCommandMarker = "handle-codex-notify"
 var rootNotifyKeyRe = regexp.MustCompile(`^\s*notify\s*=`)
 
 // EnsureNotifyCommand 为没有自定义 notify 的用户启用 IDE/app-server 完成通知。
-// agent-notify 自己的旧路径与 Codex Desktop 注入的内部 turn-ended 命令可安全替换；
+// Codex Desktop 的 turn-ended 命令必须保留在最外层，并通过 --previous-notify 串联
+// agent-notify；否则 Desktop 下次启动或更新时会重新接管 notify，导致 IDE 通知失效。
 // 其它自定义命令保持不动，避免破坏用户已有 webhook/自动化。
 func EnsureNotifyCommand(configTomlPath, binaryPath string) error {
 	data, err := os.ReadFile(configTomlPath)
@@ -37,7 +38,11 @@ func EnsureNotifyCommand(configTomlPath, binaryPath string) error {
 		return nil
 	}
 
-	line := buildNotifyLine(common.ResolveBinaryPath(binaryPath))
+	binaryPath = common.ResolveBinaryPath(binaryPath)
+	line := buildNotifyLine(binaryPath)
+	if argv, ok := notifyArgv(existing); hasNotify && ok && desktopNotifyArgv(argv) {
+		line = buildDesktopNotifyLine(argv, binaryPath)
+	}
 	text := string(data)
 	lines := strings.Split(text, "\n")
 	sectionStart := len(lines)
@@ -110,6 +115,22 @@ func RemoveNotifyCommand(configTomlPath string) error {
 
 func buildNotifyLine(binaryPath string) string {
 	return buildNotifyArgvLine([]string{binaryPath, notifyCommandMarker})
+}
+
+func buildDesktopNotifyLine(argv []string, binaryPath string) string {
+	managedJSON, _ := json.Marshal([]string{binaryPath, notifyCommandMarker})
+	wrapped := append([]string{}, argv...)
+	for i := 2; i < len(wrapped); i++ {
+		if wrapped[i] != "--previous-notify" {
+			continue
+		}
+		if i+1 < len(wrapped) {
+			wrapped[i+1] = string(managedJSON)
+			return buildNotifyArgvLine(wrapped)
+		}
+	}
+	wrapped = append(wrapped, "--previous-notify", string(managedJSON))
+	return buildNotifyArgvLine(wrapped)
 }
 
 func buildNotifyArgvLine(argv []string) string {

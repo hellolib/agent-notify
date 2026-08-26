@@ -60,11 +60,11 @@ func TestEnsureNotifyCommandPreservesDesktopWrappedCustomNotify(t *testing.T) {
 	}
 }
 
-func TestEnsureNotifyCommandReplacesCodexInternalAndManagedCommands(t *testing.T) {
+func TestEnsureNotifyCommandWrapsCodexDesktopCommand(t *testing.T) {
 	for _, initial := range []string{
 		`notify = [ "C:\\runtime\\codex-computer-use.exe", "turn-ended" ]`,
 		`notify = [ "C:\\runtime\\codex-computer-use.exe", "turn-ended", "--previous-notify", "[]" ]`,
-		`notify = [ "/old/agent-notify", "handle-codex-notify" ]`,
+		`notify = [ "C:\\runtime\\codex-computer-use.exe", "turn-ended", "--previous-notify", "[\"/old/agent-notify\",\"handle-codex-notify\"]" ]`,
 	} {
 		path := filepath.Join(t.TempDir(), "config.toml")
 		if err := os.WriteFile(path, []byte(initial+"\n"), 0o644); err != nil {
@@ -74,9 +74,26 @@ func TestEnsureNotifyCommandReplacesCodexInternalAndManagedCommands(t *testing.T
 			t.Fatal(err)
 		}
 		got, _ := os.ReadFile(path)
-		if !strings.Contains(string(got), `/new/agent-notify`) || strings.Contains(string(got), "turn-ended") {
+		if !strings.Contains(string(got), `codex-computer-use.exe`) ||
+			!strings.Contains(string(got), `turn-ended`) ||
+			!strings.Contains(string(got), `--previous-notify`) ||
+			!strings.Contains(string(got), `/new/agent-notify`) {
 			t.Fatalf("config = %q", got)
 		}
+	}
+}
+
+func TestEnsureNotifyCommandReplacesManagedCommandPath(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte(`notify = [ "/old/agent-notify", "handle-codex-notify" ]`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := EnsureNotifyCommand(path, `/new/agent-notify`); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(path)
+	if !strings.Contains(string(got), `/new/agent-notify`) || strings.Contains(string(got), `/old/agent-notify`) {
+		t.Fatalf("config = %q", got)
 	}
 }
 
