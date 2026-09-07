@@ -28,6 +28,15 @@
 npx agent-notify
 ```
 
+也可以直接通过已配置的渠道发送自定义消息：
+
+```bash
+agent-notify send --channel wechat-work --agent omp "部署完成，请检查服务"
+agent-notify send --channel ntfy --agent omp --title "构建结果" --message "构建成功"
+```
+
+`send` 会读取对应 Agent 的渠道配置，并显式发送一条消息，不受该渠道 `enabled` 开关和事件订阅列表限制。支持 `system`、`feishu`、`wechat`、`wechat-work`、`dingtalk`、`bark`、`ntfy` 和 `slack`。
+
 
 ## 功能特性
 ### 支持的通知渠道

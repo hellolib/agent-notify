@@ -30,6 +30,15 @@ Supported delivery channels: **OS-native system notifications**, **Feishu/Lark**
 npx agent-notify
 ```
 
+You can also send a custom message directly through a configured channel:
+
+```bash
+agent-notify send --channel wechat-work --agent omp "Deployment finished; please check the service"
+agent-notify send --channel ntfy --agent omp --title "Build result" --message "Build succeeded"
+```
+
+`send` reads the selected agent's channel configuration and sends explicitly, regardless of that channel's `enabled` flag or event subscription list. Supported channels are `system`, `feishu`, `wechat`, `wechat-work`, `dingtalk`, `bark`, `ntfy`, and `slack`.
+
 
 
 ## Features

@@ -39,6 +39,7 @@ func NewRootCmd(ctx context.Context, streams Streams) *cobra.Command {
 		newDroidCmd(streams),
 		newOpenCodeCmd(streams),
 		newOmpCmd(streams),
+		newSendCmd(ctx, streams),
 		newTestCmd(ctx, streams),
 		newDoctorCmd(streams),
 		newFreezeCmd(streams),
