@@ -16,7 +16,7 @@
 
 ## 项目简介
 
-一个面向 AI Agent 的通知配置工具。支持将 Claude Code、Codex、OpenCode、ZCode (Z.ai)、Grok、Droid 等 Agent 的事件通知推送到飞书、企业微信、钉钉、Bark、ntfy 和系统通知。
+一个面向 AI Agent 的通知配置工具。支持将 Claude Code、Codex、OpenCode、ZCode (Z.ai)、Grok、Droid、OMP (oh-my-pi) 等 Agent 的事件通知推送到飞书、企业微信、钉钉、Bark、ntfy 和系统通知。
 
 <p align="center">
   <img src="assist/demo.gif" alt="Agent Notify 演示" width="800">
@@ -45,12 +45,12 @@ npx agent-notify
 
 ### 支持的事件
 
-| 事件 | Claude Code | Codex | OpenCode | ZCode | Grok | Droid |
-|------|:---:|:---:|:---:|:---:|:----:|:---:|
-| `permission_required` | ✅ | ✅ | ✅ | ✅ |  ✅  | ✅ |
-| `input_required` | ✅ | — | ✅ | — |  ✅  | ✅ |
-| `run_completed` | ✅ | ✅ | ✅ | ✅ |  ✅  | ✅ |
-| `run_failed` | ✅ | — | ✅ | ✅ |  ✅  | — |
+| 事件 | Claude Code | Codex | OpenCode | ZCode | Grok | Droid | OMP |
+|------|:---:|:---:|:---:|:---:|:----:|:---:|:---:|
+| `permission_required` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅* |
+| `input_required` | ✅ | — | ✅ | — | ✅ | ✅ | — |
+| `run_completed` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `run_failed` | ✅ | — | ✅ | ✅ | ✅ | — | ✅ |
 
 说明：
 
@@ -60,6 +60,8 @@ npx agent-notify
 - ZCode 通过 `~/.zcode/cli/config.json` 订阅 `SessionStart`、`PermissionRequest`、`PostToolUseFailure`、`Stop`，映射到 `permission_required`、`run_failed`、`run_completed`。ZCode 没有 `Notification` 事件（因此不支持 `input_required`），且其 hook 配置格式较为严格——无法识别的事件名称会导致整个 hooks 配置被静默丢弃。
 - Grok 通过 `~/.grok/hooks/agent-notify.json` 订阅 `SessionStart`、`Notification`、`Stop`、`StopFailure`、`PostToolUseFailure`。Grok 没有独立的 `PermissionRequest` 事件，带 permission/approval 语义的 `Notification` 会映射为 `permission_required`（表中 *）；其它通知映射为 `input_required`。`StopFailure` / `PostToolUseFailure` 映射为 `run_failed`。
 - Droid 通过 `~/.factory/hooks.json` 订阅 `SessionStart`、`Notification`、`Stop`，映射为 `session_start` / `permission_required`|`input_required` / `run_completed`。Droid 无失败事件，故不支持 `run_failed`。`session_start` 仅用于点击聚焦的窗口捕获，不作为通知事件。
+- OMP 使用原生 TS Extension，而不是 JSON command hook：用户级默认写入 `~/.omp/agent/extensions/agent-notify.ts`，项目级写入 `.omp/extensions/agent-notify.ts`。扩展监听 `session_start`、`tool_approval_requested`、工具失败和 `session_stop`，分别映射到聚焦、`permission_required`、`run_failed` 和 `run_completed`。`permission_required` 只有 OMP 实际启用了工具审批并产生审批请求时才会触发；OMP 没有稳定的普通输入等待事件，因此不支持 `input_required`。
+- OMP 用户目录会遵循 `OMP_PROFILE` / `PI_PROFILE` profile，以及 `PI_CODING_AGENT_DIR` 覆盖路径。
 - **`SessionStart` 不产生任何通知。** 它在所有 agent 上被订阅，仅用于在会话启动时捕获终端窗口，为 Linux 的窗口级点击聚焦提供支持（见下方「点击聚焦」一节）；在 macOS/Windows 上该 hook 为空操作。
 
 ### 支持的平台
@@ -114,6 +116,7 @@ Agent 集成配置位置：
 - ZCode: `~/.zcode/cli/config.json`（写入 `hooks.events.<Event>` + `hooks.enabled` → 命令 `agent-notify handle-zcode-hook`；重启 ZCode 使配置生效）
 - Grok: `~/.grok/hooks/agent-notify.json`（写入 hooks → 命令 `agent-notify handle-grok-hook`；项目 scope 为 `.grok/hooks/agent-notify.json`）
 - Droid: `~/.factory/hooks.json`（写入 hooks → 命令 `agent-notify handle-droid-hook`；项目 scope 为 `.factory/hooks.json`）
+- OMP: `~/.omp/agent/extensions/agent-notify.ts`（写入原生 TS Extension；项目 scope 为 `.omp/extensions/agent-notify.ts`）
 
 ### 企业微信机器人绑定小技巧
 

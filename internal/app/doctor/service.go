@@ -31,6 +31,7 @@ type Service struct {
 	grokIntegration     agentintegrations.Integration
 	droidIntegration    agentintegrations.Integration
 	opencodeIntegration agentintegrations.Integration
+	ompIntegration      agentintegrations.Integration
 }
 
 // NewService creates a new doctor service.
@@ -42,6 +43,7 @@ func NewService(opts ...Option) *Service {
 		grokIntegration:     agentintegrations.NewGrokIntegration(),
 		droidIntegration:    agentintegrations.NewDroidIntegration(),
 		opencodeIntegration: agentintegrations.NewOpenCodeIntegration(),
+		ompIntegration:      agentintegrations.NewOmpIntegration(),
 	}
 
 	for _, opt := range opts {
@@ -82,6 +84,11 @@ func WithDroidIntegration(i agentintegrations.Integration) Option {
 // WithOpenCodeIntegration sets the OpenCode integration.
 func WithOpenCodeIntegration(i agentintegrations.Integration) Option {
 	return func(s *Service) { s.opencodeIntegration = i }
+}
+
+// WithOmpIntegration sets the OMP integration.
+func WithOmpIntegration(i agentintegrations.Integration) Option {
+	return func(s *Service) { s.ompIntegration = i }
 }
 
 type DiagnosticStatus string
@@ -156,6 +163,16 @@ type DiagnosticsResult struct {
 	OpenCodeBarkEnabled       bool
 	OpenCodeNtfyEnabled       bool
 	OpenCodeSlackEnabled      bool
+	OMPInstalled              bool
+	OMPHookInstalled          bool
+	OMPFeishuEnabled          bool
+	OMPSystemEnabled          bool
+	OMPWechatEnabled          bool
+	OMPWechatWorkEnabled      bool
+	OMPDingTalkEnabled        bool
+	OMPBarkEnabled            bool
+	OMPNtfyEnabled            bool
+	OMPSlackEnabled           bool
 	DroidFeishuEnabled        bool
 	DroidSystemEnabled        bool
 	DroidWechatEnabled        bool
@@ -170,6 +187,7 @@ type DiagnosticsResult struct {
 	GrokIntegrationStatus     DiagnosticStatus
 	DroidIntegrationStatus    DiagnosticStatus
 	OpenCodeIntegrationStatus DiagnosticStatus
+	OMPIntegrationStatus      DiagnosticStatus
 
 	// Per-agent system-channel focus precision (effective "app"|"window").
 	ClaudeSystemFocusPrecision   string
@@ -178,6 +196,7 @@ type DiagnosticsResult struct {
 	GrokSystemFocusPrecision     string
 	DroidSystemFocusPrecision    string
 	OpenCodeSystemFocusPrecision string
+	OMPSystemFocusPrecision      string
 
 	// Temporary notification freeze (from freeze.json).
 	FreezeActive   bool
@@ -197,6 +216,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.GrokInstalled = s.grokIntegration != nil && s.grokIntegration.DetectInstalled()
 	result.DroidInstalled = s.droidIntegration != nil && s.droidIntegration.DetectInstalled()
 	result.OpenCodeInstalled = s.opencodeIntegration != nil && s.opencodeIntegration.DetectInstalled()
+	result.OMPInstalled = s.ompIntegration != nil && s.ompIntegration.DetectInstalled()
 
 	// System notification detection
 	result.SystemNotifyAvailable, result.SystemNotifyName = detectSystemNotification()
@@ -210,7 +230,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.ConfigExists = cfgErr == nil
 
 	// hook 已注册但 command 指向的二进制不存在时,集成实际不可用(issue #34)
-	var claudeBinaryMissing, codexBinaryMissing, zcodeBinaryMissing, grokBinaryMissing, droidBinaryMissing, opencodeBinaryMissing bool
+	var claudeBinaryMissing, codexBinaryMissing, zcodeBinaryMissing, grokBinaryMissing, droidBinaryMissing, opencodeBinaryMissing, ompBinaryMissing bool
 
 	// Claude hooks settings
 	claudeSettingsPath, _ := s.claudeIntegration.SettingsPath("user")
@@ -268,6 +288,16 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 		}
 	}
 
+	// OMP registers a native TypeScript extension rather than JSON hooks.
+	if s.ompIntegration != nil {
+		ompSettingsPath, _ := s.ompIntegration.SettingsPath("user")
+		if ompSettingsPath != "" {
+			installed, err := s.ompIntegration.IsHookInstalled(ompSettingsPath)
+			result.OMPHookInstalled = err == nil && installed
+			ompBinaryMissing = result.OMPHookInstalled && extensionBinaryMissing(ompSettingsPath)
+		}
+	}
+
 	// Config values
 	result.ClaudeFeishuEnabled = cfgLoadErr == nil && cfg.Notify.ClaudeCode.Channels.Feishu.Enabled
 	result.ClaudeSystemEnabled = cfgLoadErr == nil && cfg.Notify.ClaudeCode.Channels.System.Enabled
@@ -317,6 +347,14 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.OpenCodeBarkEnabled = cfgLoadErr == nil && cfg.Notify.OpenCode.Channels.Bark.Enabled
 	result.OpenCodeNtfyEnabled = cfgLoadErr == nil && cfg.Notify.OpenCode.Channels.Ntfy.Enabled
 	result.OpenCodeSlackEnabled = cfgLoadErr == nil && cfg.Notify.OpenCode.Channels.Slack.Enabled
+	result.OMPFeishuEnabled = cfgLoadErr == nil && cfg.Notify.OMP.Channels.Feishu.Enabled
+	result.OMPSystemEnabled = cfgLoadErr == nil && cfg.Notify.OMP.Channels.System.Enabled
+	result.OMPWechatEnabled = cfgLoadErr == nil && cfg.Notify.OMP.Channels.Wechat.Enabled
+	result.OMPWechatWorkEnabled = cfgLoadErr == nil && cfg.Notify.OMP.Channels.WechatWork.Enabled
+	result.OMPDingTalkEnabled = cfgLoadErr == nil && cfg.Notify.OMP.Channels.DingTalk.Enabled
+	result.OMPBarkEnabled = cfgLoadErr == nil && cfg.Notify.OMP.Channels.Bark.Enabled
+	result.OMPNtfyEnabled = cfgLoadErr == nil && cfg.Notify.OMP.Channels.Ntfy.Enabled
+	result.OMPSlackEnabled = cfgLoadErr == nil && cfg.Notify.OMP.Channels.Slack.Enabled
 
 	// Per-agent effective system focus precision, read fresh from the
 	// AGENT_NOTIFY_FOCUS_PRECISION environment variable.
@@ -326,6 +364,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.GrokSystemFocusPrecision = config.FocusPrecisionFromEnv()
 	result.DroidSystemFocusPrecision = config.FocusPrecisionFromEnv()
 	result.OpenCodeSystemFocusPrecision = config.FocusPrecisionFromEnv()
+	result.OMPSystemFocusPrecision = config.FocusPrecisionFromEnv()
 
 	result.ClaudeIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.ClaudeInstalled, result.ClaudeHookInstalled, claudeBinaryMissing)
 	result.CodexIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.CodexInstalled, result.CodexHookInstalled, codexBinaryMissing)
@@ -333,6 +372,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.GrokIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.GrokInstalled, result.GrokHookInstalled, grokBinaryMissing)
 	result.DroidIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.DroidInstalled, result.DroidHookInstalled, droidBinaryMissing)
 	result.OpenCodeIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.OpenCodeInstalled, result.OpenCodeHookInstalled, opencodeBinaryMissing)
+	result.OMPIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.OMPInstalled, result.OMPHookInstalled, ompBinaryMissing)
 
 	// Feishu CLI
 	_, feishuCLIConfigErr := feishucli.ParseConfig()
@@ -441,6 +481,13 @@ func (s *Service) Print(output OutputWriter, result *DiagnosticsResult) {
 	opencodeNotifyStatus := padRight(diagnosticStatusLabel(result.OpenCodeIntegrationStatus), 14)
 	output.Writef(i18n.T("doctor.row_format")+"\n", "OpenCode", opencodeInstallStatus, opencodeNotifyStatus)
 
+	ompInstallStatus := padRight(i18n.T("status.not_installed"), 8)
+	if result.OMPInstalled {
+		ompInstallStatus = padRight(i18n.T("status.installed"), 8)
+	}
+	ompNotifyStatus := padRight(diagnosticStatusLabel(result.OMPIntegrationStatus), 14)
+	output.Writef(i18n.T("doctor.row_format")+"\n", "OMP", ompInstallStatus, ompNotifyStatus)
+
 	output.Writef(i18n.T("doctor.agent_sep") + "\n")
 	output.Writef("\n")
 
@@ -511,6 +558,16 @@ func (s *Service) Print(output OutputWriter, result *DiagnosticsResult) {
 		boolIcon(result.OpenCodeNtfyEnabled),
 		boolIcon(result.OpenCodeSlackEnabled),
 	)
+	output.Writef(channelRow, "OMP",
+		boolIcon(result.OMPFeishuEnabled),
+		boolIcon(result.OMPSystemEnabled),
+		boolIcon(result.OMPWechatEnabled),
+		boolIcon(result.OMPWechatWorkEnabled),
+		boolIcon(result.OMPDingTalkEnabled),
+		boolIcon(result.OMPBarkEnabled),
+		boolIcon(result.OMPNtfyEnabled),
+		boolIcon(result.OMPSlackEnabled),
+	)
 	output.Writef(i18n.T("doctor.channel_sep") + "\n")
 	output.Writef("\n")
 
@@ -576,7 +633,7 @@ func focusPrecisionI18nKey(status string) string {
 }
 
 // firstEnabledAgentSystemPrecision returns the effective system focus precision
-// of the first agent (Claude, Codex, ZCode, Grok, Droid, OpenCode) with Channels.System.Enabled,
+// of the first agent (Claude, Codex, ZCode, Grok, Droid, OpenCode, OMP) with Channels.System.Enabled,
 // or "app" when no agent has system notifications enabled.
 func firstEnabledAgentSystemPrecision(result *DiagnosticsResult) string {
 	precision := config.FocusPrecisionApp
@@ -593,6 +650,8 @@ func firstEnabledAgentSystemPrecision(result *DiagnosticsResult) string {
 		precision = result.DroidSystemFocusPrecision
 	case result.OpenCodeSystemEnabled:
 		precision = result.OpenCodeSystemFocusPrecision
+	case result.OMPSystemEnabled:
+		precision = result.OMPSystemFocusPrecision
 	}
 	if precision != config.FocusPrecisionWindow {
 		return config.FocusPrecisionApp

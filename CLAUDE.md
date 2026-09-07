@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Agent Notify hooks into lifecycle events of AI coding agents (Claude Code, Codex, ZCode, Grok, Droid, OpenCode) and pushes notifications to desktop and phone (system notifications, Feishu, WeChat Work, DingTalk, Bark, ntfy, Slack). Distributed as a Go binary via an npx launcher (`npx agent-notify`) that downloads the platform binary from GitHub Releases into `~/.agent-notify/`.
+Agent Notify hooks into lifecycle events of AI coding agents (Claude Code, Codex, ZCode, Grok, Droid, OpenCode, OMP/oh-my-pi) and pushes notifications to desktop and phone (system notifications, Feishu, WeChat Work, DingTalk, Bark, ntfy, Slack). Distributed as a Go binary via an npx launcher (`npx agent-notify`) that downloads the platform binary from GitHub Releases into `~/.agent-notify/`.
 
 ## Commands
 
@@ -27,14 +27,14 @@ The release workflow (`.github/workflows/release.yml`) builds a 6-target matrix 
 
 The binary has two personalities:
 1. **Interactive TUI** (`agent-notify` / `init`, `doctor`, `test`) — setup wizard that writes `~/.agent-notify/config.yaml` and installs hooks into each agent's config file.
-2. **Hook handlers** (`handle-claude-hook`, `handle-codex-hook`, `handle-zcode-hook`, `handle-grok-hook`, `handle-droid-hook`, `handle-opencode-hook`) — invoked by the agents themselves; read a hook event JSON from stdin, normalize it, and fan out notifications. These run headless and must never block or prompt.
+2. **Hook handlers** (`handle-claude-hook`, `handle-codex-hook`, `handle-zcode-hook`, `handle-grok-hook`, `handle-droid-hook`, `handle-opencode-hook`, `handle-omp-hook`) — invoked by the agents themselves; read a hook event JSON from stdin, normalize it, and fan out notifications. These run headless and must never block or prompt.
 
 Event flow: agent fires hook → `internal/cli/handler_*.go` → `internal/<agent>hooks/event.go` parses stdin JSON and maps agent-specific events to normalized events (`permission_required`, `input_required`, `run_completed`, `run_failed`, `session_start`) → `internal/agenthooks.Dispatch` → `internal/notify.Dispatcher.SendAll` fans out to enabled channel `Sender`s with dedupe.
 
 Key packages:
 
 - `internal/cli` — cobra commands, setup wizard menus/prompts (uses survey/v2).
-- `internal/claudehooks`, `codexhooks`, `zcodehooks`, `grokhooks`, `droidhooks`, `opencodehooks` — one package per agent, each with the same shape: `event.go` (stdin JSON → normalized `notify.Message`), `settings.go` (read/write hook registration in that agent's config file: `~/.claude/settings.json`, `~/.codex/hooks.json`, `~/.zcode/cli/config.json`, `~/.grok/hooks/agent-notify.json`), `handler.go` (glue). Adding an agent means adding a package with this shape plus entries in `internal/agentintegrations` and `internal/agenthooks/dispatch.go:buildSenders`.
+- `internal/claudehooks`, `codexhooks`, `zcodehooks`, `grokhooks`, `droidhooks`, `opencodehooks`, `omphooks` — one package per agent, each with the same shape: `event.go` (stdin JSON → normalized `notify.Message`), settings/extension installation, and `handler.go` (glue). Adding an agent means adding a package with this shape plus entries in `internal/agentintegrations` and `internal/agenthooks/dispatch.go:buildSenders`.
 - `internal/agenthooks` — `Dispatch`: detects source app from inherited env, resolves workspace, handles the `session_start` side-effect event (focus-window capture, never notifies), builds senders from per-agent config, dedupes, sends.
 - `internal/notify` — one file per channel implementing `Sender`; `dispatcher.go` dedupes per (agent, session, event, content-hash, sender) via `internal/state`. System notifications are per-OS (`macos.go`, `linux.go`, `windows.go` + build-tagged variants).
 - `internal/config` — `~/.agent-notify/config.yaml` schema. New installs start with all agents/channels disabled until the wizard enables them. `Load` unmarshals the YAML *into* `Default()`, so any key absent from a user's file inherits the default automatically — adding a field or an agent needs no change to `Load`. (It previously unmarshalled into a zero-value struct and hand-patched a list of fields; every field missed there silently got the Go zero value instead of its default, which is how `click_to_focus` ended up persisted as `false` for agents added after a user's config was first written.) When a default's *meaning* changes for existing files, bump `currentConfigVersion` and add a version-gated migration in `Load` (see `migrateV1ToV2`).

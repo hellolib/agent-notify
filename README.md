@@ -16,7 +16,7 @@
 
 ## Overview
 
-Agent Notify hooks into the lifecycle events of AI coding agents (Claude Code, Codex, OpenCode, ZCode, Grok, Droid, etc.) and pushes them to your phone and desktop. Get notified the moment your agent needs permission, is waiting for input, finishes a task, or fails — so you never have to babysit a running agent.
+Agent Notify hooks into the lifecycle events of AI coding agents (Claude Code, Codex, OpenCode, ZCode, Grok, Droid, OMP/oh-my-pi, etc.) and pushes them to your phone and desktop. Get notified the moment your agent needs permission, finishes a task, or fails — so you never have to babysit a running agent.
 
 Supported delivery channels: **OS-native system notifications**, **Feishu/Lark**, **WeChat Work (企业微信)**, **DingTalk (钉钉)**, **Bark (iOS)**, and **ntfy**.
 
@@ -50,12 +50,12 @@ npx agent-notify
 
 ### Supported Events
 
-| Event | Claude Code | Codex | OpenCode | ZCode | Grok | Droid |
-|------|:---:|:---:|:---:|:---:|:----:|:---:|
-| `permission_required` | ✅ | ✅ | ✅ | ✅ |  ✅  | ✅ |
-| `input_required` | ✅ | — | ✅ | — |  ✅  | ✅ |
-| `run_completed` | ✅ | ✅ | ✅ | ✅ |  ✅  | ✅ |
-| `run_failed` | ✅ | — | ✅ | ✅ |  ✅  | — |
+| Event | Claude Code | Codex | OpenCode | ZCode | Grok | Droid | OMP |
+|------|:---:|:---:|:---:|:---:|:----:|:---:|:---:|
+| `permission_required` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅* |
+| `input_required` | ✅ | — | ✅ | — | ✅ | ✅ | — |
+| `run_completed` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `run_failed` | ✅ | — | ✅ | ✅ | ✅ | — | ✅ |
 
 Notes:
 
@@ -65,6 +65,8 @@ Notes:
 - ZCode subscribes via `~/.zcode/cli/config.json`: `SessionStart`, `PermissionRequest`, `PostToolUseFailure`, and `Stop`, mapped to `permission_required`, `run_failed`, and `run_completed`. ZCode has no `Notification` event (so no `input_required`), and its hook schema is strict — an unknown event name will cause the whole hooks config to be silently dropped.
 - Grok subscribes via `~/.grok/hooks/agent-notify.json`: `SessionStart`, `Notification`, `Stop`, `StopFailure`, and `PostToolUseFailure`. There is no dedicated `PermissionRequest` event; `Notification`s with permission/approval semantics map to `permission_required` (marked *), others map to `input_required`. `StopFailure` / `PostToolUseFailure` map to `run_failed`.
 - Droid subscribes via `~/.factory/hooks.json`: `SessionStart`, `Notification`, `Stop`, mapped to `session_start` / `permission_required`|`input_required` / `run_completed`. Droid has no failure event, so `run_failed` is not supported. `session_start` is only used for click-to-focus window capture, not as a notification event.
+- OMP uses a native TypeScript extension instead of a JSON command hook: user scope writes `~/.omp/agent/extensions/agent-notify.ts`, while project scope writes `.omp/extensions/agent-notify.ts`. It listens to `session_start`, `tool_approval_requested`, tool failures, and `session_stop`, mapping them to focus capture, `permission_required`, `run_failed`, and `run_completed`. `permission_required` is emitted only when OMP actually requests tool approval; OMP has no stable ordinary-input-waiting event, so `input_required` is not supported.
+- OMP respects `OMP_PROFILE` / `PI_PROFILE` profiles and the `PI_CODING_AGENT_DIR` override.
 - **`SessionStart` does not produce a notification.** It is subscribed on every agent solely to capture the terminal window at session start, which powers Linux window-level [Click-to-Focus](#click-to-focus). On macOS/Windows the SessionStart hook is a no-op.
 
 ### Supported Platforms
@@ -116,6 +118,7 @@ Agent integration config locations:
 - ZCode: `~/.zcode/cli/config.json` (writes `hooks.events.<Event>` + `hooks.enabled` → command `agent-notify handle-zcode-hook`; restart ZCode for the config to take effect)
 - Grok: `~/.grok/hooks/agent-notify.json` (writes hooks → command `agent-notify handle-grok-hook`; project scope uses `.grok/hooks/agent-notify.json`)
 - Droid: `~/.factory/hooks.json` (writes hooks → command `agent-notify handle-droid-hook`; project scope uses `.factory/hooks.json`)
+- OMP: `~/.omp/agent/extensions/agent-notify.ts` (writes a native TypeScript extension; project scope uses `.omp/extensions/agent-notify.ts`)
 
 ### WeChat Work Bot Binding Tip
 

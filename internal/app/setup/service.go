@@ -42,6 +42,7 @@ type Service struct {
 	grokIntegration     agentintegrations.Integration
 	droidIntegration    agentintegrations.Integration
 	opencodeIntegration agentintegrations.Integration
+	ompIntegration      agentintegrations.Integration
 	feishuPreparer      FeishuPreparer
 	configLoader        ConfigLoader
 }
@@ -69,6 +70,7 @@ func NewService(opts ...Option) *Service {
 		grokIntegration:     agentintegrations.NewGrokIntegration(),
 		droidIntegration:    agentintegrations.NewDroidIntegration(),
 		opencodeIntegration: agentintegrations.NewOpenCodeIntegration(),
+		ompIntegration:      agentintegrations.NewOmpIntegration(),
 	}
 
 	for _, opt := range opts {
@@ -109,6 +111,11 @@ func WithDroidIntegration(i agentintegrations.Integration) Option {
 // WithOpenCodeIntegration sets the OpenCode integration.
 func WithOpenCodeIntegration(i agentintegrations.Integration) Option {
 	return func(s *Service) { s.opencodeIntegration = i }
+}
+
+// WithOmpIntegration sets the OMP integration.
+func WithOmpIntegration(i agentintegrations.Integration) Option {
+	return func(s *Service) { s.ompIntegration = i }
 }
 
 // WithFeishuPreparer sets the Feishu preparer.
@@ -187,6 +194,17 @@ func opencodeEventOptionsFn() []PromptOption {
 	return []PromptOption{
 		{Label: i18n.T("event.permission_required"), Value: "permission_required"},
 		{Label: i18n.T("event.input_required"), Value: "input_required"},
+		{Label: i18n.T("event.run_completed"), Value: "run_completed"},
+		{Label: i18n.T("event.run_failed"), Value: "run_failed"},
+	}
+}
+
+// ompEventOptionsFn returns the events that OMP can map without guessing.
+// OMP's input event means that input was submitted, not that the agent is
+// waiting for input, so input_required is deliberately omitted.
+func ompEventOptionsFn() []PromptOption {
+	return []PromptOption{
+		{Label: i18n.T("event.permission_required"), Value: "permission_required"},
 		{Label: i18n.T("event.run_completed"), Value: "run_completed"},
 		{Label: i18n.T("event.run_failed"), Value: "run_failed"},
 	}
@@ -374,6 +392,19 @@ func (s *Service) disableAgentNotification(cfg config.Config, path, agent string
 		cfg.Notify.OpenCode.Channels.Slack.WebhookURL = ""
 		cfg.Notify.OpenCode.Events = nil
 		cfg.Agent.OpenCode.Enabled = false
+	case "omp":
+		cfg.Notify.OMP.Channels.Feishu.Enabled = false
+		cfg.Notify.OMP.Channels.System.Enabled = false
+		cfg.Notify.OMP.Channels.Wechat.Enabled = false
+		cfg.Notify.OMP.Channels.Wechat.WebhookURL = ""
+		cfg.Notify.OMP.Channels.WechatWork.Enabled = false
+		cfg.Notify.OMP.Channels.DingTalk.Enabled = false
+		cfg.Notify.OMP.Channels.Bark.Enabled = false
+		cfg.Notify.OMP.Channels.Ntfy.Enabled = false
+		cfg.Notify.OMP.Channels.Slack.Enabled = false
+		cfg.Notify.OMP.Channels.Slack.WebhookURL = ""
+		cfg.Notify.OMP.Events = nil
+		cfg.Agent.OMP.Enabled = false
 	}
 
 	if err := s.saveConfig(path, cfg); err != nil {
@@ -402,6 +433,8 @@ func agentName(agent string) string {
 		return "Droid"
 	case "opencode":
 		return "OpenCode"
+	case "omp":
+		return "OMP (oh-my-pi)"
 	default:
 		return agent
 	}

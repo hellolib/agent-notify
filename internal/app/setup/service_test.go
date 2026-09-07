@@ -138,6 +138,7 @@ func TestService_NoAgentsDetected(t *testing.T) {
 		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
 		WithDroidIntegration(&mockIntegration{name: "Droid", detectInstalled: false}),
 		WithOpenCodeIntegration(&mockIntegration{name: "OpenCode", detectInstalled: false}),
+		WithOmpIntegration(&mockIntegration{name: "OMP (oh-my-pi)", detectInstalled: false}),
 	)
 
 	prompter := &mockPrompter{}

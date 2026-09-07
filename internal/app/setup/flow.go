@@ -18,6 +18,7 @@ const (
 	agentGrok       = "grok"
 	agentDroid      = "droid"
 	agentOpencode   = "opencode"
+	agentOMP        = "omp"
 	channelSystem   = "system"
 	channelFeishu   = "feishu"
 	channelWechat   = "wechat"
@@ -77,7 +78,7 @@ type configuredAgent struct {
 func (s *Service) selectAgent(prompter Prompter, cfg config.Config) (string, error) {
 	agentOptions, defaultAgent := s.agentOptions(cfg)
 	if len(agentOptions) == 0 {
-		return "", errors.New("Claude Code, Codex, ZCode, Grok, Droid or OpenCode not detected; please install one first")
+		return "", errors.New("Claude Code, Codex, ZCode, Grok, Droid, OpenCode or OMP not detected; please install one first")
 	}
 	if defaultAgent == "" {
 		defaultAgent = agentOptions[0].Value
@@ -122,6 +123,12 @@ func (s *Service) agentOptions(cfg config.Config) ([]PromptOption, string) {
 		options = append(options, PromptOption{Label: "OpenCode", Value: agentOpencode})
 		if cfg.Agent.OpenCode.Enabled && defaultAgent == "" {
 			defaultAgent = agentOpencode
+		}
+	}
+	if s.ompIntegration != nil && s.ompIntegration.DetectInstalled() {
+		options = append(options, PromptOption{Label: "OMP (oh-my-pi)", Value: agentOMP})
+		if cfg.Agent.OMP.Enabled && defaultAgent == "" {
+			defaultAgent = agentOMP
 		}
 	}
 	return options, defaultAgent
@@ -194,6 +201,8 @@ func eventOptionsForAgent(agent string) []PromptOption {
 		return droidEventOptionsFn()
 	case agentOpencode:
 		return opencodeEventOptionsFn()
+	case agentOMP:
+		return ompEventOptionsFn()
 	default:
 		return codexEventOptionsFn()
 	}
@@ -211,6 +220,8 @@ func channelsForAgent(cfg config.Config, agent string) config.ChannelsConfig {
 		return cfg.Notify.Droid.Channels
 	case agentOpencode:
 		return cfg.Notify.OpenCode.Channels
+	case agentOMP:
+		return cfg.Notify.OMP.Channels
 	default:
 		return cfg.Notify.Codex.Channels
 	}
@@ -228,6 +239,8 @@ func eventsForAgent(cfg config.Config, agent string) []string {
 		return cfg.Notify.Droid.Events
 	case agentOpencode:
 		return cfg.Notify.OpenCode.Events
+	case agentOMP:
+		return cfg.Notify.OMP.Events
 	default:
 		return cfg.Notify.Codex.Events
 	}
@@ -247,6 +260,8 @@ func (s *Service) configureAgent(req configureAgentRequest) (configuredAgent, er
 		return s.configureDroid(req)
 	case agentOpencode:
 		return s.configureOpenCode(req)
+	case agentOMP:
+		return s.configureOMP(req)
 	default:
 		return configuredAgent{}, fmt.Errorf("unsupported agent: %s", req.agent)
 	}
@@ -443,6 +458,39 @@ func (s *Service) configureOpenCode(req configureAgentRequest) (configuredAgent,
 	next.Agent.OpenCode.InstalledPaths = config.RecordInstalledPath(
 		next.Agent.OpenCode.InstalledPaths, settingsPath)
 	next.Agent.OpenCode.Enabled = true
+	return configuredAgent{cfg: next, settingsPath: settingsPath}, nil
+}
+
+// configureOMP installs the native OMP TypeScript extension under the selected
+// OMP user/profile or project extension directory.
+func (s *Service) configureOMP(req configureAgentRequest) (configuredAgent, error) {
+	next := req.cfg
+	next.Notify.OMP.Channels = applyChannelSelection(next.Notify.OMP.Channels, req.channels)
+	next.Notify.OMP.Events = dedupeStrings(req.events)
+	if err := s.prepareSelectedChannels(req.ctx, req.channels); err != nil {
+		return configuredAgent{}, err
+	}
+	channels, err := promptWebhookURLs(req.prompter, next.Notify.OMP.Channels, req.channels)
+	if err != nil {
+		return configuredAgent{}, err
+	}
+	next.Notify.OMP.Channels = channels
+
+	agentScope := normalizedInstallScope(next.Agent.OMP.InstallScope)
+	settingsPath, err := s.ompIntegration.SettingsPath(agentScope)
+	if err != nil {
+		return configuredAgent{}, fmt.Errorf("%s: %w", i18n.T("setup.omp_hooks_err"), err)
+	}
+	resolvedBinary := common.ResolveBinaryPath(req.binaryPath)
+	if err := s.ompIntegration.Install(settingsPath, resolvedBinary); err != nil {
+		return configuredAgent{}, fmt.Errorf("%s: %w", i18n.T("setup.omp_install_err"), err)
+	}
+	req.output.Writef(i18n.T("setup.omp_hooks_done"), settingsPath)
+	req.output.Writef(i18n.T("setup.omp_tip"))
+	next.Agent.OMP.InstallScope = agentScope
+	next.Agent.OMP.InstalledPaths = config.RecordInstalledPath(
+		next.Agent.OMP.InstalledPaths, settingsPath)
+	next.Agent.OMP.Enabled = true
 	return configuredAgent{cfg: next, settingsPath: settingsPath}, nil
 }
 
