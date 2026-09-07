@@ -78,6 +78,7 @@ func runInitFlow(ctx context.Context, streams Streams, prompter Prompter, config
 		setup.WithGrokIntegration(agentintegrations.NewGrokIntegration()),
 		setup.WithDroidIntegration(agentintegrations.NewDroidIntegration()),
 		setup.WithOpenCodeIntegration(agentintegrations.NewOpenCodeIntegration()),
+		setup.WithOmpIntegration(agentintegrations.NewOmpIntegration()),
 		setup.WithFeishuPreparer(&feishuPreparerAdapter{}),
 	)
 
@@ -243,6 +244,9 @@ func runTestWechatWork(ctx context.Context, streams Streams) error {
 		webhookURL = cfg.Notify.Droid.Channels.WechatWork.WebhookURL
 	}
 	if webhookURL == "" {
+		webhookURL = cfg.Notify.OMP.Channels.WechatWork.WebhookURL
+	}
+	if webhookURL == "" {
 		return fmt.Errorf("%s", i18n.T("err.wechat_not_configured"))
 	}
 
@@ -274,6 +278,9 @@ func runInitWechatWork(streams Streams, prompter Prompter) error {
 	}
 	if currentURL == "" {
 		currentURL = cfg.Notify.Droid.Channels.WechatWork.WebhookURL
+	}
+	if currentURL == "" {
+		currentURL = cfg.Notify.OMP.Channels.WechatWork.WebhookURL
 	}
 
 	webhookURL, err := prompter.Input(i18n.T("prompt.wechat_webhook"), currentURL)
@@ -399,6 +406,15 @@ func printCurrentNotifyConfig(streams Streams) error {
 		statusIcon(cfg.Notify.OpenCode.Channels.Bark.Enabled),
 		statusIcon(cfg.Notify.OpenCode.Channels.Ntfy.Enabled),
 		statusIcon(cfg.Notify.OpenCode.Channels.Slack.Enabled))
+	fmt.Fprintf(streams.Stdout, i18n.T("view.row_format")+"\n", "OMP",
+		statusIcon(cfg.Notify.OMP.Channels.Feishu.Enabled),
+		statusIcon(cfg.Notify.OMP.Channels.System.Enabled),
+		statusIcon(cfg.Notify.OMP.Channels.Wechat.Enabled),
+		statusIcon(cfg.Notify.OMP.Channels.WechatWork.Enabled),
+		statusIcon(cfg.Notify.OMP.Channels.DingTalk.Enabled),
+		statusIcon(cfg.Notify.OMP.Channels.Bark.Enabled),
+		statusIcon(cfg.Notify.OMP.Channels.Ntfy.Enabled),
+		statusIcon(cfg.Notify.OMP.Channels.Slack.Enabled))
 	fmt.Fprintln(streams.Stdout, i18n.T("view.separator"))
 
 	return nil

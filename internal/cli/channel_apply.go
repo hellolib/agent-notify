@@ -19,4 +19,5 @@ func applyChannelToAgents(cfg *config.Config, apply func(agentEnabled bool, noti
 	apply(cfg.Agent.Grok.Enabled, &cfg.Notify.Grok)
 	apply(cfg.Agent.Droid.Enabled, &cfg.Notify.Droid)
 	apply(cfg.Agent.OpenCode.Enabled, &cfg.Notify.OpenCode)
+	apply(cfg.Agent.OMP.Enabled, &cfg.Notify.OMP)
 }

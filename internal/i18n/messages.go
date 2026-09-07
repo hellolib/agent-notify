@@ -194,6 +194,10 @@ var catalog = map[string]map[Lang]string{
 	"setup.opencode_hooks_err":   {ZhCN: "获取 opencode 插件路径失败", EnUS: "failed to get OpenCode plugin path"},
 	"setup.opencode_install_err": {ZhCN: "安装 opencode 插件失败", EnUS: "failed to install OpenCode plugin"},
 	"setup.opencode_hooks_done":  {ZhCN: "opencode 插件安装: %s\n", EnUS: "OpenCode plugin installed: %s\n"},
+	"setup.omp_tip":              {ZhCN: "提示: 重启 OMP 后扩展自动加载；权限通知需要 OMP 启用工具审批模式\n", EnUS: "Tip: Restart OMP to load the extension; permission notifications require OMP tool approvals\n"},
+	"setup.omp_hooks_err":        {ZhCN: "获取 OMP 扩展路径失败", EnUS: "failed to get OMP extension path"},
+	"setup.omp_install_err":      {ZhCN: "安装 OMP 扩展失败", EnUS: "failed to install OMP extension"},
+	"setup.omp_hooks_done":       {ZhCN: "OMP 扩展安装: %s\n", EnUS: "OMP extension installed: %s\n"},
 
 	// ── Doctor: focus precision ───────────────────────────────
 	"doctor.item_focus_precision":           {ZhCN: "聚焦精度", EnUS: "Focus Precision"},

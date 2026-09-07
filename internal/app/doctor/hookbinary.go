@@ -3,10 +3,33 @@ package doctor
 import (
 	"encoding/json"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/hellolib/agent-notify/internal/common"
 )
+
+var extensionBinaryRe = regexp.MustCompile(`const BINARY = "([^"]+)"`)
+
+// extensionBinaryMissing checks the baked binary path in the OMP TypeScript
+// extension. Unlike JSON command hooks, OMP stores the executable as a source
+// constant in the installed extension.
+func extensionBinaryMissing(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	match := extensionBinaryRe.FindSubmatch(data)
+	if len(match) != 2 {
+		return false
+	}
+	binPath := string(match[1])
+	if !strings.ContainsAny(binPath, `/\\`) {
+		return false
+	}
+	_, err = os.Stat(binPath)
+	return os.IsNotExist(err)
+}
 
 // hookBinaryPath 从 agent 的配置文件里取出已注册 hook 命令指向的二进制路径。
 // 四个 agent 的配置都是 JSON,只是 hook 数组的嵌套深度不同,所以递归遍历

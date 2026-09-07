@@ -27,6 +27,7 @@ type AgentConfig struct {
 	Grok       AgentTargetConfig `yaml:"grok"`        // Grok 配置
 	Droid      AgentTargetConfig `yaml:"droid"`       // Droid 配置
 	OpenCode   AgentTargetConfig `yaml:"opencode"`    // OpenCode 配置
+	OMP        AgentTargetConfig `yaml:"omp"`         // OMP (oh-my-pi) 配置
 }
 
 // AgentTargetConfig holds configuration for a specific agent.
@@ -60,6 +61,7 @@ type NotifyConfig struct {
 	Grok       AgentNotifyConfig `yaml:"grok"`        // Grok 通知配置
 	Droid      AgentNotifyConfig `yaml:"droid"`       // Droid 通知配置
 	OpenCode   AgentNotifyConfig `yaml:"opencode"`    // OpenCode 通知配置
+	OMP        AgentNotifyConfig `yaml:"omp"`         // OMP (oh-my-pi) 通知配置
 }
 
 // All 按固定顺序返回全部 agent 的通知配置，供只读遍历使用。
@@ -69,7 +71,7 @@ type NotifyConfig struct {
 // enabledRemoteFreezeChannels 仍只遍历前四个，导致只配 Droid 的用户完全冻结不了。
 // TestNotifyConfigAllCoversEveryAgent 会在字段数与此处不一致时失败。
 func (n NotifyConfig) All() []AgentNotifyConfig {
-	return []AgentNotifyConfig{n.ClaudeCode, n.Codex, n.ZCode, n.Grok, n.Droid, n.OpenCode}
+	return []AgentNotifyConfig{n.ClaudeCode, n.Codex, n.ZCode, n.Grok, n.Droid, n.OpenCode, n.OMP}
 }
 
 // AgentNotifyConfig holds notification configuration for a single agent.
@@ -194,6 +196,10 @@ func Default() Config {
 	// OpenCode 插件订阅 session.created / permission.asked / session.status /
 	// session.idle / session.error。session_start 仅用于聚焦捕获。
 	opencodeEvents := []string{"permission_required", "input_required", "run_completed", "run_failed"}
+	// OMP Extension API provides session_start, session_stop, tool approval, and
+	// tool execution failure events. It has no stable event meaning "waiting for
+	// ordinary user input", so input_required is intentionally not advertised.
+	ompEvents := []string{"permission_required", "run_completed", "run_failed"}
 
 	// BREAKING (vs pre-Grok defaults): Claude Code is no longer enabled by default,
 	// and System notification is no longer pre-enabled for any agent.
@@ -247,6 +253,10 @@ func Default() Config {
 				Enabled:      false,
 				InstallScope: "user",
 			},
+			OMP: AgentTargetConfig{
+				Enabled:      false,
+				InstallScope: "user",
+			},
 		},
 		Notify: NotifyConfig{
 			ClaudeCode: AgentNotifyConfig{
@@ -271,6 +281,10 @@ func Default() Config {
 			},
 			OpenCode: AgentNotifyConfig{
 				Events:   append([]string(nil), opencodeEvents...),
+				Channels: disabledChannels(),
+			},
+			OMP: AgentNotifyConfig{
+				Events:   append([]string(nil), ompEvents...),
 				Channels: disabledChannels(),
 			},
 		},
@@ -347,6 +361,7 @@ func Load(path string) (Config, error) {
 	cfg.Notify.Grok.Events = ensureEvents(cfg.Notify.Grok, def.Notify.Grok.Events)
 	cfg.Notify.Droid.Events = ensureEvents(cfg.Notify.Droid, def.Notify.Droid.Events)
 	cfg.Notify.OpenCode.Events = ensureEvents(cfg.Notify.OpenCode, def.Notify.OpenCode.Events)
+	cfg.Notify.OMP.Events = ensureEvents(cfg.Notify.OMP, def.Notify.OMP.Events)
 
 	return cfg, nil
 }
