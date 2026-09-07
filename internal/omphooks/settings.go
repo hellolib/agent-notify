@@ -38,9 +38,16 @@ func userAgentDir() (string, error) {
 		return dir, nil
 	}
 
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
+	// Prefer HOME when it is explicitly set. This is the conventional home
+	// override in Unix shells and Git Bash, and it also makes CI/test isolation
+	// work on Windows where os.UserHomeDir otherwise prefers USERPROFILE.
+	home := strings.TrimSpace(os.Getenv("HOME"))
+	if home == "" {
+		var err error
+		home, err = os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
 	}
 	profile := strings.TrimSpace(os.Getenv("OMP_PROFILE"))
 	if profile == "" {
