@@ -28,6 +28,7 @@ The release workflow (`.github/workflows/release.yml`) builds a 6-target matrix 
 The binary has two personalities:
 1. **Interactive TUI** (`agent-notify` / `init`, `doctor`, `test`) — setup wizard that writes `~/.agent-notify/config.yaml` and installs hooks into each agent's config file.
 2. **Hook handlers** (`handle-claude-hook`, `handle-codex-hook`, `handle-zcode-hook`, `handle-grok-hook`, `handle-droid-hook`, `handle-opencode-hook`, `handle-omp-hook`) — invoked by the agents themselves; read a hook event JSON from stdin, normalize it, and fan out notifications. These run headless and must never block or prompt.
+3. **Direct sender** (`send`) — sends a custom message through one configured channel, bypassing agent event filtering and deduplication for explicit CLI calls.
 
 Event flow: agent fires hook → `internal/cli/handler_*.go` → `internal/<agent>hooks/event.go` parses stdin JSON and maps agent-specific events to normalized events (`permission_required`, `input_required`, `run_completed`, `run_failed`, `session_start`) → `internal/agenthooks.Dispatch` → `internal/notify.Dispatcher.SendAll` fans out to enabled channel `Sender`s with dedupe.
 
