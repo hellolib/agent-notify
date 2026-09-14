@@ -26,9 +26,20 @@ Supported delivery channels: **OS-native system notifications**, **Feishu/Lark**
 
 ## Quick Start
 
+Run it without installing anything:
+
 ```bash
 npx agent-notify
 ```
+
+Or install it globally, which puts the `agent-notify` command on your `PATH`:
+
+```bash
+npm install -g agent-notify
+agent-notify
+```
+
+Both routes run the same launcher: it downloads the platform binary into `~/.agent-notify/` on first run, so the npm package itself is only a bootstrap. The global install is the better fit if you plan to call `agent-notify` directly — `agent-notify doctor`, `agent-notify send`, `agent-notify freeze` — rather than going through `npx` every time. Pin a version with `npm install -g agent-notify@0.17.0`.
 
 You can also send a custom message directly through a configured channel:
 

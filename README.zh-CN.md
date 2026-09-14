@@ -24,9 +24,20 @@
 
 ## 快速开始
 
+免安装直接运行：
+
 ```bash
 npx agent-notify
 ```
+
+也可以全局安装，把 `agent-notify` 命令放进 `PATH`，之后直接调用：
+
+```bash
+npm install -g agent-notify
+agent-notify
+```
+
+两种方式跑的是同一个启动器：首次运行都会把平台二进制下载到 `~/.agent-notify/`，所以 npm 包本身只是个引导程序。如果你要经常直接调用 `agent-notify`（`agent-notify doctor`、`agent-notify send`、`agent-notify freeze`），全局安装更顺手，不必每次都走 `npx`。需要锁定版本可以 `npm install -g agent-notify@0.17.0`。
 
 也可以直接通过已配置的渠道发送自定义消息：
 
