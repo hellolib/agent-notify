@@ -196,10 +196,11 @@ func Default() Config {
 	// OpenCode 插件订阅 session.created / permission.asked / session.status /
 	// session.idle / session.error。session_start 仅用于聚焦捕获。
 	opencodeEvents := []string{"permission_required", "input_required", "run_completed", "run_failed"}
-	// OMP Extension API provides session_start, session_stop, tool approval, and
-	// tool execution failure events. It has no stable event meaning "waiting for
-	// ordinary user input", so input_required is intentionally not advertised.
-	ompEvents := []string{"permission_required", "run_completed", "run_failed"}
+	// OMP Extension API: session_start / tool_approval_requested / 工具执行
+	// tool_execution_start（ask → question_asked） / session_stop。ask 工具阻塞
+	// 等用户回答 → input_required；运行成败由 session_stop 的 stop_reason 判定
+	// （error → run_failed）。
+	ompEvents := []string{"permission_required", "input_required", "run_completed", "run_failed"}
 
 	// BREAKING (vs pre-Grok defaults): Claude Code is no longer enabled by default,
 	// and System notification is no longer pre-enabled for any agent.

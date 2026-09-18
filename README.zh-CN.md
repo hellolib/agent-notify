@@ -68,7 +68,7 @@ agent-notify send --channel ntfy --agent omp --title "构建结果" --message "�
 | 事件 | Claude Code | Codex | OpenCode | ZCode | Grok | Droid | OMP |
 |------|:---:|:---:|:---:|:---:|:----:|:---:|:---:|
 | `permission_required` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅* |
-| `input_required` | ✅ | — | ✅ | — | ✅ | ✅ | — |
+| `input_required` | ✅ | — | ✅ | — | ✅ | ✅ | ✅ |
 | `run_completed` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `run_failed` | ✅ | — | ✅ | ✅ | ✅ | — | ✅ |
 
@@ -80,7 +80,7 @@ agent-notify send --channel ntfy --agent omp --title "构建结果" --message "�
 - ZCode 通过 `~/.zcode/cli/config.json` 订阅 `SessionStart`、`PermissionRequest`、`PostToolUseFailure`、`Stop`，映射到 `permission_required`、`run_failed`、`run_completed`。ZCode 没有 `Notification` 事件（因此不支持 `input_required`），且其 hook 配置格式较为严格——无法识别的事件名称会导致整个 hooks 配置被静默丢弃。
 - Grok 通过 `~/.grok/hooks/agent-notify.json` 订阅 `SessionStart`、`Notification`、`Stop`、`StopFailure`、`PostToolUseFailure`。Grok 没有独立的 `PermissionRequest` 事件，带 permission/approval 语义的 `Notification` 会映射为 `permission_required`（表中 *）；其它通知映射为 `input_required`。`StopFailure` / `PostToolUseFailure` 映射为 `run_failed`。
 - Droid 通过 `~/.factory/hooks.json` 订阅 `SessionStart`、`Notification`、`Stop`，映射为 `session_start` / `permission_required`|`input_required` / `run_completed`。Droid 无失败事件，故不支持 `run_failed`。`session_start` 仅用于点击聚焦的窗口捕获，不作为通知事件。
-- OMP 使用原生 TS Extension，而不是 JSON command hook：用户级默认写入 `~/.omp/agent/extensions/agent-notify.ts`，项目级写入 `.omp/extensions/agent-notify.ts`。扩展监听 `session_start`、`tool_approval_requested`、工具失败和 `session_stop`，分别映射到聚焦、`permission_required`、`run_failed` 和 `run_completed`。`permission_required` 只有 OMP 实际启用了工具审批并产生审批请求时才会触发；OMP 没有稳定的普通输入等待事件，因此不支持 `input_required`。
+- OMP 使用原生 TS Extension，而不是 JSON command hook：用户级默认写入 `~/.omp/agent/extensions/agent-notify.ts`，项目级写入 `.omp/extensions/agent-notify.ts`。扩展监听 `session_start`、`tool_approval_requested`、`tool_execution_start` 和 `session_stop`，分别映射到聚焦、`permission_required`、`input_required` 和 `run_completed`/`run_failed`。`ask` 工具会阻塞会话等待用户回答，因此其 `tool_execution_start` 映射为 `input_required`；运行成败由 `session_stop` 携带的 stop reason 判定——`stop_reason: "error"`（或带错误信息的 aborted）映射为 `run_failed`，普通单工具报错不视为运行失败。`permission_required` 只有 OMP 实际启用了工具审批并产生审批请求时才会触发。
 - OMP 用户目录会遵循 `OMP_PROFILE` / `PI_PROFILE` profile，以及 `PI_CODING_AGENT_DIR` 覆盖路径。
 - **`SessionStart` 不产生任何通知。** 它在所有 agent 上被订阅，仅用于在会话启动时捕获终端窗口，为 Linux 的窗口级点击聚焦提供支持（见下方「点击聚焦」一节）；在 macOS/Windows 上该 hook 为空操作。
 

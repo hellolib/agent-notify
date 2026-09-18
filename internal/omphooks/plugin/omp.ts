@@ -46,23 +46,31 @@ export default function agentNotify(pi: any) {
     });
   });
 
-  pi.on("tool_execution_end", async (event: any, ctx: any) => {
-    if (!event?.isError) return;
-    emit("tool_execution_end", {
+  // ask 工具阻塞会话等待用户回答，等价于「等待输入」。OMP 自己的通知层正是用
+  // tool_execution_start + toolName==="ask" 产生 question_asked 事件，
+  // 因此把它归一化为 input_required（此前 README 声称没有此信号，不成立）。
+  pi.on("tool_execution_start", async (event: any, ctx: any) => {
+    if ((event?.toolName ?? "") !== "ask") return;
+    const q = event?.args?.questions?.[0]?.question;
+    emit("question_asked", {
       session_id: sessionId(ctx),
       cwd: ctx?.cwd ?? process.cwd(),
-      tool_name: event?.toolName ?? "",
-      is_error: true,
+      tool_name: "ask",
+      question: typeof q === "string" ? q : "",
     });
   });
 
   pi.on("session_stop", async (event: any, ctx: any) => {
+    // 会话要续写（stop hook 触发）或被用户信号中断，都不算完成。
     if (event?.stop_hook_active || event?.signal?.aborted) return;
+    // 转发最后一条助手消息的 stopReason / errorMessage，供 Go 侧区分
+    // 「正常运行完成」与「运行失败」（stopReason === "error"）。
+    const last = event?.last_assistant_message;
     emit("session_stop", {
       session_id: sessionId(ctx, event?.session_id),
       cwd: ctx?.cwd ?? process.cwd(),
-      stop_hook_active: Boolean(event?.stop_hook_active),
-      signal_aborted: Boolean(event?.signal?.aborted),
+      stop_reason: typeof last?.stopReason === "string" ? last.stopReason : "",
+      error_message: typeof last?.errorMessage === "string" ? last.errorMessage : "",
     });
   });
 }

@@ -1,10 +1,12 @@
 package omphooks
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/hellolib/agent-notify/internal/common"
@@ -63,6 +65,53 @@ func userAgentDir() (string, error) {
 // its extensions directory, so no OMP JSON/YAML configuration is modified.
 func Install(path, binaryPath string) error {
 	return common.WriteFileAtomic(path, renderPlugin(common.ResolveBinaryPath(binaryPath)), 0o644)
+}
+
+// binaryConstRe 匹配 OMP 扩展里烘焙的二进制路径常量（renderPlugin 用 %q 写入引号）。
+// 用 \r?$ 而非 $，容忍 Windows 上 git autocrlf 产生的 CRLF 行尾（与 opencodehooks 一致）。
+var binaryConstRe = regexp.MustCompile(`(?m)^const BINARY = "([^"]*)";\r?$`)
+
+// BakedBinaryPath 从磁盘上的 OMP 扩展源码里取出已烘焙的二进制路径。
+// 取不到（文件非本工具写入、格式被改坏）返回 ("", false)。
+func BakedBinaryPath(content []byte) (string, bool) {
+	m := binaryConstRe.FindSubmatch(content)
+	if m == nil {
+		return "", false
+	}
+	return string(m[1]), true
+}
+
+// RefreshIfStale 在磁盘上的 OMP 扩展与当前二进制内嵌的版本不一致时重写它。
+//
+// 背景：Install 只在用户重跑向导 / install-hooks 时调用，而二进制升级（npx 下载
+// 新版本）不会触碰 ~/.omp/agent/extensions/agent-notify.ts。于是新版本新增的订阅
+// 事件（如 ask 工具 → input_required）、修正的事件映射对存量用户永远不生效——
+// 修好的 bug 送不到手上。
+//
+// 只更新扩展逻辑，保留已烘焙的二进制路径：重新指定二进制位置是 Install 的职责。
+// 用内容比对而非版本号：同时覆盖升级、dev 构建和文件损坏，且不需要把 Version 传进来。
+//
+// 以下两种情况一律不动文件，交给向导处理：
+//   - 文件不存在：用户可能刚卸载过，写回等于让集成「复活」；
+//   - 认不出烘焙路径：文件已被改得面目全非，不猜测、不覆盖。
+//
+// 返回值表示是否实际重写过。OMP 仅在启动时加载扩展，重写后下次 OMP 会话生效。
+func RefreshIfStale(extPath string) (bool, error) {
+	actual, err := os.ReadFile(extPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	binaryPath, ok := BakedBinaryPath(actual)
+	if !ok {
+		return false, nil
+	}
+	if bytes.Equal(actual, renderPlugin(binaryPath)) {
+		return false, nil
+	}
+	return true, Install(extPath, binaryPath)
 }
 
 // IsInstalled checks that the target file is an agent-notify-owned extension.

@@ -3,13 +3,11 @@ package doctor
 import (
 	"encoding/json"
 	"os"
-	"regexp"
 	"strings"
 
 	"github.com/hellolib/agent-notify/internal/common"
+	"github.com/hellolib/agent-notify/internal/omphooks"
 )
-
-var extensionBinaryRe = regexp.MustCompile(`const BINARY = "([^"]+)"`)
 
 // extensionBinaryMissing checks the baked binary path in the OMP TypeScript
 // extension. Unlike JSON command hooks, OMP stores the executable as a source
@@ -19,12 +17,11 @@ func extensionBinaryMissing(path string) bool {
 	if err != nil {
 		return false
 	}
-	match := extensionBinaryRe.FindSubmatch(data)
-	if len(match) != 2 {
+	binPath, ok := omphooks.BakedBinaryPath(data)
+	if !ok {
 		return false
 	}
-	binPath := string(match[1])
-	if !strings.ContainsAny(binPath, `/\\`) {
+	if !strings.ContainsAny(binPath, `/\`) {
 		return false
 	}
 	_, err = os.Stat(binPath)

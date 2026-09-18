@@ -11,11 +11,11 @@ import (
 func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	initLocale()
 
-	// 二进制升级不会重写 opencode 插件 JS，在交互调用时顺带自愈一次。
+	// 二进制升级不会重写 opencode 插件 JS / OMP 扩展，在交互调用时顺带自愈一次。
 	// 放在这里而非 cobra 的 PersistentPreRun：无参数启动 TUI 的分支
-	// （下方 runMenu）根本不经过 cobra，而那正是 npx 升级后最常见的路径。
+	// （下方 runMenu）根本不经过 cobra，而那正是 npx 升级最常见的路径。
 	if !isHeadlessInvocation(args) {
-		refreshOpenCodePlugin()
+		refreshStalePlugins()
 	}
 
 	streams := Streams{
