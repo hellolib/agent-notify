@@ -29,7 +29,7 @@ Supported delivery channels: **OS-native system notifications**, **Feishu/Lark**
 Run it without installing anything:
 
 ```bash
-npx agent-notify
+npx agent-notify@latest
 ```
 
 Or install it globally, which puts the `agent-notify` command on your `PATH`:
@@ -39,7 +39,13 @@ npm install -g agent-notify
 agent-notify
 ```
 
-Both routes run the same launcher: it downloads the platform binary into `~/.agent-notify/` on first run, so the npm package itself is only a bootstrap. The global install is the better fit if you plan to call `agent-notify` directly — `agent-notify doctor`, `agent-notify send`, `agent-notify freeze` — rather than going through `npx` every time. Pin a version with `npm install -g agent-notify@0.17.0`.
+Update a global install later:
+
+```bash
+npm update -g agent-notify
+```
+
+Both routes run the same launcher: it downloads the platform binary into `~/.agent-notify/` on first run, so the npm package itself is only a bootstrap. The launcher updates the binary to the version of the **npm package it was invoked from**, never to whatever is newest — so keep that package current: `npx agent-notify@latest` re-resolves from the registry on every run, while a global install only moves when you run `npm update -g agent-notify`. The global install is the better fit if you plan to call `agent-notify` directly — `agent-notify doctor`, `agent-notify send`, `agent-notify freeze` — rather than going through `npx` every time. Pin a version with `npm install -g agent-notify@0.17.0`.
 
 You can also send a custom message directly through a configured channel:
 
@@ -119,7 +125,7 @@ On first run, the launcher downloads the platform-specific binary matching the c
 - macOS / Linux: `~/.agent-notify/agent-notify`
 - Windows: `~/.agent-notify/agent-notify.exe`
 
-On every subsequent run it checks the local binary version: it downloads if missing, updates if outdated, and otherwise runs directly. The launcher never persistently modifies `PATH` — it always executes via an absolute path.
+On every subsequent run it checks the local binary version against the version of the npm package the launcher ran from: it downloads if missing, updates if it differs, and otherwise runs directly. Invoke with `npx agent-notify@latest` (or run `npm update -g agent-notify`) to move to a new release. The launcher never persistently modifies `PATH` — it always executes via an absolute path.
 
 > **Note**: Codex integrates through the official hooks system in `~/.codex/hooks.json` and currently subscribes only to `PermissionRequest` and `Stop`. After first install, run `/hooks` inside Codex to complete the trust review.
 >
@@ -128,7 +134,7 @@ On every subsequent run it checks the local binary version: it downloads if miss
 
 > You don't need to edit config files by hand — this section is for reference only.
 
-Agent Notify's own config lives at `~/.agent-notify/config.yaml`. **New installs start with all agents and channels disabled** — run `npx agent-notify` (setup wizard) once to enable the agents and channels you want. This avoids showing unconfigured agents as ready in view/doctor after a partial setup. Existing config files are left unchanged.
+Agent Notify's own config lives at `~/.agent-notify/config.yaml`. **New installs start with all agents and channels disabled** — run `npx agent-notify@latest` (setup wizard) once to enable the agents and channels you want. This avoids showing unconfigured agents as ready in view/doctor after a partial setup. Existing config files are left unchanged.
 
 Agent integration config locations:
 
@@ -145,7 +151,7 @@ Agent integration config locations:
 1. **Create a single-person notification group**: start a group chat in WeChat Work (pull in a few colleagues). After it's created, **do not post anything**, then remove the others — the group becomes your personal notification channel.
 2. **Add a bot**: "Group Settings" → "Message Push" → "Add" → "Custom Message Push", name it and save.
 3. **Get the webhook URL**: copy the generated URL, which looks like `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx`.
-4. **Bind it**: run `npx agent-notify`, enable the WeChat Work channel in the setup wizard, and paste the webhook URL.
+4. **Bind it**: run `npx agent-notify@latest`, enable the WeChat Work channel in the setup wizard, and paste the webhook URL.
 > Older WeChat Work versions: "Group Settings" → "Group Bots" → "Add Bot" → "New Bot", name it and save.
 
 

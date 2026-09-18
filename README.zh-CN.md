@@ -27,7 +27,7 @@
 免安装直接运行：
 
 ```bash
-npx agent-notify
+npx agent-notify@latest
 ```
 
 也可以全局安装，把 `agent-notify` 命令放进 `PATH`，之后直接调用：
@@ -37,7 +37,13 @@ npm install -g agent-notify
 agent-notify
 ```
 
-两种方式跑的是同一个启动器：首次运行都会把平台二进制下载到 `~/.agent-notify/`，所以 npm 包本身只是个引导程序。如果你要经常直接调用 `agent-notify`（`agent-notify doctor`、`agent-notify send`、`agent-notify freeze`），全局安装更顺手，不必每次都走 `npx`。需要锁定版本可以 `npm install -g agent-notify@0.17.0`。
+之后升级全局安装：
+
+```bash
+npm update -g agent-notify
+```
+
+两种方式跑的是同一个启动器：首次运行都会把平台二进制下载到 `~/.agent-notify/`，所以 npm 包本身只是个引导程序。启动器是按**它所来自的那个 npm 包版本**更新二进制的，并不会自己去追最新版本，所以要让包本身保持最新：`npx agent-notify@latest` 每次都会重新向 registry 解析，全局安装则只有跑 `npm update -g agent-notify` 才会动。如果你要经常直接调用 `agent-notify`（`agent-notify doctor`、`agent-notify send`、`agent-notify freeze`），全局安装更顺手，不必每次都走 `npx`。需要锁定版本可以 `npm install -g agent-notify@0.17.0`。
 
 也可以直接通过已配置的渠道发送自定义消息：
 
@@ -107,7 +113,7 @@ agent-notify send --channel ntfy --agent omp --title "构建结果" --message "�
 ## 安装说明
 
 ```bash
-npx agent-notify
+npx agent-notify@latest
 ```
 
 首次运行会从 GitHub Releases 下载当前 npm 包版本对应平台的二进制文件，并安装到：
@@ -115,7 +121,7 @@ npx agent-notify
 - macOS / Linux: `~/.agent-notify/agent-notify`
 - Windows: `~/.agent-notify/agent-notify.exe`
 
-之后每次运行都会检查本地二进制版本：不存在则自动下载，版本落后则自动更新，否则直接运行。launcher 不会持久修改 PATH，始终用绝对路径执行。
+之后每次运行都会把本地二进制版本和 launcher 所来自的那个 npm 包版本做比较：不存在则自动下载，不一致则自动更新，否则直接运行。要升级到新发布版本就用 `npx agent-notify@latest`（全局安装则 `npm update -g agent-notify`）。launcher 不会持久修改 PATH，始终用绝对路径执行。
 
 > **注意**: Codex 通过 `~/.codex/hooks.json` 接入官方 hooks 系统，目前仅订阅 `PermissionRequest`、`Stop` 两个事件。首次安装后请在 codex 内运行 `/hooks` 完成 trust 审核。
 >
@@ -126,7 +132,7 @@ npx agent-notify
 
 > agent-notify 不需要手动处理配置文件，该章节仅是为了说明配置相关信息。
 
-agent-notify 自身配置位于 `~/.agent-notify/config.yaml`。**新安装默认关闭所有 Agent 与通知渠道**——需运行一次 `npx agent-notify`（配置向导）启用你需要的 Agent 与渠道。这样可避免只配置了一个 Agent 后，在「查看配置 / 诊断」里把未配置的 Agent 显示为已就绪。已有配置文件不受影响。
+agent-notify 自身配置位于 `~/.agent-notify/config.yaml`。**新安装默认关闭所有 Agent 与通知渠道**——需运行一次 `npx agent-notify@latest`（配置向导）启用你需要的 Agent 与渠道。这样可避免只配置了一个 Agent 后，在「查看配置 / 诊断」里把未配置的 Agent 显示为已就绪。已有配置文件不受影响。
 
 Agent 集成配置位置：
 
@@ -143,7 +149,7 @@ Agent 集成配置位置：
 1. **创建单人通知群**：在企业微信中发起群聊（随便拉几个同事），创建成功后**不要在群里发言**，直接将其他人移出，此时该群将变成你的单人通知群；
 2. **添加机器人**：「群设置」->「消息推送」->「添加」-> 「自定义消息推送」，命名并保存；
 3. **获取 Webhook 地址**：复制生成的地址，格式类似 `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx`；
-4. **绑定配置**：运行 `npx agent-notify`，在配置向导中选择启用企业微信渠道，粘贴 Webhook URL 即可；
+4. **绑定配置**：运行 `npx agent-notify@latest`，在配置向导中选择启用企业微信渠道，粘贴 Webhook URL 即可；
 > 旧版企业微信添加机器人步骤：「群设置」->「群机器人」->「添加机器人」-> 「新建机器人」，命名并保存
 
 ## 工作流程
