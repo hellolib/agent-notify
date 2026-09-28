@@ -38,12 +38,23 @@ func TestHookCleanupTargetsAlwaysIncludesBothScopes(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if !slices.Contains(target.paths, userPath) {
+			t.Fatalf("%s: user scope 未纳入: %v", target.integration.Name(), target.paths)
+		}
+
+		// DSH 是唯一没有 project scope 的 agent：它的插件装在 DSH 家目录下的
+		// profile 里，不存在项目级落点。这里显式跳过而不是容忍错误——若将来
+		// 另一个 agent 也解析不出 project scope，应当先来看这条注释。
+		if target.integration.Name() == "DeepSeek Harness" {
+			if _, err := target.integration.SettingsPath("project"); err == nil {
+				t.Fatal("DeepSeek Harness unexpectedly resolved a project scope; update this test")
+			}
+			continue
+		}
+
 		projectPath, err := target.integration.SettingsPath("project")
 		if err != nil {
 			t.Fatal(err)
-		}
-		if !slices.Contains(target.paths, userPath) {
-			t.Fatalf("%s: user scope 未纳入: %v", target.integration.Name(), target.paths)
 		}
 		if !slices.Contains(target.paths, projectPath) {
 			t.Fatalf("%s: project scope 未纳入: %v", target.integration.Name(), target.paths)
@@ -91,7 +102,7 @@ func TestHookCleanupTargetsCoversAllAgents(t *testing.T) {
 	for _, target := range targets {
 		names = append(names, target.integration.Name())
 	}
-	want := []string{"Claude Code", "Codex", "ZCode", "Grok", "Droid", "OpenCode", "OMP (oh-my-pi)"}
+	want := []string{"Claude Code", "Codex", "ZCode", "Grok", "Droid", "OpenCode", "OMP (oh-my-pi)", "DeepSeek Harness"}
 	if !slices.Equal(names, want) {
 		t.Fatalf("agents = %v, want %v", names, want)
 	}

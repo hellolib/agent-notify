@@ -157,8 +157,10 @@ func notifyConfigForAgent(cfg config.Config, agent string) (config.AgentNotifyCo
 		return cfg.Notify.OpenCode, nil
 	case "omp":
 		return cfg.Notify.OMP, nil
+	case "dsh":
+		return cfg.Notify.DSH, nil
 	default:
-		return config.AgentNotifyConfig{}, fmt.Errorf("unsupported agent %q; choose claude, codex, zcode, grok, droid, opencode, or omp", agent)
+		return config.AgentNotifyConfig{}, fmt.Errorf("unsupported agent %q; choose claude, codex, zcode, grok, droid, opencode, omp, or dsh", agent)
 	}
 }
 
@@ -173,6 +175,8 @@ func normalizeSendAgent(agent string) string {
 		return "opencode"
 	case "oh-my-pi", "pi":
 		return "omp"
+	case "deepseek-harness":
+		return "dsh"
 	default:
 		return value
 	}

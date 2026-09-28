@@ -74,5 +74,8 @@ func ntfyURLFromConfig(cfg config.Config) string {
 	if cfg.Notify.Droid.Channels.Ntfy.TopicURL != "" {
 		return cfg.Notify.Droid.Channels.Ntfy.TopicURL
 	}
-	return cfg.Notify.OMP.Channels.Ntfy.TopicURL
+	if cfg.Notify.OMP.Channels.Ntfy.TopicURL != "" {
+		return cfg.Notify.OMP.Channels.Ntfy.TopicURL
+	}
+	return cfg.Notify.DSH.Channels.Ntfy.TopicURL
 }
