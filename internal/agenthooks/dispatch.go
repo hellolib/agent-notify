@@ -141,6 +141,8 @@ func buildSenders(cfg config.Config, msg notify.Message) []notify.Sender {
 		notifyCfg = cfg.Notify.OpenCode
 	case "omp":
 		notifyCfg = cfg.Notify.OMP
+	case "dsh":
+		notifyCfg = cfg.Notify.DSH
 	}
 
 	if !contains(notifyCfg.Events, msg.Event) {

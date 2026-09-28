@@ -210,3 +210,31 @@ func TestFilterFrozenSendersInactivePassthrough(t *testing.T) {
 		t.Fatalf("len(filtered)=%d, want %d", len(filtered), len(senders))
 	}
 }
+
+// DSH 走的是原生插件，事件名与其它 agent 一样是归一化后的名字；
+// 这里锁住 buildSenders 能把 dsh 路由到 cfg.Notify.DSH，而不是落到
+// ClaudeCode 的默认分支——那会让 DSH 的通知被 Claude 的事件列表过滤掉。
+func TestBuildSendersRoutesDSHToItsOwnConfig(t *testing.T) {
+	cfg := config.Default()
+	// Claude Code 关掉 run_completed，DSH 打开：只有路由正确才会有 sender。
+	cfg.Notify.ClaudeCode.Events = []string{"permission_required"}
+	cfg.Notify.DSH.Events = []string{"run_completed"}
+	cfg.Notify.DSH.Channels.System.Enabled = true
+
+	senders := buildSenders(cfg, notify.Message{Agent: "dsh", Event: "run_completed"})
+	if len(senders) != 1 {
+		t.Fatalf("buildSenders(dsh, run_completed) returned %d senders, want 1", len(senders))
+	}
+}
+
+// 反向：DSH 未订阅的事件不应产生 sender。
+func TestBuildSendersRespectsDSHEventFilter(t *testing.T) {
+	cfg := config.Default()
+	cfg.Notify.DSH.Events = []string{"permission_required"}
+	cfg.Notify.DSH.Channels.System.Enabled = true
+
+	senders := buildSenders(cfg, notify.Message{Agent: "dsh", Event: "run_completed"})
+	if len(senders) != 0 {
+		t.Fatalf("buildSenders(dsh, run_completed) returned %d senders, want 0", len(senders))
+	}
+}
