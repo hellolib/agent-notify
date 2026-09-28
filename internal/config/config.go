@@ -28,6 +28,7 @@ type AgentConfig struct {
 	Droid      AgentTargetConfig `yaml:"droid"`       // Droid 配置
 	OpenCode   AgentTargetConfig `yaml:"opencode"`    // OpenCode 配置
 	OMP        AgentTargetConfig `yaml:"omp"`         // OMP (oh-my-pi) 配置
+	DSH        AgentTargetConfig `yaml:"dsh"`         // DeepSeek Harness 配置
 }
 
 // AgentTargetConfig holds configuration for a specific agent.
@@ -62,6 +63,7 @@ type NotifyConfig struct {
 	Droid      AgentNotifyConfig `yaml:"droid"`       // Droid 通知配置
 	OpenCode   AgentNotifyConfig `yaml:"opencode"`    // OpenCode 通知配置
 	OMP        AgentNotifyConfig `yaml:"omp"`         // OMP (oh-my-pi) 通知配置
+	DSH        AgentNotifyConfig `yaml:"dsh"`         // DeepSeek Harness 通知配置
 }
 
 // All 按固定顺序返回全部 agent 的通知配置，供只读遍历使用。
@@ -71,7 +73,7 @@ type NotifyConfig struct {
 // enabledRemoteFreezeChannels 仍只遍历前四个，导致只配 Droid 的用户完全冻结不了。
 // TestNotifyConfigAllCoversEveryAgent 会在字段数与此处不一致时失败。
 func (n NotifyConfig) All() []AgentNotifyConfig {
-	return []AgentNotifyConfig{n.ClaudeCode, n.Codex, n.ZCode, n.Grok, n.Droid, n.OpenCode, n.OMP}
+	return []AgentNotifyConfig{n.ClaudeCode, n.Codex, n.ZCode, n.Grok, n.Droid, n.OpenCode, n.OMP, n.DSH}
 }
 
 // AgentNotifyConfig holds notification configuration for a single agent.
@@ -201,6 +203,11 @@ func Default() Config {
 	// 等用户回答 → input_required；运行成败由 session_stop 的 stop_reason 判定
 	// （error → run_failed）。
 	ompEvents := []string{"permission_required", "input_required", "run_completed", "run_failed"}
+	// DSH 原生插件订阅 agent/created / approval/request / user-questions/request /
+	// agent/turn-stopping / agent/error，是唯一能拿全四个通知事件的接入——
+	// DSH 自带的 Claude Code bridge 只认 SessionStart / Stop，PermissionRequest
+	// 与 Notification 会被静默丢弃。session_start 同样仅用于聚焦捕获。
+	dshEvents := []string{"permission_required", "input_required", "run_completed", "run_failed"}
 
 	// BREAKING (vs pre-Grok defaults): Claude Code is no longer enabled by default,
 	// and System notification is no longer pre-enabled for any agent.
@@ -258,6 +265,10 @@ func Default() Config {
 				Enabled:      false,
 				InstallScope: "user",
 			},
+			DSH: AgentTargetConfig{
+				Enabled:      false,
+				InstallScope: "user",
+			},
 		},
 		Notify: NotifyConfig{
 			ClaudeCode: AgentNotifyConfig{
@@ -286,6 +297,10 @@ func Default() Config {
 			},
 			OMP: AgentNotifyConfig{
 				Events:   append([]string(nil), ompEvents...),
+				Channels: disabledChannels(),
+			},
+			DSH: AgentNotifyConfig{
+				Events:   append([]string(nil), dshEvents...),
 				Channels: disabledChannels(),
 			},
 		},
@@ -363,6 +378,7 @@ func Load(path string) (Config, error) {
 	cfg.Notify.Droid.Events = ensureEvents(cfg.Notify.Droid, def.Notify.Droid.Events)
 	cfg.Notify.OpenCode.Events = ensureEvents(cfg.Notify.OpenCode, def.Notify.OpenCode.Events)
 	cfg.Notify.OMP.Events = ensureEvents(cfg.Notify.OMP, def.Notify.OMP.Events)
+	cfg.Notify.DSH.Events = ensureEvents(cfg.Notify.DSH, def.Notify.DSH.Events)
 
 	return cfg, nil
 }
