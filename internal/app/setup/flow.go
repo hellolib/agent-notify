@@ -19,6 +19,7 @@ const (
 	agentDroid      = "droid"
 	agentOpencode   = "opencode"
 	agentOMP        = "omp"
+	agentDSH        = "dsh"
 	channelSystem   = "system"
 	channelFeishu   = "feishu"
 	channelWechat   = "wechat"
@@ -131,6 +132,12 @@ func (s *Service) agentOptions(cfg config.Config) ([]PromptOption, string) {
 			defaultAgent = agentOMP
 		}
 	}
+	if s.dshIntegration != nil && s.dshIntegration.DetectInstalled() {
+		options = append(options, PromptOption{Label: "DeepSeek Harness", Value: agentDSH})
+		if cfg.Agent.DSH.Enabled && defaultAgent == "" {
+			defaultAgent = agentDSH
+		}
+	}
 	return options, defaultAgent
 }
 
@@ -203,6 +210,8 @@ func eventOptionsForAgent(agent string) []PromptOption {
 		return opencodeEventOptionsFn()
 	case agentOMP:
 		return ompEventOptionsFn()
+	case agentDSH:
+		return dshEventOptionsFn()
 	default:
 		return codexEventOptionsFn()
 	}
@@ -222,6 +231,8 @@ func channelsForAgent(cfg config.Config, agent string) config.ChannelsConfig {
 		return cfg.Notify.OpenCode.Channels
 	case agentOMP:
 		return cfg.Notify.OMP.Channels
+	case agentDSH:
+		return cfg.Notify.DSH.Channels
 	default:
 		return cfg.Notify.Codex.Channels
 	}
@@ -241,6 +252,8 @@ func eventsForAgent(cfg config.Config, agent string) []string {
 		return cfg.Notify.OpenCode.Events
 	case agentOMP:
 		return cfg.Notify.OMP.Events
+	case agentDSH:
+		return cfg.Notify.DSH.Events
 	default:
 		return cfg.Notify.Codex.Events
 	}
@@ -262,6 +275,8 @@ func (s *Service) configureAgent(req configureAgentRequest) (configuredAgent, er
 		return s.configureOpenCode(req)
 	case agentOMP:
 		return s.configureOMP(req)
+	case agentDSH:
+		return s.configureDSH(req)
 	default:
 		return configuredAgent{}, fmt.Errorf("unsupported agent: %s", req.agent)
 	}
@@ -491,6 +506,47 @@ func (s *Service) configureOMP(req configureAgentRequest) (configuredAgent, erro
 	next.Agent.OMP.InstalledPaths = config.RecordInstalledPath(
 		next.Agent.OMP.InstalledPaths, settingsPath)
 	next.Agent.OMP.Enabled = true
+	return configuredAgent{cfg: next, settingsPath: settingsPath}, nil
+}
+
+// configureDSH installs the agent-notify plugin into a DeepSeek Harness profile.
+//
+// Unlike every other agent here, "install" is a package-manager action rather
+// than a file write, and the result is recorded in the profile's package.json
+// bundles list. SettingsPath therefore yields that manifest, and the install
+// call drives `dsh plugin add` (see internal/dshhooks/settings.go).
+//
+// The resolved binary path is deliberately not passed through: the plugin
+// locates agent-notify at its own runtime (AGENT_NOTIFY_BINARY, then
+// ~/.agent-notify/agent-notify), which is where both the npx launcher and
+// `make local` place it, so there is nothing to bake into the profile.
+func (s *Service) configureDSH(req configureAgentRequest) (configuredAgent, error) {
+	next := req.cfg
+	next.Notify.DSH.Channels = applyChannelSelection(next.Notify.DSH.Channels, req.channels)
+	next.Notify.DSH.Events = dedupeStrings(req.events)
+	if err := s.prepareSelectedChannels(req.ctx, req.channels); err != nil {
+		return configuredAgent{}, err
+	}
+	channels, err := promptWebhookURLs(req.prompter, next.Notify.DSH.Channels, req.channels)
+	if err != nil {
+		return configuredAgent{}, err
+	}
+	next.Notify.DSH.Channels = channels
+
+	// DSH has no project-level install location, so the scope is always user.
+	settingsPath, err := s.dshIntegration.SettingsPath(installScopeUsr)
+	if err != nil {
+		return configuredAgent{}, fmt.Errorf("%s: %w", i18n.T("setup.dsh_hooks_err"), err)
+	}
+	if err := s.dshIntegration.Install(settingsPath, common.ResolveBinaryPath(req.binaryPath)); err != nil {
+		return configuredAgent{}, fmt.Errorf("%s: %w", i18n.T("setup.dsh_install_err"), err)
+	}
+	req.output.Writef(i18n.T("setup.dsh_hooks_done"), settingsPath)
+	req.output.Writef(i18n.T("setup.dsh_tip"))
+	next.Agent.DSH.InstallScope = installScopeUsr
+	next.Agent.DSH.InstalledPaths = config.RecordInstalledPath(
+		next.Agent.DSH.InstalledPaths, settingsPath)
+	next.Agent.DSH.Enabled = true
 	return configuredAgent{cfg: next, settingsPath: settingsPath}, nil
 }
 

@@ -198,6 +198,10 @@ var catalog = map[string]map[Lang]string{
 	"setup.omp_hooks_err":        {ZhCN: "获取 OMP 扩展路径失败", EnUS: "failed to get OMP extension path"},
 	"setup.omp_install_err":      {ZhCN: "安装 OMP 扩展失败", EnUS: "failed to install OMP extension"},
 	"setup.omp_hooks_done":       {ZhCN: "OMP 扩展安装: %s\n", EnUS: "OMP extension installed: %s\n"},
+	"setup.dsh_tip":              {ZhCN: "提示: 插件装在 DSH profile 下；装完重启 dsh 生效\n", EnUS: "Tip: the plugin installs into a DSH profile; restart dsh to take effect\n"},
+	"setup.dsh_hooks_err":        {ZhCN: "获取 DSH profile 路径失败", EnUS: "failed to get the DSH profile path"},
+	"setup.dsh_install_err":      {ZhCN: "安装 DSH 插件失败", EnUS: "failed to install the DSH plugin"},
+	"setup.dsh_hooks_done":       {ZhCN: "DSH 插件已注册到: %s\n", EnUS: "DSH plugin registered in: %s\n"},
 
 	// ── Doctor: focus precision ───────────────────────────────
 	"doctor.item_focus_precision":           {ZhCN: "聚焦精度", EnUS: "Focus Precision"},
