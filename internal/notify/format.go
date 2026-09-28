@@ -31,6 +31,8 @@ func appDisplayName(agent string) string {
 		return "OpenCode"
 	case "omp":
 		return "OMP (oh-my-pi)"
+	case "dsh":
+		return "DeepSeek Harness"
 	default:
 		return agent
 	}
