@@ -1,0 +1,5 @@
+{
+  "hook_event_name": "Stop",
+  "session_id": "sess-dsh-1",
+  "cwd": "/tmp/dsh-demo"
+}
