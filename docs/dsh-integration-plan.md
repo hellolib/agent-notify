@@ -1,9 +1,9 @@
 # DeepSeek Harness (DSH) 接入开发计划
 
-> 状态：**计划（未开工）**；本文只描述方案与任务拆解，不含实现
+> 状态：**已实施**——M2 的 Go 侧已落地（§5）；插件侧在独立仓库 `agent-notify-dsh`。本文保留为原始计划与调研记录，其中 4 处假设在实施中被实测推翻，已在 §7 逐条标注。
 > 范围：让 `agent-notify` 支持 DeepSeek Harness 作为第 8 个 agent（与 Claude Code / Codex / ZCode / Grok / Droid / OpenCode / OMP 并列）
 > 关联：`docs/window-level-focus-design.md`（同为 docs/ 下的设计文档，本文沿用其「状态 / 范围 / 关联」抬头）
-> 调研基线：`deepseek-harness`（本机 checkout `/Users/liming/deepseek-harness/`，版本 `0.1.7-alpha.2`）+ `agent-notify` @ `6ba04bf`
+> 调研基线：`deepseek-harness`（本地 checkout，版本 `0.1.7-alpha.2`）+ `agent-notify` @ `6ba04bf`
 
 ---
 
