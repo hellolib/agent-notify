@@ -201,8 +201,19 @@ func Install(ctx context.Context, settingsPath, binaryPath string) error {
 }
 
 // Uninstall 通过 `dsh plugin remove` 从 profile 卸载插件。
+//
+// 若 profile 的 bundles 里没有注册本插件，则直接成功返回。clean 会把
+// 所有 agent（包括从未启用过的 DSH）都过一遍卸载，其它 agent 对不存在的
+// 文件是 no-op；这里也必须 no-op，否则一台没装 dsh 可执行文件的机器每次
+// clean 都会在 DSH 一行报「清理失败」。
 func Uninstall(ctx context.Context, settingsPath string) error {
-	_ = settingsPath
+	installed, err := IsInstalled(settingsPath)
+	if err != nil {
+		return err
+	}
+	if !installed {
+		return nil
+	}
 
 	bin, err := DSHBinary()
 	if err != nil {

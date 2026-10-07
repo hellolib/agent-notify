@@ -243,7 +243,12 @@ func TestUninstallRunsDSHPluginRemove(t *testing.T) {
 
 	t.Setenv(specEnv, "link:/tmp/agent-notify-dsh")
 
-	if err := Uninstall(context.Background(), ""); err != nil {
+	manifest := filepath.Join(t.TempDir(), "package.json")
+	if err := os.WriteFile(manifest, []byte(`{"dsh":{"profile":{"bundles":["agent-notify-dsh"]}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Uninstall(context.Background(), manifest); err != nil {
 		t.Fatalf("Uninstall() error = %v", err)
 	}
 
@@ -251,6 +256,37 @@ func TestUninstallRunsDSHPluginRemove(t *testing.T) {
 	if len(runner.calls) != 1 || strings.Join(runner.calls[0], " ") != strings.Join(want, " ") {
 		t.Errorf("ran %v, want %v", runner.calls, want)
 	}
+}
+
+// TestUninstallSkipsWhenNotRegistered 锁住 clean 的关键场景：profile 里没有
+// 注册本插件时卸载必须 no-op——此时连 dsh 二进制都不该去解析（lookPath 故意
+// 报错），否则没装 DSH 的机器每次 clean 都会打一行「清理失败」。
+func TestUninstallSkipsWhenNotRegistered(t *testing.T) {
+	runner := &stubRunner{}
+	withStubs(t, runner.run, func(string) (string, error) { return "", errors.New("dsh not on PATH") })
+
+	t.Run("manifest missing", func(t *testing.T) {
+		manifest := filepath.Join(t.TempDir(), "package.json")
+		if err := Uninstall(context.Background(), manifest); err != nil {
+			t.Fatalf("Uninstall() error = %v, want nil", err)
+		}
+		if len(runner.calls) != 0 {
+			t.Fatalf("ran %v, want no command", runner.calls)
+		}
+	})
+
+	t.Run("not in bundles", func(t *testing.T) {
+		manifest := filepath.Join(t.TempDir(), "package.json")
+		if err := os.WriteFile(manifest, []byte(`{"dsh":{"profile":{"bundles":["@deepseek-ai/dsh-base"]}}}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := Uninstall(context.Background(), manifest); err != nil {
+			t.Fatalf("Uninstall() error = %v, want nil", err)
+		}
+		if len(runner.calls) != 0 {
+			t.Fatalf("ran %v, want no command", runner.calls)
+		}
+	})
 }
 
 // TestInstallSurfacesCommandFailure 断言失败时把命令输出带进错误，
