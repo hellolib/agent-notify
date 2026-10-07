@@ -525,3 +525,82 @@ notify:
 		t.Error("explicit click_to_focus: false at current version was overridden by the migration")
 	}
 }
+
+// 回归：DSH 接入前写下的老配置（无 dsh 段）加载后必须拿到 Default() 的值，
+// 而不是 Go 零值。这条与 OpenCode 的同类回归同构——Load 把 YAML 解析进
+// Default()，所以新增 agent 只要在 Default() 里给对初值就自动生效；
+// 一旦有人退回「解析进零值再手工补字段」，这里会立刻失败。
+func TestLoadFillsDSHDefaultsForLegacyConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	legacy := `version: 2
+agent:
+    claude_code:
+        enabled: true
+        install_scope: user
+notify:
+    claude_code:
+        events:
+            - permission_required
+        channels:
+            system:
+                enabled: true
+                click_to_focus: true
+`
+	if err := os.WriteFile(path, []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	def := Default()
+
+	// DSH 的四个通知事件必须回填成默认值。
+	if len(cfg.Notify.DSH.Events) != len(def.Notify.DSH.Events) {
+		t.Errorf("dsh events = %v, want the defaults %v", cfg.Notify.DSH.Events, def.Notify.DSH.Events)
+	}
+	// click_to_focus 是历史事故字段，必须保持默认 true。
+	if cfg.Notify.DSH.Channels.System.ClickToFocus != def.Notify.DSH.Channels.System.ClickToFocus {
+		t.Errorf("dsh click_to_focus = %v, want %v",
+			cfg.Notify.DSH.Channels.System.ClickToFocus, def.Notify.DSH.Channels.System.ClickToFocus)
+	}
+	if cfg.Agent.DSH.InstallScope != def.Agent.DSH.InstallScope {
+		t.Errorf("dsh install_scope = %q, want %q", cfg.Agent.DSH.InstallScope, def.Agent.DSH.InstallScope)
+	}
+	// 新 agent 默认关闭：接入不等于替用户打开通知。
+	if cfg.Agent.DSH.Enabled {
+		t.Error("dsh enabled = true, want false until the user opts in")
+	}
+}
+
+// TestDSHEventsMatchSupportedSurface 锁住 DSH 的默认事件面。
+//
+// DSH 原生插件能拿全四个通知事件（approval/request 与 user-questions/request
+// 都在原生扩展点上），这是它相对 DSH 自带 Claude Code bridge 的核心增量——
+// 后者只认 SessionStart / Stop。若有人照抄 Codex 的两事件默认值，这里会失败。
+func TestDSHEventsMatchSupportedSurface(t *testing.T) {
+	def := Default()
+
+	want := map[string]bool{
+		"permission_required": true,
+		"input_required":      true,
+		"run_completed":       true,
+		"run_failed":          true,
+	}
+	if len(def.Notify.DSH.Events) != len(want) {
+		t.Fatalf("dsh events = %v, want all four notification events", def.Notify.DSH.Events)
+	}
+	for _, e := range def.Notify.DSH.Events {
+		if !want[e] {
+			t.Errorf("dsh events contains unexpected %q", e)
+		}
+	}
+	// session_start 只服务点击聚焦，不是通知事件。
+	for _, e := range def.Notify.DSH.Events {
+		if e == "session_start" {
+			t.Error("dsh events must not list session_start: it only drives focus capture")
+		}
+	}
+}

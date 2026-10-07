@@ -1,0 +1,7 @@
+{
+  "hook_event_name": "ApprovalRequest",
+  "session_id": "sess-dsh-1",
+  "cwd": "/tmp/dsh-demo",
+  "tool_name": "bash",
+  "reason": "writes to the repo"
+}

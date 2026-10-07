@@ -79,6 +79,7 @@ func runInitFlow(ctx context.Context, streams Streams, prompter Prompter, config
 		setup.WithDroidIntegration(agentintegrations.NewDroidIntegration()),
 		setup.WithOpenCodeIntegration(agentintegrations.NewOpenCodeIntegration()),
 		setup.WithOmpIntegration(agentintegrations.NewOmpIntegration()),
+		setup.WithDshIntegration(agentintegrations.NewDshIntegration()),
 		setup.WithFeishuPreparer(&feishuPreparerAdapter{}),
 	)
 
@@ -247,6 +248,9 @@ func runTestWechatWork(ctx context.Context, streams Streams) error {
 		webhookURL = cfg.Notify.OMP.Channels.WechatWork.WebhookURL
 	}
 	if webhookURL == "" {
+		webhookURL = cfg.Notify.DSH.Channels.WechatWork.WebhookURL
+	}
+	if webhookURL == "" {
 		return fmt.Errorf("%s", i18n.T("err.wechat_not_configured"))
 	}
 
@@ -281,6 +285,9 @@ func runInitWechatWork(streams Streams, prompter Prompter) error {
 	}
 	if currentURL == "" {
 		currentURL = cfg.Notify.OMP.Channels.WechatWork.WebhookURL
+	}
+	if currentURL == "" {
+		currentURL = cfg.Notify.DSH.Channels.WechatWork.WebhookURL
 	}
 
 	webhookURL, err := prompter.Input(i18n.T("prompt.wechat_webhook"), currentURL)
@@ -415,6 +422,16 @@ func printCurrentNotifyConfig(streams Streams) error {
 		statusIcon(cfg.Notify.OMP.Channels.Bark.Enabled),
 		statusIcon(cfg.Notify.OMP.Channels.Ntfy.Enabled),
 		statusIcon(cfg.Notify.OMP.Channels.Slack.Enabled))
+	// 表格用 %-12s 列宽；"DeepSeek Harness" 会撑破边框，故用品牌指南推荐的缩写 DSH。
+	fmt.Fprintf(streams.Stdout, i18n.T("view.row_format")+"\n", "DSH",
+		statusIcon(cfg.Notify.DSH.Channels.Feishu.Enabled),
+		statusIcon(cfg.Notify.DSH.Channels.System.Enabled),
+		statusIcon(cfg.Notify.DSH.Channels.Wechat.Enabled),
+		statusIcon(cfg.Notify.DSH.Channels.WechatWork.Enabled),
+		statusIcon(cfg.Notify.DSH.Channels.DingTalk.Enabled),
+		statusIcon(cfg.Notify.DSH.Channels.Bark.Enabled),
+		statusIcon(cfg.Notify.DSH.Channels.Ntfy.Enabled),
+		statusIcon(cfg.Notify.DSH.Channels.Slack.Enabled))
 	fmt.Fprintln(streams.Stdout, i18n.T("view.separator"))
 
 	return nil
@@ -430,8 +447,10 @@ func stdoutIsTTY(w io.Writer) bool {
 }
 
 // settingsPathForAgent returns the settings path for the given agent and scope.
-// Currently only Claude has manual install-hooks subcommands; the Codex path is
-// handled exclusively through the init flow + CodexIntegration.
+// Only some agents have manual install-hooks subcommands; the rest are handled
+// through the init flow plus their Integration. DSH is in the latter group and
+// additionally has no project scope at all, so it is handled by
+// agentintegrations.NewDshIntegration().SettingsPath.
 func settingsPathForAgent(agent, scope string) (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {

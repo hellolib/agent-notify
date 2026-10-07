@@ -24,7 +24,7 @@ const banner = `
 ║           ██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║            ║
 ║           ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝            ║
 ║                        Agent Notify                            ║
-║  Claude / Codex / ZCode / Grok / Droid / OpenCode / OMP        ║
+║  Claude / Codex / ZCode / Grok / Droid / OpenCode / OMP / DSH  ║
 ╚════════════════════════════════════════════════════════════════╝
 `
 
@@ -377,6 +377,22 @@ func runCleanConfig(streams Streams, prompter Prompter) error {
 	defaultCfg.Notify.OMP.Channels.Slack.Enabled = false
 	defaultCfg.Notify.OMP.Channels.Slack.WebhookURL = ""
 	defaultCfg.Notify.OMP.Events = nil
+	// Clear DSH channel toggles
+	defaultCfg.Notify.DSH.Channels.Feishu.Enabled = false
+	defaultCfg.Notify.DSH.Channels.System.Enabled = false
+	defaultCfg.Notify.DSH.Channels.Wechat.Enabled = false
+	defaultCfg.Notify.DSH.Channels.Wechat.WebhookURL = ""
+	defaultCfg.Notify.DSH.Channels.WechatWork.Enabled = false
+	defaultCfg.Notify.DSH.Channels.WechatWork.WebhookURL = ""
+	defaultCfg.Notify.DSH.Channels.DingTalk.Enabled = false
+	defaultCfg.Notify.DSH.Channels.DingTalk.WebhookURL = ""
+	defaultCfg.Notify.DSH.Channels.Bark.Enabled = false
+	defaultCfg.Notify.DSH.Channels.Bark.WebhookURL = ""
+	defaultCfg.Notify.DSH.Channels.Ntfy.Enabled = false
+	defaultCfg.Notify.DSH.Channels.Ntfy.TopicURL = ""
+	defaultCfg.Notify.DSH.Channels.Slack.Enabled = false
+	defaultCfg.Notify.DSH.Channels.Slack.WebhookURL = ""
+	defaultCfg.Notify.DSH.Events = nil
 	if err := config.Save(cfgPath, defaultCfg); err != nil {
 		return fmt.Errorf("%s: %w", i18n.T("clean.save_default_err"), err)
 	}

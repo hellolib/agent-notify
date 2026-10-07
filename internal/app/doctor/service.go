@@ -32,6 +32,7 @@ type Service struct {
 	droidIntegration    agentintegrations.Integration
 	opencodeIntegration agentintegrations.Integration
 	ompIntegration      agentintegrations.Integration
+	dshIntegration      agentintegrations.Integration
 }
 
 // NewService creates a new doctor service.
@@ -44,6 +45,7 @@ func NewService(opts ...Option) *Service {
 		droidIntegration:    agentintegrations.NewDroidIntegration(),
 		opencodeIntegration: agentintegrations.NewOpenCodeIntegration(),
 		ompIntegration:      agentintegrations.NewOmpIntegration(),
+		dshIntegration:      agentintegrations.NewDshIntegration(),
 	}
 
 	for _, opt := range opts {
@@ -89,6 +91,11 @@ func WithOpenCodeIntegration(i agentintegrations.Integration) Option {
 // WithOmpIntegration sets the OMP integration.
 func WithOmpIntegration(i agentintegrations.Integration) Option {
 	return func(s *Service) { s.ompIntegration = i }
+}
+
+// WithDshIntegration sets the DeepSeek Harness integration.
+func WithDshIntegration(i agentintegrations.Integration) Option {
+	return func(s *Service) { s.dshIntegration = i }
 }
 
 type DiagnosticStatus string
@@ -173,6 +180,16 @@ type DiagnosticsResult struct {
 	OMPBarkEnabled            bool
 	OMPNtfyEnabled            bool
 	OMPSlackEnabled           bool
+	DSHInstalled              bool
+	DSHHookInstalled          bool
+	DSHFeishuEnabled          bool
+	DSHSystemEnabled          bool
+	DSHWechatEnabled          bool
+	DSHWechatWorkEnabled      bool
+	DSHDingTalkEnabled        bool
+	DSHBarkEnabled            bool
+	DSHNtfyEnabled            bool
+	DSHSlackEnabled           bool
 	DroidFeishuEnabled        bool
 	DroidSystemEnabled        bool
 	DroidWechatEnabled        bool
@@ -188,6 +205,7 @@ type DiagnosticsResult struct {
 	DroidIntegrationStatus    DiagnosticStatus
 	OpenCodeIntegrationStatus DiagnosticStatus
 	OMPIntegrationStatus      DiagnosticStatus
+	DSHIntegrationStatus      DiagnosticStatus
 
 	// Per-agent system-channel focus precision (effective "app"|"window").
 	ClaudeSystemFocusPrecision   string
@@ -197,6 +215,7 @@ type DiagnosticsResult struct {
 	DroidSystemFocusPrecision    string
 	OpenCodeSystemFocusPrecision string
 	OMPSystemFocusPrecision      string
+	DSHSystemFocusPrecision      string
 
 	// Temporary notification freeze (from freeze.json).
 	FreezeActive   bool
@@ -217,6 +236,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.DroidInstalled = s.droidIntegration != nil && s.droidIntegration.DetectInstalled()
 	result.OpenCodeInstalled = s.opencodeIntegration != nil && s.opencodeIntegration.DetectInstalled()
 	result.OMPInstalled = s.ompIntegration != nil && s.ompIntegration.DetectInstalled()
+	result.DSHInstalled = s.dshIntegration != nil && s.dshIntegration.DetectInstalled()
 
 	// System notification detection
 	result.SystemNotifyAvailable, result.SystemNotifyName = detectSystemNotification()
@@ -230,7 +250,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.ConfigExists = cfgErr == nil
 
 	// hook 已注册但 command 指向的二进制不存在时,集成实际不可用(issue #34)
-	var claudeBinaryMissing, codexBinaryMissing, zcodeBinaryMissing, grokBinaryMissing, droidBinaryMissing, opencodeBinaryMissing, ompBinaryMissing bool
+	var claudeBinaryMissing, codexBinaryMissing, zcodeBinaryMissing, grokBinaryMissing, droidBinaryMissing, opencodeBinaryMissing, ompBinaryMissing, dshBinaryMissing bool
 
 	// Claude hooks settings
 	claudeSettingsPath, _ := s.claudeIntegration.SettingsPath("user")
@@ -298,6 +318,19 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 		}
 	}
 
+	// DSH registers an npm plugin in a profile manifest, so "installed" means the
+	// package name appears in that profile's bundles list. There is no command
+	// string to inspect, and the plugin resolves the agent-notify binary at its
+	// own runtime rather than storing a path — so no hookBinaryMissing equivalent
+	// applies here.
+	if s.dshIntegration != nil {
+		dshSettingsPath, _ := s.dshIntegration.SettingsPath("user")
+		if dshSettingsPath != "" {
+			installed, err := s.dshIntegration.IsHookInstalled(dshSettingsPath)
+			result.DSHHookInstalled = err == nil && installed
+		}
+	}
+
 	// Config values
 	result.ClaudeFeishuEnabled = cfgLoadErr == nil && cfg.Notify.ClaudeCode.Channels.Feishu.Enabled
 	result.ClaudeSystemEnabled = cfgLoadErr == nil && cfg.Notify.ClaudeCode.Channels.System.Enabled
@@ -355,6 +388,14 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.OMPBarkEnabled = cfgLoadErr == nil && cfg.Notify.OMP.Channels.Bark.Enabled
 	result.OMPNtfyEnabled = cfgLoadErr == nil && cfg.Notify.OMP.Channels.Ntfy.Enabled
 	result.OMPSlackEnabled = cfgLoadErr == nil && cfg.Notify.OMP.Channels.Slack.Enabled
+	result.DSHFeishuEnabled = cfgLoadErr == nil && cfg.Notify.DSH.Channels.Feishu.Enabled
+	result.DSHSystemEnabled = cfgLoadErr == nil && cfg.Notify.DSH.Channels.System.Enabled
+	result.DSHWechatEnabled = cfgLoadErr == nil && cfg.Notify.DSH.Channels.Wechat.Enabled
+	result.DSHWechatWorkEnabled = cfgLoadErr == nil && cfg.Notify.DSH.Channels.WechatWork.Enabled
+	result.DSHDingTalkEnabled = cfgLoadErr == nil && cfg.Notify.DSH.Channels.DingTalk.Enabled
+	result.DSHBarkEnabled = cfgLoadErr == nil && cfg.Notify.DSH.Channels.Bark.Enabled
+	result.DSHNtfyEnabled = cfgLoadErr == nil && cfg.Notify.DSH.Channels.Ntfy.Enabled
+	result.DSHSlackEnabled = cfgLoadErr == nil && cfg.Notify.DSH.Channels.Slack.Enabled
 
 	// Per-agent effective system focus precision, read fresh from the
 	// AGENT_NOTIFY_FOCUS_PRECISION environment variable.
@@ -365,6 +406,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.DroidSystemFocusPrecision = config.FocusPrecisionFromEnv()
 	result.OpenCodeSystemFocusPrecision = config.FocusPrecisionFromEnv()
 	result.OMPSystemFocusPrecision = config.FocusPrecisionFromEnv()
+	result.DSHSystemFocusPrecision = config.FocusPrecisionFromEnv()
 
 	result.ClaudeIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.ClaudeInstalled, result.ClaudeHookInstalled, claudeBinaryMissing)
 	result.CodexIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.CodexInstalled, result.CodexHookInstalled, codexBinaryMissing)
@@ -373,6 +415,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.DroidIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.DroidInstalled, result.DroidHookInstalled, droidBinaryMissing)
 	result.OpenCodeIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.OpenCodeInstalled, result.OpenCodeHookInstalled, opencodeBinaryMissing)
 	result.OMPIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.OMPInstalled, result.OMPHookInstalled, ompBinaryMissing)
+	result.DSHIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.DSHInstalled, result.DSHHookInstalled, dshBinaryMissing)
 
 	// Feishu CLI
 	_, feishuCLIConfigErr := feishucli.ParseConfig()
@@ -488,6 +531,16 @@ func (s *Service) Print(output OutputWriter, result *DiagnosticsResult) {
 	ompNotifyStatus := padRight(diagnosticStatusLabel(result.OMPIntegrationStatus), 14)
 	output.Writef(i18n.T("doctor.row_format")+"\n", "OMP", ompInstallStatus, ompNotifyStatus)
 
+	dshInstallStatus := padRight(i18n.T("status.not_installed"), 8)
+	if result.DSHInstalled {
+		dshInstallStatus = padRight(i18n.T("status.installed"), 8)
+	}
+	dshNotifyStatus := padRight(diagnosticStatusLabel(result.DSHIntegrationStatus), 14)
+	// Short label: the tables use %-12s columns and "DeepSeek Harness" would
+	// overflow them. "DSH" is the abbreviation DSH's own brand guidelines
+	// recommend for naming, so it stays recognisable.
+	output.Writef(i18n.T("doctor.row_format")+"\n", "DSH", dshInstallStatus, dshNotifyStatus)
+
 	output.Writef(i18n.T("doctor.agent_sep") + "\n")
 	output.Writef("\n")
 
@@ -567,6 +620,16 @@ func (s *Service) Print(output OutputWriter, result *DiagnosticsResult) {
 		boolIcon(result.OMPBarkEnabled),
 		boolIcon(result.OMPNtfyEnabled),
 		boolIcon(result.OMPSlackEnabled),
+	)
+	output.Writef(channelRow, "DSH",
+		boolIcon(result.DSHFeishuEnabled),
+		boolIcon(result.DSHSystemEnabled),
+		boolIcon(result.DSHWechatEnabled),
+		boolIcon(result.DSHWechatWorkEnabled),
+		boolIcon(result.DSHDingTalkEnabled),
+		boolIcon(result.DSHBarkEnabled),
+		boolIcon(result.DSHNtfyEnabled),
+		boolIcon(result.DSHSlackEnabled),
 	)
 	output.Writef(i18n.T("doctor.channel_sep") + "\n")
 	output.Writef("\n")

@@ -139,6 +139,7 @@ func TestService_NoAgentsDetected(t *testing.T) {
 		WithDroidIntegration(&mockIntegration{name: "Droid", detectInstalled: false}),
 		WithOpenCodeIntegration(&mockIntegration{name: "OpenCode", detectInstalled: false}),
 		WithOmpIntegration(&mockIntegration{name: "OMP (oh-my-pi)", detectInstalled: false}),
+		WithDshIntegration(&mockIntegration{name: "DeepSeek Harness", detectInstalled: false}),
 	)
 
 	prompter := &mockPrompter{}
@@ -328,5 +329,78 @@ func TestService_DoesNotDuplicateInstalledPathOnReinstall(t *testing.T) {
 
 	if got := loader.savedCfg.Agent.ClaudeCode.InstalledPaths; len(got) != 1 {
 		t.Fatalf("重复安装后 installed_paths = %v, want 1 entry", got)
+	}
+}
+
+// TestService_DSHIntegration 走完整向导，断言：agent 选项出现 DeepSeek Harness、
+// 四个通知事件都可选、选择结果落到 cfg.Notify.DSH、agent 被标记启用、
+// 且安装落点被记入 InstalledPaths（clean 依赖它才能可靠清理）。
+func TestService_DSHIntegration(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+
+	dsh := &mockIntegration{name: "DeepSeek Harness", detectInstalled: true,
+		settingsPath: filepath.Join(dir, "profiles", "web", "package.json")}
+
+	svc := NewService(
+		WithDshIntegration(dsh),
+		WithClaudeIntegration(&mockIntegration{name: "Claude Code", detectInstalled: false}),
+		WithCodexIntegration(&mockIntegration{name: "Codex", detectInstalled: false}),
+		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
+		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
+		WithDroidIntegration(&mockIntegration{name: "Droid", detectInstalled: false}),
+		WithOpenCodeIntegration(&mockIntegration{name: "OpenCode", detectInstalled: false}),
+		WithOmpIntegration(&mockIntegration{name: "OMP (oh-my-pi)", detectInstalled: false}),
+	)
+
+	prompter := &mockPrompter{
+		selectResult: "dsh",
+		multiResults: [][]string{{"system"}, {"permission_required", "input_required"}},
+	}
+	output := &mockOutputWriter{}
+
+	result, err := svc.Run(context.Background(), prompter, output, configPath, "/tmp/agent-notify")
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if result.Agent != "dsh" {
+		t.Fatalf("result.Agent = %q, want dsh", result.Agent)
+	}
+
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !cfg.Agent.DSH.Enabled {
+		t.Error("cfg.Agent.DSH.Enabled = false, want true after a successful setup")
+	}
+	if len(cfg.Notify.DSH.Events) != 2 {
+		t.Errorf("cfg.Notify.DSH.Events = %v, want the two selected events", cfg.Notify.DSH.Events)
+	}
+	if len(cfg.Agent.DSH.InstalledPaths) == 0 {
+		t.Error("InstalledPaths is empty; clean could not locate the profile")
+	}
+	// DSH has no project scope, so the recorded scope must always be user.
+	if cfg.Agent.DSH.InstallScope != "user" {
+		t.Errorf("InstallScope = %q, want user", cfg.Agent.DSH.InstallScope)
+	}
+}
+
+// TestDSHEventOptionsCoverAllFour 断言向导把四个事件都摆出来。
+// 若照抄 Codex 的两事件默认值，permission_required 就选不到——
+// 而那正是这个接入存在的理由。
+func TestDSHEventOptionsCoverAllFour(t *testing.T) {
+	options := dshEventOptionsFn()
+	if len(options) != 4 {
+		t.Fatalf("dshEventOptionsFn() returned %d options, want 4", len(options))
+	}
+	seen := map[string]bool{}
+	for _, o := range options {
+		seen[o.Value] = true
+	}
+	for _, want := range []string{"permission_required", "input_required", "run_completed", "run_failed"} {
+		if !seen[want] {
+			t.Errorf("dshEventOptionsFn() is missing %q", want)
+		}
 	}
 }

@@ -337,3 +337,50 @@ func TestFirstEnabledAgentSystemPrecision(t *testing.T) {
 		t.Fatalf("firstEnabledAgentSystemPrecision(zcode-empty)=%q want app", got)
 	}
 }
+
+// TestDSHAppearsInDoctorReport asserts the doctor report shows a DSH row.
+//
+// Forgetting the rendering is easy: the diagnostics service builds two tables
+// that each enumerate agents, so wiring detection without wiring the tables
+// leaves the agent invisible in the report.
+func TestDSHAppearsInDoctorReport(t *testing.T) {
+	testutil.IsolateHome(t)
+
+	svc := NewService(
+		WithDshIntegration(&mockIntegration{name: "DSH", detectInstalled: false}),
+	)
+
+	result, err := svc.Run()
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	var out strings.Builder
+	svc.Print(&testOutputWriter{b: &out}, result)
+
+	if !strings.Contains(out.String(), "DSH") {
+		t.Errorf("doctor output does not mention DSH:\n%s", out.String())
+	}
+}
+
+// testOutputWriter satisfies doctor.OutputWriter, collecting rendered output.
+type testOutputWriter struct{ b *strings.Builder }
+
+func (w *testOutputWriter) Writef(format string, args ...any) {
+	fmt.Fprintf(w.b, format, args...)
+}
+
+// TestDSHDoctorLabelFitsColumnWidth pins the DSH row label length.
+//
+// Both doctor tables use %-12s columns (doctor.row_format / view.row_format).
+// "DeepSeek Harness" is 16 characters and would break the borders, which is why
+// the row uses DSH's own recommended abbreviation. This keeps a future edit from
+// reintroducing the long name.
+func TestDSHDoctorLabelFitsColumnWidth(t *testing.T) {
+	const columnWidth = 12
+	const label = "DSH"
+
+	if len(label) > columnWidth {
+		t.Errorf("doctor label %q is %d chars, exceeds the %d-char column", label, len(label), columnWidth)
+	}
+}

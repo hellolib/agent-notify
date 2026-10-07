@@ -16,7 +16,7 @@
 
 ## Overview
 
-Agent Notify hooks into the lifecycle events of AI coding agents (Claude Code, Codex, OpenCode, ZCode, Grok, Droid, OMP/oh-my-pi, etc.) and pushes them to your phone and desktop. Get notified the moment your agent needs permission, finishes a task, or fails — so you never have to babysit a running agent.
+Agent Notify hooks into the lifecycle events of AI coding agents (Claude Code, Codex, OpenCode, ZCode, Grok, Droid, OMP/oh-my-pi, DeepSeek Harness, etc.) and pushes them to your phone and desktop. Get notified the moment your agent needs permission, finishes a task, or fails — so you never have to babysit a running agent.
 
 Supported delivery channels: **OS-native system notifications**, **Feishu/Lark**, **WeChat Work (企业微信)**, **DingTalk (钉钉)**, **Bark (iOS)**, and **ntfy**.
 
@@ -76,12 +76,12 @@ agent-notify send --channel ntfy --agent omp --title "Build result" --message "B
 
 ### Supported Events
 
-| Event | Claude Code | Codex | OpenCode | ZCode | Grok | Droid | OMP |
-|------|:---:|:---:|:---:|:---:|:----:|:---:|:---:|
-| `permission_required` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅* |
-| `input_required` | ✅ | — | ✅ | — | ✅ | ✅ | ✅ |
-| `run_completed` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `run_failed` | ✅ | — | ✅ | ✅ | ✅ | — | ✅ |
+| Event | Claude Code | Codex | OpenCode | ZCode | Grok | Droid | OMP | DSH |
+|------|:---:|:---:|:---:|:---:|:----:|:---:|:---:|:---:|
+| `permission_required` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅* | ✅ |
+| `input_required` | ✅ | — | ✅ | — | ✅ | ✅ | ✅ | ✅ |
+| `run_completed` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `run_failed` | ✅ | — | ✅ | ✅ | ✅ | — | ✅ | ✅ |
 
 Notes:
 
@@ -93,6 +93,7 @@ Notes:
 - Droid subscribes via `~/.factory/hooks.json`: `SessionStart`, `Notification`, `Stop`, mapped to `session_start` / `permission_required`|`input_required` / `run_completed`. Droid has no failure event, so `run_failed` is not supported. `session_start` is only used for click-to-focus window capture, not as a notification event.
 - OMP uses a native TypeScript extension instead of a JSON command hook: user scope writes `~/.omp/agent/extensions/agent-notify.ts`, while project scope writes `.omp/extensions/agent-notify.ts`. It listens to `session_start`, `tool_approval_requested`, `tool_execution_start`, and `session_stop`, mapping them to focus capture, `permission_required`, `input_required`, and `run_completed`/`run_failed`. The `ask` tool blocks the session waiting for an answer, so its `tool_execution_start` is mapped to `input_required`. A run is judged by `session_stop`'s stop reason: `stop_reason: "error"` (or an aborted stop with an error message) maps to `run_failed`; ordinary per-tool errors are not treated as run failures. `permission_required` is emitted only when OMP actually requests tool approval.
 - OMP respects `OMP_PROFILE` / `PI_PROFILE` profiles and the `PI_CODING_AGENT_DIR` override.
+- DeepSeek Harness uses a native Cordis plugin (the separate [`agent-notify-dsh`](https://github.com/wanfanggreat/agent-notify-dsh) package) instead of a JSON command hook. The plugin subscribes directly to the harness's lifecycle extension points — `agent/created`→`session_start`, `approval/request`→`permission_required`, `user-questions/request`→`input_required`, `agent/turn-stopping`→`run_completed`, `agent/error`→`run_failed` — and spawns `agent-notify handle-dsh-hook` detached, never blocking the agent. Install it with `dsh plugin --profile web add agent-notify-dsh`. This native route is deliberate: DSH's bundled Claude Code hook bridge only recognises `SessionStart` and `Stop`, so `PermissionRequest` and `Notification` would be dropped silently, losing the pending-authorization alert that matters most. Only root agents are reported; subagent events are filtered to avoid notification spam.
 - **`SessionStart` does not produce a notification.** It is subscribed on every agent solely to capture the terminal window at session start, which powers Linux window-level [Click-to-Focus](#click-to-focus). On macOS/Windows the SessionStart hook is a no-op.
 
 ### Supported Platforms
@@ -145,6 +146,7 @@ Agent integration config locations:
 - Grok: `~/.grok/hooks/agent-notify.json` (writes hooks → command `agent-notify handle-grok-hook`; project scope uses `.grok/hooks/agent-notify.json`)
 - Droid: `~/.factory/hooks.json` (writes hooks → command `agent-notify handle-droid-hook`; project scope uses `.factory/hooks.json`)
 - OMP: `~/.omp/agent/extensions/agent-notify.ts` (writes a native TypeScript extension; project scope uses `.omp/extensions/agent-notify.ts`)
+- DeepSeek Harness: `<DSH_HOME>/profiles/<profile>/package.json` (registers the `agent-notify-dsh` bundle; the install itself runs `dsh plugin --profile <profile> add agent-notify-dsh`. DSH has no project-level install location)
 
 ### WeChat Work Bot Binding Tip
 

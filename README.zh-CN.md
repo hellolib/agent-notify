@@ -16,7 +16,7 @@
 
 ## 项目简介
 
-一个面向 AI Agent 的通知配置工具。支持将 Claude Code、Codex、OpenCode、ZCode (Z.ai)、Grok、Droid、OMP (oh-my-pi) 等 Agent 的事件通知推送到飞书、企业微信、钉钉、Bark、ntfy 和系统通知。
+一个面向 AI Agent 的通知配置工具。支持将 Claude Code、Codex、OpenCode、ZCode (Z.ai)、Grok、Droid、OMP (oh-my-pi)、DeepSeek Harness 等 Agent 的事件通知推送到飞书、企业微信、钉钉、Bark、ntfy 和系统通知。
 
 <p align="center">
   <img src="assist/demo.gif" alt="Agent Notify 演示" width="800">
@@ -71,12 +71,12 @@ agent-notify send --channel ntfy --agent omp --title "构建结果" --message "�
 
 ### 支持的事件
 
-| 事件 | Claude Code | Codex | OpenCode | ZCode | Grok | Droid | OMP |
-|------|:---:|:---:|:---:|:---:|:----:|:---:|:---:|
-| `permission_required` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅* |
-| `input_required` | ✅ | — | ✅ | — | ✅ | ✅ | ✅ |
-| `run_completed` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `run_failed` | ✅ | — | ✅ | ✅ | ✅ | — | ✅ |
+| 事件 | Claude Code | Codex | OpenCode | ZCode | Grok | Droid | OMP | DSH |
+|------|:---:|:---:|:---:|:---:|:----:|:---:|:---:|:---:|
+| `permission_required` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅* | ✅ |
+| `input_required` | ✅ | — | ✅ | — | ✅ | ✅ | ✅ | ✅ |
+| `run_completed` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `run_failed` | ✅ | — | ✅ | ✅ | ✅ | — | ✅ | ✅ |
 
 说明：
 
@@ -88,6 +88,7 @@ agent-notify send --channel ntfy --agent omp --title "构建结果" --message "�
 - Droid 通过 `~/.factory/hooks.json` 订阅 `SessionStart`、`Notification`、`Stop`，映射为 `session_start` / `permission_required`|`input_required` / `run_completed`。Droid 无失败事件，故不支持 `run_failed`。`session_start` 仅用于点击聚焦的窗口捕获，不作为通知事件。
 - OMP 使用原生 TS Extension，而不是 JSON command hook：用户级默认写入 `~/.omp/agent/extensions/agent-notify.ts`，项目级写入 `.omp/extensions/agent-notify.ts`。扩展监听 `session_start`、`tool_approval_requested`、`tool_execution_start` 和 `session_stop`，分别映射到聚焦、`permission_required`、`input_required` 和 `run_completed`/`run_failed`。`ask` 工具会阻塞会话等待用户回答，因此其 `tool_execution_start` 映射为 `input_required`；运行成败由 `session_stop` 携带的 stop reason 判定——`stop_reason: "error"`（或带错误信息的 aborted）映射为 `run_failed`，普通单工具报错不视为运行失败。`permission_required` 只有 OMP 实际启用了工具审批并产生审批请求时才会触发。
 - OMP 用户目录会遵循 `OMP_PROFILE` / `PI_PROFILE` profile，以及 `PI_CODING_AGENT_DIR` 覆盖路径。
+- DeepSeek Harness（DSH）使用原生 Cordis 插件，而不是 JSON command hook。插件是独立包 [`agent-notify-dsh`](https://github.com/wanfanggreat/agent-notify-dsh)，直接订阅 harness 的生命周期扩展点：`agent/created`→`session_start`、`approval/request`→`permission_required`、`user-questions/request`→`input_required`、`agent/turn-stopping`→`run_completed`、`agent/error`→`run_failed`；投递时以分离式 `spawn` 调起 `agent-notify handle-dsh-hook`，绝不阻塞 agent。安装：`dsh plugin --profile web add agent-notify-dsh`。走原生路线是刻意的：DSH 自带的 Claude Code hook bridge 只认 `SessionStart` 和 `Stop`，`PermissionRequest` 与 `Notification` 会被**静默丢弃**，而「等待授权」恰恰是最该收到的通知。只上报根 agent，子 agent 事件会被过滤，避免通知刷屏。
 - **`SessionStart` 不产生任何通知。** 它在所有 agent 上被订阅，仅用于在会话启动时捕获终端窗口，为 Linux 的窗口级点击聚焦提供支持（见下方「点击聚焦」一节）；在 macOS/Windows 上该 hook 为空操作。
 
 ### 支持的平台
@@ -143,6 +144,7 @@ Agent 集成配置位置：
 - Grok: `~/.grok/hooks/agent-notify.json`（写入 hooks → 命令 `agent-notify handle-grok-hook`；项目 scope 为 `.grok/hooks/agent-notify.json`）
 - Droid: `~/.factory/hooks.json`（写入 hooks → 命令 `agent-notify handle-droid-hook`；项目 scope 为 `.factory/hooks.json`）
 - OMP: `~/.omp/agent/extensions/agent-notify.ts`（写入原生 TS Extension；项目 scope 为 `.omp/extensions/agent-notify.ts`）
+- DSH: `<DSH_HOME>/profiles/<profile>/package.json`（写入 `agent-notify-dsh` bundle；实际安装由 `dsh plugin --profile <profile> add agent-notify-dsh` 完成，DSH 无项目级落点）
 
 ### 企业微信机器人绑定小技巧
 

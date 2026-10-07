@@ -43,6 +43,7 @@ type Service struct {
 	droidIntegration    agentintegrations.Integration
 	opencodeIntegration agentintegrations.Integration
 	ompIntegration      agentintegrations.Integration
+	dshIntegration      agentintegrations.Integration
 	feishuPreparer      FeishuPreparer
 	configLoader        ConfigLoader
 }
@@ -71,6 +72,7 @@ func NewService(opts ...Option) *Service {
 		droidIntegration:    agentintegrations.NewDroidIntegration(),
 		opencodeIntegration: agentintegrations.NewOpenCodeIntegration(),
 		ompIntegration:      agentintegrations.NewOmpIntegration(),
+		dshIntegration:      agentintegrations.NewDshIntegration(),
 	}
 
 	for _, opt := range opts {
@@ -116,6 +118,11 @@ func WithOpenCodeIntegration(i agentintegrations.Integration) Option {
 // WithOmpIntegration sets the OMP integration.
 func WithOmpIntegration(i agentintegrations.Integration) Option {
 	return func(s *Service) { s.ompIntegration = i }
+}
+
+// WithDshIntegration sets the DeepSeek Harness integration.
+func WithDshIntegration(i agentintegrations.Integration) Option {
+	return func(s *Service) { s.dshIntegration = i }
 }
 
 // WithFeishuPreparer sets the Feishu preparer.
@@ -205,6 +212,20 @@ func opencodeEventOptionsFn() []PromptOption {
 func ompEventOptionsFn() []PromptOption {
 	return []PromptOption{
 		{Label: i18n.T("event.permission_required"), Value: "permission_required"},
+		{Label: i18n.T("event.run_completed"), Value: "run_completed"},
+		{Label: i18n.T("event.run_failed"), Value: "run_failed"},
+	}
+}
+
+// dshEventOptionsFn returns the events the DSH native plugin can actually emit.
+//
+// All four are reachable: the plugin subscribes to approval/request and
+// user-questions/request directly, unlike DSH's bundled Claude Code bridge
+// which only recognises SessionStart and Stop and silently drops the rest.
+func dshEventOptionsFn() []PromptOption {
+	return []PromptOption{
+		{Label: i18n.T("event.permission_required"), Value: "permission_required"},
+		{Label: i18n.T("event.input_required"), Value: "input_required"},
 		{Label: i18n.T("event.run_completed"), Value: "run_completed"},
 		{Label: i18n.T("event.run_failed"), Value: "run_failed"},
 	}
@@ -405,6 +426,19 @@ func (s *Service) disableAgentNotification(cfg config.Config, path, agent string
 		cfg.Notify.OMP.Channels.Slack.WebhookURL = ""
 		cfg.Notify.OMP.Events = nil
 		cfg.Agent.OMP.Enabled = false
+	case "dsh":
+		cfg.Notify.DSH.Channels.Feishu.Enabled = false
+		cfg.Notify.DSH.Channels.System.Enabled = false
+		cfg.Notify.DSH.Channels.Wechat.Enabled = false
+		cfg.Notify.DSH.Channels.Wechat.WebhookURL = ""
+		cfg.Notify.DSH.Channels.WechatWork.Enabled = false
+		cfg.Notify.DSH.Channels.DingTalk.Enabled = false
+		cfg.Notify.DSH.Channels.Bark.Enabled = false
+		cfg.Notify.DSH.Channels.Ntfy.Enabled = false
+		cfg.Notify.DSH.Channels.Slack.Enabled = false
+		cfg.Notify.DSH.Channels.Slack.WebhookURL = ""
+		cfg.Notify.DSH.Events = nil
+		cfg.Agent.DSH.Enabled = false
 	}
 
 	if err := s.saveConfig(path, cfg); err != nil {
@@ -435,6 +469,8 @@ func agentName(agent string) string {
 		return "OpenCode"
 	case "omp":
 		return "OMP (oh-my-pi)"
+	case "dsh":
+		return "DeepSeek Harness"
 	default:
 		return agent
 	}
