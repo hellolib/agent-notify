@@ -182,3 +182,85 @@ func TestResponseJSON(t *testing.T) {
 		t.Errorf("empty event response = %q", got)
 	}
 }
+
+func TestParseMessage_StopExtractsLastAssistantReplyFromTranscript(t *testing.T) {
+	transcript := filepath.Join(t.TempDir(), "transcript.jsonl")
+	lines := strings.Join([]string{
+		`{"step_index":1,"source":"USER_EXPLICIT","type":"USER_INPUT","content":"old prompt"}`,
+		`{"step_index":2,"source":"MODEL","type":"PLANNER_RESPONSE","content":"old reply"}`,
+		`{"step_index":3,"source":"USER_EXPLICIT","type":"USER_INPUT","content":"fix unit tests"}`,
+		`{"step_index":4,"source":"MODEL","type":"PLANNER_RESPONSE","thinking":"running tests"}`,
+		`{"step_index":5,"source":"MODEL","type":"PLANNER_RESPONSE","content":"已修复全部 3 个失败用例，go test ./... 全部通过。"}`,
+	}, "\n") + "\n"
+	if err := os.WriteFile(transcript, []byte(lines), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	input := `{"hookEventName":"Stop","conversationId":"c1","cwd":"/repo","terminationReason":"NO_TOOL_CALL","fullyIdle":true,"lastUserInput":"fix unit tests","transcriptPath":` + jsonQuote(t, transcript) + `}`
+	msg, err := ParseMessage(strings.NewReader(input))
+	if err != nil {
+		t.Fatalf("ParseMessage() error = %v", err)
+	}
+	want := "已修复全部 3 个失败用例，go test ./... 全部通过。"
+	if msg.Body != want {
+		t.Errorf("Body = %q, want %q", msg.Body, want)
+	}
+}
+
+func TestParseMessage_StopDoesNotLeakPreviousTurnReplyAndFallsBackToUserInput(t *testing.T) {
+	transcript := filepath.Join(t.TempDir(), "transcript.jsonl")
+	lines := strings.Join([]string{
+		`{"step_index":1,"source":"USER_EXPLICIT","type":"USER_INPUT","content":"old prompt"}`,
+		`{"step_index":2,"source":"MODEL","type":"PLANNER_RESPONSE","content":"stale previous reply"}`,
+		`{"step_index":3,"source":"USER_EXPLICIT","type":"USER_INPUT","content":"run build"}`,
+		`{"step_index":4,"source":"MODEL","type":"PLANNER_RESPONSE","thinking":"tool call only"}`,
+	}, "\n") + "\n"
+	if err := os.WriteFile(transcript, []byte(lines), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	input := `{"hookEventName":"Stop","conversationId":"c1","cwd":"/repo","terminationReason":"NO_TOOL_CALL","fullyIdle":true,"lastUserInput":"run build","transcriptPath":` + jsonQuote(t, transcript) + `}`
+	msg, err := ParseMessage(strings.NewReader(input))
+	if err != nil {
+		t.Fatalf("ParseMessage() error = %v", err)
+	}
+	if strings.Contains(msg.Body, "stale previous reply") {
+		t.Fatalf("Body leaked previous turn reply: %q", msg.Body)
+	}
+	if msg.Body != "任务已完成：run build" {
+		t.Errorf("Body = %q, want %q", msg.Body, "任务已完成：run build")
+	}
+}
+
+func TestParseMessage_StopHandlesLargeTranscriptTail(t *testing.T) {
+	transcript := filepath.Join(t.TempDir(), "transcript.jsonl")
+	var b strings.Builder
+	// 写入超过 maxTranscriptTailBytes 的历史记录，验证尾部 seek 仍能准确提取最新回复。
+	padding := strings.Repeat("x", 4096)
+	for i := 0; i < 80; i++ {
+		b.WriteString(`{"type":"GENERIC","content":"`)
+		b.WriteString(padding)
+		b.WriteString("\"}\n")
+	}
+	b.WriteString(`{"type":"USER_INPUT","content":"check status"}` + "\n")
+	b.WriteString(`{"type":"PLANNER_RESPONSE","content":"部署已完成，所有健康检查通过。"}` + "\n")
+	if err := os.WriteFile(transcript, []byte(b.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	input := `{"hookEventName":"Stop","conversationId":"c1","terminationReason":"NO_TOOL_CALL","transcriptPath":` + jsonQuote(t, transcript) + `}`
+	msg, err := ParseMessage(strings.NewReader(input))
+	if err != nil {
+		t.Fatalf("ParseMessage() error = %v", err)
+	}
+	if msg.Body != "部署已完成，所有健康检查通过。" {
+		t.Errorf("Body = %q, want latest reply", msg.Body)
+	}
+}
+
+func jsonQuote(t *testing.T, s string) string {
+	t.Helper()
+	// 构造合法 JSON 字符串字面量（兼容 Windows 反斜杠路径）。
+	r := strings.NewReplacer(`\`, `\\`, `"`, `\"`)
+	return `"` + r.Replace(s) + `"`
+}
