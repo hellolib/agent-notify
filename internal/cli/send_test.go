@@ -4,10 +4,12 @@ import "testing"
 
 func TestNormalizeSendAgent(t *testing.T) {
 	tests := map[string]string{
-		"Claude Code": "claude",
-		"open_code":   "opencode",
-		"oh-my-pi":    "omp",
-		"pi":          "omp",
+		"Claude Code":        "claude",
+		"open_code":          "opencode",
+		"oh-my-pi":           "omp",
+		"pi":                 "omp",
+		"agy":                "antigravity",
+		"Google Antigravity": "antigravity",
 	}
 	for input, want := range tests {
 		if got := normalizeSendAgent(input); got != want {

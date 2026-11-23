@@ -143,6 +143,8 @@ func buildSenders(cfg config.Config, msg notify.Message) []notify.Sender {
 		notifyCfg = cfg.Notify.OMP
 	case "dsh":
 		notifyCfg = cfg.Notify.DSH
+	case "antigravity":
+		notifyCfg = cfg.Notify.Antigravity
 	}
 
 	if !contains(notifyCfg.Events, msg.Event) {

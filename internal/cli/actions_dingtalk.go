@@ -77,5 +77,8 @@ func dingTalkURLFromConfig(cfg config.Config) string {
 	if cfg.Notify.OMP.Channels.DingTalk.WebhookURL != "" {
 		return cfg.Notify.OMP.Channels.DingTalk.WebhookURL
 	}
-	return cfg.Notify.DSH.Channels.DingTalk.WebhookURL
+	if cfg.Notify.DSH.Channels.DingTalk.WebhookURL != "" {
+		return cfg.Notify.DSH.Channels.DingTalk.WebhookURL
+	}
+	return cfg.Notify.Antigravity.Channels.DingTalk.WebhookURL
 }

@@ -33,6 +33,8 @@ func appDisplayName(agent string) string {
 		return "OMP (oh-my-pi)"
 	case "dsh":
 		return "DeepSeek Harness"
+	case "antigravity":
+		return "Antigravity"
 	default:
 		return agent
 	}

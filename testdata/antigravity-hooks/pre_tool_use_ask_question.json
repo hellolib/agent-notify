@@ -1,0 +1,20 @@
+{
+  "hookEventName": "PreToolUse",
+  "conversationId": "ec33ebf9-0cba-4100-8142-c61503f6c587",
+  "workspacePaths": ["/workspace/project"],
+  "cwd": "/workspace/project",
+  "stepIdx": 7,
+  "toolCall": {
+    "id": "toolu_02",
+    "name": "ask_question",
+    "args": {
+      "questions": [
+        {
+          "question": "Which database migration strategy should I use?",
+          "options": ["Incremental", "Squash"],
+          "is_multi_select": false
+        }
+      ]
+    }
+  }
+}

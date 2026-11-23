@@ -1,0 +1,7 @@
+{
+  "hookEventName": "SessionStart",
+  "conversationId": "ec33ebf9-0cba-4100-8142-c61503f6c587",
+  "workspacePaths": ["/workspace/project"],
+  "cwd": "/workspace/project",
+  "modelName": "auto"
+}

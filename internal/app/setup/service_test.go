@@ -140,6 +140,7 @@ func TestService_NoAgentsDetected(t *testing.T) {
 		WithOpenCodeIntegration(&mockIntegration{name: "OpenCode", detectInstalled: false}),
 		WithOmpIntegration(&mockIntegration{name: "OMP (oh-my-pi)", detectInstalled: false}),
 		WithDshIntegration(&mockIntegration{name: "DeepSeek Harness", detectInstalled: false}),
+		WithAntigravityIntegration(&mockIntegration{name: "Antigravity", detectInstalled: false}),
 	)
 
 	prompter := &mockPrompter{}
@@ -401,6 +402,77 @@ func TestDSHEventOptionsCoverAllFour(t *testing.T) {
 	for _, want := range []string{"permission_required", "input_required", "run_completed", "run_failed"} {
 		if !seen[want] {
 			t.Errorf("dshEventOptionsFn() is missing %q", want)
+		}
+	}
+}
+
+func TestService_AntigravityIntegration(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+
+	ag := &mockIntegration{
+		name:            "Antigravity",
+		detectInstalled: true,
+		settingsPath:    filepath.Join(dir, ".gemini", "config", "hooks.json"),
+	}
+
+	svc := NewService(
+		WithAntigravityIntegration(ag),
+		WithClaudeIntegration(&mockIntegration{name: "Claude Code", detectInstalled: false}),
+		WithCodexIntegration(&mockIntegration{name: "Codex", detectInstalled: false}),
+		WithZcodeIntegration(&mockIntegration{name: "ZCode", detectInstalled: false}),
+		WithGrokIntegration(&mockIntegration{name: "Grok", detectInstalled: false}),
+		WithDroidIntegration(&mockIntegration{name: "Droid", detectInstalled: false}),
+		WithOpenCodeIntegration(&mockIntegration{name: "OpenCode", detectInstalled: false}),
+		WithOmpIntegration(&mockIntegration{name: "OMP (oh-my-pi)", detectInstalled: false}),
+		WithDshIntegration(&mockIntegration{name: "DeepSeek Harness", detectInstalled: false}),
+		WithFeishuPreparer(&mockFeishuPreparer{}),
+	)
+
+	prompter := &mockPrompter{
+		selectResult: "antigravity",
+		multiResults: [][]string{{"feishu"}, {"permission_required", "input_required", "run_completed", "run_failed"}},
+	}
+	output := &mockOutputWriter{}
+
+	result, err := svc.Run(context.Background(), prompter, output, configPath, "/tmp/agent-notify")
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if result.Agent != "antigravity" {
+		t.Fatalf("result.Agent = %q, want antigravity", result.Agent)
+	}
+
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !cfg.Agent.Antigravity.Enabled {
+		t.Error("cfg.Agent.Antigravity.Enabled = false, want true")
+	}
+	if !cfg.Notify.Antigravity.Channels.Feishu.Enabled {
+		t.Error("cfg.Notify.Antigravity.Channels.Feishu.Enabled = false, want true")
+	}
+	if len(cfg.Notify.Antigravity.Events) != 4 {
+		t.Errorf("cfg.Notify.Antigravity.Events = %v, want 4 events", cfg.Notify.Antigravity.Events)
+	}
+	if len(cfg.Agent.Antigravity.InstalledPaths) == 0 {
+		t.Error("InstalledPaths is empty")
+	}
+}
+
+func TestAntigravityEventOptionsCoverAllFour(t *testing.T) {
+	options := antigravityEventOptionsFn()
+	if len(options) != 4 {
+		t.Fatalf("antigravityEventOptionsFn() returned %d options, want 4", len(options))
+	}
+	seen := map[string]bool{}
+	for _, o := range options {
+		seen[o.Value] = true
+	}
+	for _, want := range []string{"permission_required", "input_required", "run_completed", "run_failed"} {
+		if !seen[want] {
+			t.Errorf("antigravityEventOptionsFn() is missing %q", want)
 		}
 	}
 }

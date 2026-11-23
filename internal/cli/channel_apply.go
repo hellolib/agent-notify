@@ -21,4 +21,5 @@ func applyChannelToAgents(cfg *config.Config, apply func(agentEnabled bool, noti
 	apply(cfg.Agent.OpenCode.Enabled, &cfg.Notify.OpenCode)
 	apply(cfg.Agent.OMP.Enabled, &cfg.Notify.OMP)
 	apply(cfg.Agent.DSH.Enabled, &cfg.Notify.DSH)
+	apply(cfg.Agent.Antigravity.Enabled, &cfg.Notify.Antigravity)
 }

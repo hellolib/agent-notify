@@ -82,7 +82,7 @@ func newSendCmd(ctx context.Context, streams Streams) *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&channel, "channel", "c", "", "channel: system, feishu, wechat, wechat-work, dingtalk, bark, ntfy, slack")
-	cmd.Flags().StringVarP(&agent, "agent", "a", "omp", "agent configuration: claude, codex, zcode, grok, droid, opencode, omp")
+	cmd.Flags().StringVarP(&agent, "agent", "a", "omp", "agent configuration: claude, codex, zcode, grok, droid, opencode, omp, dsh, antigravity")
 	cmd.Flags().StringVar(&title, "title", "Agent Notify", "message title")
 	cmd.Flags().StringVar(&event, "event", "manual", "event style: manual, permission_required, input_required, run_completed, run_failed")
 	cmd.Flags().StringVar(&workspace, "workspace", "", "workspace shown in the message")
@@ -159,8 +159,10 @@ func notifyConfigForAgent(cfg config.Config, agent string) (config.AgentNotifyCo
 		return cfg.Notify.OMP, nil
 	case "dsh":
 		return cfg.Notify.DSH, nil
+	case "antigravity":
+		return cfg.Notify.Antigravity, nil
 	default:
-		return config.AgentNotifyConfig{}, fmt.Errorf("unsupported agent %q; choose claude, codex, zcode, grok, droid, opencode, omp, or dsh", agent)
+		return config.AgentNotifyConfig{}, fmt.Errorf("unsupported agent %q; choose claude, codex, zcode, grok, droid, opencode, omp, dsh, or antigravity", agent)
 	}
 }
 
@@ -177,6 +179,8 @@ func normalizeSendAgent(agent string) string {
 		return "omp"
 	case "deepseek-harness":
 		return "dsh"
+	case "agy", "google-antigravity":
+		return "antigravity"
 	default:
 		return value
 	}

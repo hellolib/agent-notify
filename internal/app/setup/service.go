@@ -36,16 +36,17 @@ type OutputWriter interface {
 
 // Service handles the init/setup flow for agent-notify.
 type Service struct {
-	claudeIntegration   agentintegrations.Integration
-	codexIntegration    agentintegrations.Integration
-	zcodeIntegration    agentintegrations.Integration
-	grokIntegration     agentintegrations.Integration
-	droidIntegration    agentintegrations.Integration
-	opencodeIntegration agentintegrations.Integration
-	ompIntegration      agentintegrations.Integration
-	dshIntegration      agentintegrations.Integration
-	feishuPreparer      FeishuPreparer
-	configLoader        ConfigLoader
+	claudeIntegration      agentintegrations.Integration
+	codexIntegration       agentintegrations.Integration
+	zcodeIntegration       agentintegrations.Integration
+	grokIntegration        agentintegrations.Integration
+	droidIntegration       agentintegrations.Integration
+	opencodeIntegration    agentintegrations.Integration
+	ompIntegration         agentintegrations.Integration
+	dshIntegration         agentintegrations.Integration
+	antigravityIntegration agentintegrations.Integration
+	feishuPreparer         FeishuPreparer
+	configLoader           ConfigLoader
 }
 
 // ConfigLoader loads and saves configuration.
@@ -65,14 +66,15 @@ type SetupResult struct {
 // NewService creates a new setup service.
 func NewService(opts ...Option) *Service {
 	s := &Service{
-		claudeIntegration:   agentintegrations.NewClaudeIntegration(),
-		codexIntegration:    agentintegrations.NewCodexIntegration(),
-		zcodeIntegration:    agentintegrations.NewZcodeIntegration(),
-		grokIntegration:     agentintegrations.NewGrokIntegration(),
-		droidIntegration:    agentintegrations.NewDroidIntegration(),
-		opencodeIntegration: agentintegrations.NewOpenCodeIntegration(),
-		ompIntegration:      agentintegrations.NewOmpIntegration(),
-		dshIntegration:      agentintegrations.NewDshIntegration(),
+		claudeIntegration:      agentintegrations.NewClaudeIntegration(),
+		codexIntegration:       agentintegrations.NewCodexIntegration(),
+		zcodeIntegration:       agentintegrations.NewZcodeIntegration(),
+		grokIntegration:        agentintegrations.NewGrokIntegration(),
+		droidIntegration:       agentintegrations.NewDroidIntegration(),
+		opencodeIntegration:    agentintegrations.NewOpenCodeIntegration(),
+		ompIntegration:         agentintegrations.NewOmpIntegration(),
+		dshIntegration:         agentintegrations.NewDshIntegration(),
+		antigravityIntegration: agentintegrations.NewAntigravityIntegration(),
 	}
 
 	for _, opt := range opts {
@@ -123,6 +125,11 @@ func WithOmpIntegration(i agentintegrations.Integration) Option {
 // WithDshIntegration sets the DeepSeek Harness integration.
 func WithDshIntegration(i agentintegrations.Integration) Option {
 	return func(s *Service) { s.dshIntegration = i }
+}
+
+// WithAntigravityIntegration sets the Antigravity integration.
+func WithAntigravityIntegration(i agentintegrations.Integration) Option {
+	return func(s *Service) { s.antigravityIntegration = i }
 }
 
 // WithFeishuPreparer sets the Feishu preparer.
@@ -223,6 +230,18 @@ func ompEventOptionsFn() []PromptOption {
 // user-questions/request directly, unlike DSH's bundled Claude Code bridge
 // which only recognises SessionStart and Stop and silently drops the rest.
 func dshEventOptionsFn() []PromptOption {
+	return []PromptOption{
+		{Label: i18n.T("event.permission_required"), Value: "permission_required"},
+		{Label: i18n.T("event.input_required"), Value: "input_required"},
+		{Label: i18n.T("event.run_completed"), Value: "run_completed"},
+		{Label: i18n.T("event.run_failed"), Value: "run_failed"},
+	}
+}
+
+// antigravityEventOptionsFn returns the notification events Antigravity hooks map to:
+// PreToolUse(ask_permission) → permission_required, PreToolUse(ask_question) → input_required,
+// Stop → run_completed / run_failed. SessionStart is used only for focus capture.
+func antigravityEventOptionsFn() []PromptOption {
 	return []PromptOption{
 		{Label: i18n.T("event.permission_required"), Value: "permission_required"},
 		{Label: i18n.T("event.input_required"), Value: "input_required"},
@@ -439,6 +458,19 @@ func (s *Service) disableAgentNotification(cfg config.Config, path, agent string
 		cfg.Notify.DSH.Channels.Slack.WebhookURL = ""
 		cfg.Notify.DSH.Events = nil
 		cfg.Agent.DSH.Enabled = false
+	case "antigravity":
+		cfg.Notify.Antigravity.Channels.Feishu.Enabled = false
+		cfg.Notify.Antigravity.Channels.System.Enabled = false
+		cfg.Notify.Antigravity.Channels.Wechat.Enabled = false
+		cfg.Notify.Antigravity.Channels.Wechat.WebhookURL = ""
+		cfg.Notify.Antigravity.Channels.WechatWork.Enabled = false
+		cfg.Notify.Antigravity.Channels.DingTalk.Enabled = false
+		cfg.Notify.Antigravity.Channels.Bark.Enabled = false
+		cfg.Notify.Antigravity.Channels.Ntfy.Enabled = false
+		cfg.Notify.Antigravity.Channels.Slack.Enabled = false
+		cfg.Notify.Antigravity.Channels.Slack.WebhookURL = ""
+		cfg.Notify.Antigravity.Events = nil
+		cfg.Agent.Antigravity.Enabled = false
 	}
 
 	if err := s.saveConfig(path, cfg); err != nil {
@@ -471,6 +503,8 @@ func agentName(agent string) string {
 		return "OMP (oh-my-pi)"
 	case "dsh":
 		return "DeepSeek Harness"
+	case "antigravity":
+		return "Antigravity"
 	default:
 		return agent
 	}

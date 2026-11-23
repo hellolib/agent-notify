@@ -238,3 +238,26 @@ func TestBuildSendersRespectsDSHEventFilter(t *testing.T) {
 		t.Fatalf("buildSenders(dsh, run_completed) returned %d senders, want 0", len(senders))
 	}
 }
+
+func TestBuildSendersRoutesAntigravityToItsOwnConfig(t *testing.T) {
+	cfg := config.Default()
+	cfg.Notify.ClaudeCode.Events = []string{"permission_required"}
+	cfg.Notify.Antigravity.Events = []string{"run_completed"}
+	cfg.Notify.Antigravity.Channels.Feishu.Enabled = true
+
+	senders := buildSenders(cfg, notify.Message{Agent: "antigravity", Event: "run_completed"})
+	if len(senders) != 1 || senders[0].Name() != "feishu" {
+		t.Fatalf("buildSenders(antigravity, run_completed) = %v, want [feishu]", senders)
+	}
+}
+
+func TestBuildSendersRespectsAntigravityEventFilter(t *testing.T) {
+	cfg := config.Default()
+	cfg.Notify.Antigravity.Events = []string{"permission_required"}
+	cfg.Notify.Antigravity.Channels.Feishu.Enabled = true
+
+	senders := buildSenders(cfg, notify.Message{Agent: "antigravity", Event: "run_completed"})
+	if len(senders) != 0 {
+		t.Fatalf("buildSenders(antigravity, run_completed) returned %d senders, want 0", len(senders))
+	}
+}
