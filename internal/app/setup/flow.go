@@ -12,24 +12,25 @@ import (
 )
 
 const (
-	agentClaude     = "claude"
-	agentCodex      = "codex"
-	agentZcode      = "zcode"
-	agentGrok       = "grok"
-	agentDroid      = "droid"
-	agentOpencode   = "opencode"
-	agentOMP        = "omp"
-	agentDSH        = "dsh"
-	channelSystem   = "system"
-	channelFeishu   = "feishu"
-	channelWechat   = "wechat"
-	channelWXWork   = "wechat-work"
-	channelDingTalk = "dingtalk"
-	channelBark     = "bark"
-	channelNtfy     = "ntfy"
-	channelSlack    = "slack"
-	installScopeUsr = "user"
-	installScopePrj = "project"
+	agentClaude      = "claude"
+	agentCodex       = "codex"
+	agentZcode       = "zcode"
+	agentGrok        = "grok"
+	agentDroid       = "droid"
+	agentOpencode    = "opencode"
+	agentOMP         = "omp"
+	agentDSH         = "dsh"
+	agentAntigravity = "antigravity"
+	channelSystem    = "system"
+	channelFeishu    = "feishu"
+	channelWechat    = "wechat"
+	channelWXWork    = "wechat-work"
+	channelDingTalk  = "dingtalk"
+	channelBark      = "bark"
+	channelNtfy      = "ntfy"
+	channelSlack     = "slack"
+	installScopeUsr  = "user"
+	installScopePrj  = "project"
 )
 
 func channelOptions() []PromptOption {
@@ -79,7 +80,7 @@ type configuredAgent struct {
 func (s *Service) selectAgent(prompter Prompter, cfg config.Config) (string, error) {
 	agentOptions, defaultAgent := s.agentOptions(cfg)
 	if len(agentOptions) == 0 {
-		return "", errors.New("Claude Code, Codex, ZCode, Grok, Droid, OpenCode or OMP not detected; please install one first")
+		return "", errors.New("Claude Code, Codex, ZCode, Grok, Droid, OpenCode, OMP, DeepSeek Harness or Antigravity not detected; please install one first")
 	}
 	if defaultAgent == "" {
 		defaultAgent = agentOptions[0].Value
@@ -136,6 +137,12 @@ func (s *Service) agentOptions(cfg config.Config) ([]PromptOption, string) {
 		options = append(options, PromptOption{Label: "DeepSeek Harness", Value: agentDSH})
 		if cfg.Agent.DSH.Enabled && defaultAgent == "" {
 			defaultAgent = agentDSH
+		}
+	}
+	if s.antigravityIntegration != nil && s.antigravityIntegration.DetectInstalled() {
+		options = append(options, PromptOption{Label: "Antigravity", Value: agentAntigravity})
+		if cfg.Agent.Antigravity.Enabled && defaultAgent == "" {
+			defaultAgent = agentAntigravity
 		}
 	}
 	return options, defaultAgent
@@ -212,6 +219,8 @@ func eventOptionsForAgent(agent string) []PromptOption {
 		return ompEventOptionsFn()
 	case agentDSH:
 		return dshEventOptionsFn()
+	case agentAntigravity:
+		return antigravityEventOptionsFn()
 	default:
 		return codexEventOptionsFn()
 	}
@@ -233,6 +242,8 @@ func channelsForAgent(cfg config.Config, agent string) config.ChannelsConfig {
 		return cfg.Notify.OMP.Channels
 	case agentDSH:
 		return cfg.Notify.DSH.Channels
+	case agentAntigravity:
+		return cfg.Notify.Antigravity.Channels
 	default:
 		return cfg.Notify.Codex.Channels
 	}
@@ -254,6 +265,8 @@ func eventsForAgent(cfg config.Config, agent string) []string {
 		return cfg.Notify.OMP.Events
 	case agentDSH:
 		return cfg.Notify.DSH.Events
+	case agentAntigravity:
+		return cfg.Notify.Antigravity.Events
 	default:
 		return cfg.Notify.Codex.Events
 	}
@@ -277,6 +290,8 @@ func (s *Service) configureAgent(req configureAgentRequest) (configuredAgent, er
 		return s.configureOMP(req)
 	case agentDSH:
 		return s.configureDSH(req)
+	case agentAntigravity:
+		return s.configureAntigravity(req)
 	default:
 		return configuredAgent{}, fmt.Errorf("unsupported agent: %s", req.agent)
 	}
@@ -547,6 +562,39 @@ func (s *Service) configureDSH(req configureAgentRequest) (configuredAgent, erro
 	next.Agent.DSH.InstalledPaths = config.RecordInstalledPath(
 		next.Agent.DSH.InstalledPaths, settingsPath)
 	next.Agent.DSH.Enabled = true
+	return configuredAgent{cfg: next, settingsPath: settingsPath}, nil
+}
+
+// configureAntigravity 配置 Antigravity 的通知渠道、事件，并把 hook 写入
+// ~/.gemini/config/hooks.json（user scope）或 .agents/hooks.json（project scope）。
+func (s *Service) configureAntigravity(req configureAgentRequest) (configuredAgent, error) {
+	next := req.cfg
+	next.Notify.Antigravity.Channels = applyChannelSelection(next.Notify.Antigravity.Channels, req.channels)
+	next.Notify.Antigravity.Events = dedupeStrings(req.events)
+	if err := s.prepareSelectedChannels(req.ctx, req.channels); err != nil {
+		return configuredAgent{}, err
+	}
+	channels, err := promptWebhookURLs(req.prompter, next.Notify.Antigravity.Channels, req.channels)
+	if err != nil {
+		return configuredAgent{}, err
+	}
+	next.Notify.Antigravity.Channels = channels
+
+	agentScope := normalizedInstallScope(next.Agent.Antigravity.InstallScope)
+	settingsPath, err := s.antigravityIntegration.SettingsPath(agentScope)
+	if err != nil {
+		return configuredAgent{}, fmt.Errorf("%s: %w", i18n.T("setup.antigravity_hooks_err"), err)
+	}
+	resolvedBinary := common.ResolveBinaryPath(req.binaryPath)
+	if err := s.antigravityIntegration.Install(settingsPath, resolvedBinary); err != nil {
+		return configuredAgent{}, fmt.Errorf("%s: %w", i18n.T("setup.antigravity_install_err"), err)
+	}
+	req.output.Writef(i18n.T("setup.antigravity_hooks_done"), settingsPath)
+	req.output.Writef(i18n.T("setup.antigravity_tip"))
+	next.Agent.Antigravity.InstallScope = agentScope
+	next.Agent.Antigravity.InstalledPaths = config.RecordInstalledPath(
+		next.Agent.Antigravity.InstalledPaths, settingsPath)
+	next.Agent.Antigravity.Enabled = true
 	return configuredAgent{cfg: next, settingsPath: settingsPath}, nil
 }
 

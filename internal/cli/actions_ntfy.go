@@ -77,5 +77,8 @@ func ntfyURLFromConfig(cfg config.Config) string {
 	if cfg.Notify.OMP.Channels.Ntfy.TopicURL != "" {
 		return cfg.Notify.OMP.Channels.Ntfy.TopicURL
 	}
-	return cfg.Notify.DSH.Channels.Ntfy.TopicURL
+	if cfg.Notify.DSH.Channels.Ntfy.TopicURL != "" {
+		return cfg.Notify.DSH.Channels.Ntfy.TopicURL
+	}
+	return cfg.Notify.Antigravity.Channels.Ntfy.TopicURL
 }

@@ -21,14 +21,15 @@ type Config struct {
 
 // AgentConfig holds configuration for supported agents.
 type AgentConfig struct {
-	ClaudeCode AgentTargetConfig `yaml:"claude_code"` // Claude Code 配置
-	Codex      AgentTargetConfig `yaml:"codex"`       // Codex 配置
-	ZCode      AgentTargetConfig `yaml:"zcode"`       // ZCode 配置
-	Grok       AgentTargetConfig `yaml:"grok"`        // Grok 配置
-	Droid      AgentTargetConfig `yaml:"droid"`       // Droid 配置
-	OpenCode   AgentTargetConfig `yaml:"opencode"`    // OpenCode 配置
-	OMP        AgentTargetConfig `yaml:"omp"`         // OMP (oh-my-pi) 配置
-	DSH        AgentTargetConfig `yaml:"dsh"`         // DeepSeek Harness 配置
+	ClaudeCode  AgentTargetConfig `yaml:"claude_code"` // Claude Code 配置
+	Codex       AgentTargetConfig `yaml:"codex"`       // Codex 配置
+	ZCode       AgentTargetConfig `yaml:"zcode"`       // ZCode 配置
+	Grok        AgentTargetConfig `yaml:"grok"`        // Grok 配置
+	Droid       AgentTargetConfig `yaml:"droid"`       // Droid 配置
+	OpenCode    AgentTargetConfig `yaml:"opencode"`    // OpenCode 配置
+	OMP         AgentTargetConfig `yaml:"omp"`         // OMP (oh-my-pi) 配置
+	DSH         AgentTargetConfig `yaml:"dsh"`         // DeepSeek Harness 配置
+	Antigravity AgentTargetConfig `yaml:"antigravity"` // Antigravity 配置
 }
 
 // AgentTargetConfig holds configuration for a specific agent.
@@ -56,14 +57,15 @@ func RecordInstalledPath(paths []string, path string) []string {
 
 // NotifyConfig holds notification configuration for all agents.
 type NotifyConfig struct {
-	ClaudeCode AgentNotifyConfig `yaml:"claude_code"` // Claude Code 通知配置
-	Codex      AgentNotifyConfig `yaml:"codex"`       // Codex 通知配置
-	ZCode      AgentNotifyConfig `yaml:"zcode"`       // ZCode 通知配置
-	Grok       AgentNotifyConfig `yaml:"grok"`        // Grok 通知配置
-	Droid      AgentNotifyConfig `yaml:"droid"`       // Droid 通知配置
-	OpenCode   AgentNotifyConfig `yaml:"opencode"`    // OpenCode 通知配置
-	OMP        AgentNotifyConfig `yaml:"omp"`         // OMP (oh-my-pi) 通知配置
-	DSH        AgentNotifyConfig `yaml:"dsh"`         // DeepSeek Harness 通知配置
+	ClaudeCode  AgentNotifyConfig `yaml:"claude_code"` // Claude Code 通知配置
+	Codex       AgentNotifyConfig `yaml:"codex"`       // Codex 通知配置
+	ZCode       AgentNotifyConfig `yaml:"zcode"`       // ZCode 通知配置
+	Grok        AgentNotifyConfig `yaml:"grok"`        // Grok 通知配置
+	Droid       AgentNotifyConfig `yaml:"droid"`       // Droid 通知配置
+	OpenCode    AgentNotifyConfig `yaml:"opencode"`    // OpenCode 通知配置
+	OMP         AgentNotifyConfig `yaml:"omp"`         // OMP (oh-my-pi) 通知配置
+	DSH         AgentNotifyConfig `yaml:"dsh"`         // DeepSeek Harness 通知配置
+	Antigravity AgentNotifyConfig `yaml:"antigravity"` // Antigravity 通知配置
 }
 
 // All 按固定顺序返回全部 agent 的通知配置，供只读遍历使用。
@@ -73,7 +75,7 @@ type NotifyConfig struct {
 // enabledRemoteFreezeChannels 仍只遍历前四个，导致只配 Droid 的用户完全冻结不了。
 // TestNotifyConfigAllCoversEveryAgent 会在字段数与此处不一致时失败。
 func (n NotifyConfig) All() []AgentNotifyConfig {
-	return []AgentNotifyConfig{n.ClaudeCode, n.Codex, n.ZCode, n.Grok, n.Droid, n.OpenCode, n.OMP, n.DSH}
+	return []AgentNotifyConfig{n.ClaudeCode, n.Codex, n.ZCode, n.Grok, n.Droid, n.OpenCode, n.OMP, n.DSH, n.Antigravity}
 }
 
 // AgentNotifyConfig holds notification configuration for a single agent.
@@ -208,6 +210,11 @@ func Default() Config {
 	// DSH 自带的 Claude Code bridge 只认 SessionStart / Stop，PermissionRequest
 	// 与 Notification 会被静默丢弃。session_start 同样仅用于聚焦捕获。
 	dshEvents := []string{"permission_required", "input_required", "run_completed", "run_failed"}
+	// Antigravity hooks 订阅 SessionStart / PreToolUse(ask_question|ask_permission) / Stop。
+	// ask_permission → permission_required，ask_question → input_required，
+	// Stop 按 terminationReason / error 区分 run_completed / run_failed。
+	// session_start 同样仅用于聚焦捕获，不作为通知事件。
+	antigravityEvents := []string{"permission_required", "input_required", "run_completed", "run_failed"}
 
 	// BREAKING (vs pre-Grok defaults): Claude Code is no longer enabled by default,
 	// and System notification is no longer pre-enabled for any agent.
@@ -269,6 +276,10 @@ func Default() Config {
 				Enabled:      false,
 				InstallScope: "user",
 			},
+			Antigravity: AgentTargetConfig{
+				Enabled:      false,
+				InstallScope: "user",
+			},
 		},
 		Notify: NotifyConfig{
 			ClaudeCode: AgentNotifyConfig{
@@ -301,6 +312,10 @@ func Default() Config {
 			},
 			DSH: AgentNotifyConfig{
 				Events:   append([]string(nil), dshEvents...),
+				Channels: disabledChannels(),
+			},
+			Antigravity: AgentNotifyConfig{
+				Events:   append([]string(nil), antigravityEvents...),
 				Channels: disabledChannels(),
 			},
 		},
@@ -379,6 +394,7 @@ func Load(path string) (Config, error) {
 	cfg.Notify.OpenCode.Events = ensureEvents(cfg.Notify.OpenCode, def.Notify.OpenCode.Events)
 	cfg.Notify.OMP.Events = ensureEvents(cfg.Notify.OMP, def.Notify.OMP.Events)
 	cfg.Notify.DSH.Events = ensureEvents(cfg.Notify.DSH, def.Notify.DSH.Events)
+	cfg.Notify.Antigravity.Events = ensureEvents(cfg.Notify.Antigravity, def.Notify.Antigravity.Events)
 
 	return cfg, nil
 }

@@ -78,6 +78,7 @@ func TestAgentLogoNameMapping(t *testing.T) {
 		{"opencode", "opencode.png"},
 		{"omp", "omp.png"},
 		{"dsh", "dsh.png"},
+		{"antigravity", "antigravity.png"},
 		{"unknown", "unknown.png"},
 	}
 	for _, c := range cases {
@@ -91,7 +92,7 @@ func TestAgentLogoNameMapping(t *testing.T) {
 // supportedAgents 是本项目支持的全部 agent 名，与 appDisplayName 的分支一一对应。
 // 这里硬编码而非从 agentintegrations 取：那个包 import 了各 agent 的 hooks 包，
 // 而它们又 import 本包，引用过去会形成循环依赖。
-var supportedAgents = []string{"claude_code", "codex", "zcode", "grok", "droid", "opencode", "omp", "dsh"}
+var supportedAgents = []string{"claude_code", "codex", "zcode", "grok", "droid", "opencode", "omp", "dsh", "antigravity"}
 
 // 每个支持的 agent 都必须在仓库里备有 logo 文件，否则 release archive 打不进去
 // （release.yml 用 assist/logo/agentlogo/*.png 通配打包），通知会静默回退成通用

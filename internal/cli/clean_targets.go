@@ -36,6 +36,7 @@ func hookCleanupTargets(cfg config.Config, recorded bool) []hookCleanupTarget {
 		{agentintegrations.NewOpenCodeIntegration(), cfg.Agent.OpenCode},
 		{agentintegrations.NewOmpIntegration(), cfg.Agent.OMP},
 		{agentintegrations.NewDshIntegration(), cfg.Agent.DSH},
+		{agentintegrations.NewAntigravityIntegration(), cfg.Agent.Antigravity},
 	}
 
 	targets := make([]hookCleanupTarget, 0, len(specs))

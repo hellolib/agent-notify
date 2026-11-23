@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/hellolib/agent-notify/internal/agentintegrations"
+	"github.com/hellolib/agent-notify/internal/antigravityhooks"
 	"github.com/hellolib/agent-notify/internal/app/doctor"
 	"github.com/hellolib/agent-notify/internal/app/setup"
 	"github.com/hellolib/agent-notify/internal/app/tester"
@@ -80,6 +81,7 @@ func runInitFlow(ctx context.Context, streams Streams, prompter Prompter, config
 		setup.WithOpenCodeIntegration(agentintegrations.NewOpenCodeIntegration()),
 		setup.WithOmpIntegration(agentintegrations.NewOmpIntegration()),
 		setup.WithDshIntegration(agentintegrations.NewDshIntegration()),
+		setup.WithAntigravityIntegration(agentintegrations.NewAntigravityIntegration()),
 		setup.WithFeishuPreparer(&feishuPreparerAdapter{}),
 	)
 
@@ -202,6 +204,32 @@ func runInstallOpenCodeHooks(scope, binaryPath string) error {
 	return opencodehooks.Install(path, pluginPath, common.ResolveBinaryPath(binaryPath))
 }
 
+func runPrintAntigravityHooks(streams Streams, binaryPath string) error {
+	settings := antigravityhooks.BuildHookSettings(common.ResolveBinaryPath(binaryPath))
+	data, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(streams.Stdout, string(data))
+	return err
+}
+
+func runInstallAntigravityHooks(scope, binaryPath string) error {
+	path, err := settingsPathForAgent("antigravity", scope)
+	if err != nil {
+		return err
+	}
+	return antigravityhooks.Install(path, common.ResolveBinaryPath(binaryPath))
+}
+
+func runUninstallAntigravityHooks(scope string) error {
+	path, err := settingsPathForAgent("antigravity", scope)
+	if err != nil {
+		return err
+	}
+	return antigravityhooks.Uninstall(path)
+}
+
 func runTestFeishu(ctx context.Context, streams Streams) error {
 	svc := tester.NewService(
 		tester.WithFeishuPreparer(&feishuPreparerAdapter{}),
@@ -251,6 +279,9 @@ func runTestWechatWork(ctx context.Context, streams Streams) error {
 		webhookURL = cfg.Notify.DSH.Channels.WechatWork.WebhookURL
 	}
 	if webhookURL == "" {
+		webhookURL = cfg.Notify.Antigravity.Channels.WechatWork.WebhookURL
+	}
+	if webhookURL == "" {
 		return fmt.Errorf("%s", i18n.T("err.wechat_not_configured"))
 	}
 
@@ -289,6 +320,9 @@ func runInitWechatWork(streams Streams, prompter Prompter) error {
 	if currentURL == "" {
 		currentURL = cfg.Notify.DSH.Channels.WechatWork.WebhookURL
 	}
+	if currentURL == "" {
+		currentURL = cfg.Notify.Antigravity.Channels.WechatWork.WebhookURL
+	}
 
 	webhookURL, err := prompter.Input(i18n.T("prompt.wechat_webhook"), currentURL)
 	if err != nil {
@@ -317,6 +351,7 @@ func runDoctor(streams Streams) error {
 		doctor.WithZcodeIntegration(agentintegrations.NewZcodeIntegration()),
 		doctor.WithGrokIntegration(agentintegrations.NewGrokIntegration()),
 		doctor.WithDroidIntegration(agentintegrations.NewDroidIntegration()),
+		doctor.WithAntigravityIntegration(agentintegrations.NewAntigravityIntegration()),
 	)
 	result, err := svc.Run()
 	if err != nil {
@@ -432,6 +467,15 @@ func printCurrentNotifyConfig(streams Streams) error {
 		statusIcon(cfg.Notify.DSH.Channels.Bark.Enabled),
 		statusIcon(cfg.Notify.DSH.Channels.Ntfy.Enabled),
 		statusIcon(cfg.Notify.DSH.Channels.Slack.Enabled))
+	fmt.Fprintf(streams.Stdout, i18n.T("view.row_format")+"\n", "Antigravity",
+		statusIcon(cfg.Notify.Antigravity.Channels.Feishu.Enabled),
+		statusIcon(cfg.Notify.Antigravity.Channels.System.Enabled),
+		statusIcon(cfg.Notify.Antigravity.Channels.Wechat.Enabled),
+		statusIcon(cfg.Notify.Antigravity.Channels.WechatWork.Enabled),
+		statusIcon(cfg.Notify.Antigravity.Channels.DingTalk.Enabled),
+		statusIcon(cfg.Notify.Antigravity.Channels.Bark.Enabled),
+		statusIcon(cfg.Notify.Antigravity.Channels.Ntfy.Enabled),
+		statusIcon(cfg.Notify.Antigravity.Channels.Slack.Enabled))
 	fmt.Fprintln(streams.Stdout, i18n.T("view.separator"))
 
 	return nil
@@ -504,6 +548,15 @@ func settingsPathForAgent(agent, scope string) (string, error) {
 			return filepath.Join(home, ".config", "opencode", "opencode.json"), nil
 		case "project":
 			return filepath.Join("opencode.json"), nil
+		default:
+			return "", fmt.Errorf("unsupported scope: %s", scope)
+		}
+	case "antigravity":
+		switch scope {
+		case "user":
+			return filepath.Join(home, ".gemini", "config", "hooks.json"), nil
+		case "project":
+			return filepath.Join(".agents", "hooks.json"), nil
 		default:
 			return "", fmt.Errorf("unsupported scope: %s", scope)
 		}

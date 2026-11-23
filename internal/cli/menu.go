@@ -24,7 +24,8 @@ const banner = `
 ║           ██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║            ║
 ║           ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝            ║
 ║                        Agent Notify                            ║
-║  Claude / Codex / ZCode / Grok / Droid / OpenCode / OMP / DSH  ║
+║        Claude / Codex / ZCode / Grok / Droid / OpenCode        ║
+║                    OMP / DSH / Antigravity                     ║
 ╚════════════════════════════════════════════════════════════════╝
 `
 
@@ -393,6 +394,22 @@ func runCleanConfig(streams Streams, prompter Prompter) error {
 	defaultCfg.Notify.DSH.Channels.Slack.Enabled = false
 	defaultCfg.Notify.DSH.Channels.Slack.WebhookURL = ""
 	defaultCfg.Notify.DSH.Events = nil
+	// Clear Antigravity channel toggles
+	defaultCfg.Notify.Antigravity.Channels.Feishu.Enabled = false
+	defaultCfg.Notify.Antigravity.Channels.System.Enabled = false
+	defaultCfg.Notify.Antigravity.Channels.Wechat.Enabled = false
+	defaultCfg.Notify.Antigravity.Channels.Wechat.WebhookURL = ""
+	defaultCfg.Notify.Antigravity.Channels.WechatWork.Enabled = false
+	defaultCfg.Notify.Antigravity.Channels.WechatWork.WebhookURL = ""
+	defaultCfg.Notify.Antigravity.Channels.DingTalk.Enabled = false
+	defaultCfg.Notify.Antigravity.Channels.DingTalk.WebhookURL = ""
+	defaultCfg.Notify.Antigravity.Channels.Bark.Enabled = false
+	defaultCfg.Notify.Antigravity.Channels.Bark.WebhookURL = ""
+	defaultCfg.Notify.Antigravity.Channels.Ntfy.Enabled = false
+	defaultCfg.Notify.Antigravity.Channels.Ntfy.TopicURL = ""
+	defaultCfg.Notify.Antigravity.Channels.Slack.Enabled = false
+	defaultCfg.Notify.Antigravity.Channels.Slack.WebhookURL = ""
+	defaultCfg.Notify.Antigravity.Events = nil
 	if err := config.Save(cfgPath, defaultCfg); err != nil {
 		return fmt.Errorf("%s: %w", i18n.T("clean.save_default_err"), err)
 	}

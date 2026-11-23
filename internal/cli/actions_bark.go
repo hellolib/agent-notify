@@ -77,5 +77,8 @@ func barkURLFromConfig(cfg config.Config) string {
 	if cfg.Notify.OMP.Channels.Bark.WebhookURL != "" {
 		return cfg.Notify.OMP.Channels.Bark.WebhookURL
 	}
-	return cfg.Notify.DSH.Channels.Bark.WebhookURL
+	if cfg.Notify.DSH.Channels.Bark.WebhookURL != "" {
+		return cfg.Notify.DSH.Channels.Bark.WebhookURL
+	}
+	return cfg.Notify.Antigravity.Channels.Bark.WebhookURL
 }

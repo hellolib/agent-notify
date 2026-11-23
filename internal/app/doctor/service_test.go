@@ -384,3 +384,32 @@ func TestDSHDoctorLabelFitsColumnWidth(t *testing.T) {
 		t.Errorf("doctor label %q is %d chars, exceeds the %d-char column", label, len(label), columnWidth)
 	}
 }
+
+func TestAntigravityAppearsInDoctorReport(t *testing.T) {
+	testutil.IsolateHome(t)
+
+	svc := NewService(
+		WithAntigravityIntegration(&mockIntegration{name: "Antigravity", detectInstalled: false}),
+	)
+
+	result, err := svc.Run()
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	var out strings.Builder
+	svc.Print(&testOutputWriter{b: &out}, result)
+
+	if !strings.Contains(out.String(), "Antigravity") {
+		t.Errorf("doctor output does not mention Antigravity:\n%s", out.String())
+	}
+}
+
+func TestAntigravityDoctorLabelFitsColumnWidth(t *testing.T) {
+	const columnWidth = 12
+	const label = "Antigravity"
+
+	if len(label) > columnWidth {
+		t.Errorf("doctor label %q is %d chars, exceeds the %d-char column", label, len(label), columnWidth)
+	}
+}

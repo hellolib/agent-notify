@@ -25,27 +25,29 @@ type OutputWriter interface {
 
 // Service handles diagnostics for agent-notify.
 type Service struct {
-	claudeIntegration   agentintegrations.Integration
-	codexIntegration    agentintegrations.Integration
-	zcodeIntegration    agentintegrations.Integration
-	grokIntegration     agentintegrations.Integration
-	droidIntegration    agentintegrations.Integration
-	opencodeIntegration agentintegrations.Integration
-	ompIntegration      agentintegrations.Integration
-	dshIntegration      agentintegrations.Integration
+	claudeIntegration      agentintegrations.Integration
+	codexIntegration       agentintegrations.Integration
+	zcodeIntegration       agentintegrations.Integration
+	grokIntegration        agentintegrations.Integration
+	droidIntegration       agentintegrations.Integration
+	opencodeIntegration    agentintegrations.Integration
+	ompIntegration         agentintegrations.Integration
+	dshIntegration         agentintegrations.Integration
+	antigravityIntegration agentintegrations.Integration
 }
 
 // NewService creates a new doctor service.
 func NewService(opts ...Option) *Service {
 	s := &Service{
-		claudeIntegration:   agentintegrations.NewClaudeIntegration(),
-		codexIntegration:    agentintegrations.NewCodexIntegration(),
-		zcodeIntegration:    agentintegrations.NewZcodeIntegration(),
-		grokIntegration:     agentintegrations.NewGrokIntegration(),
-		droidIntegration:    agentintegrations.NewDroidIntegration(),
-		opencodeIntegration: agentintegrations.NewOpenCodeIntegration(),
-		ompIntegration:      agentintegrations.NewOmpIntegration(),
-		dshIntegration:      agentintegrations.NewDshIntegration(),
+		claudeIntegration:      agentintegrations.NewClaudeIntegration(),
+		codexIntegration:       agentintegrations.NewCodexIntegration(),
+		zcodeIntegration:       agentintegrations.NewZcodeIntegration(),
+		grokIntegration:        agentintegrations.NewGrokIntegration(),
+		droidIntegration:       agentintegrations.NewDroidIntegration(),
+		opencodeIntegration:    agentintegrations.NewOpenCodeIntegration(),
+		ompIntegration:         agentintegrations.NewOmpIntegration(),
+		dshIntegration:         agentintegrations.NewDshIntegration(),
+		antigravityIntegration: agentintegrations.NewAntigravityIntegration(),
 	}
 
 	for _, opt := range opts {
@@ -98,6 +100,11 @@ func WithDshIntegration(i agentintegrations.Integration) Option {
 	return func(s *Service) { s.dshIntegration = i }
 }
 
+// WithAntigravityIntegration sets the Antigravity integration.
+func WithAntigravityIntegration(i agentintegrations.Integration) Option {
+	return func(s *Service) { s.antigravityIntegration = i }
+}
+
 type DiagnosticStatus string
 
 const (
@@ -112,110 +119,122 @@ const (
 
 // DiagnosticsResult contains diagnostic results.
 type DiagnosticsResult struct {
-	ConfigPath                string
-	ConfigExists              bool
-	ClaudeInstalled           bool
-	ClaudeHookInstalled       bool
-	CodexInstalled            bool
-	CodexHookInstalled        bool
-	SystemNotifyAvailable     bool
-	SystemNotifyName          string
-	ClickFocusHelperAvailable bool
-	FeishuCLIReady            bool
-	ClaudeFeishuEnabled       bool
-	ClaudeSystemEnabled       bool
-	ClaudeWechatEnabled       bool
-	ClaudeWechatWorkEnabled   bool
-	ClaudeDingTalkEnabled     bool
-	ClaudeBarkEnabled         bool
-	ClaudeNtfyEnabled         bool
-	ClaudeSlackEnabled        bool
-	CodexFeishuEnabled        bool
-	CodexSystemEnabled        bool
-	CodexWechatEnabled        bool
-	CodexWechatWorkEnabled    bool
-	CodexDingTalkEnabled      bool
-	CodexBarkEnabled          bool
-	CodexNtfyEnabled          bool
-	CodexSlackEnabled         bool
-	ZcodeInstalled            bool
-	ZcodeHookInstalled        bool
-	ZcodeFeishuEnabled        bool
-	ZcodeSystemEnabled        bool
-	ZcodeWechatEnabled        bool
-	ZcodeWechatWorkEnabled    bool
-	ZcodeDingTalkEnabled      bool
-	ZcodeBarkEnabled          bool
-	ZcodeNtfyEnabled          bool
-	ZcodeSlackEnabled         bool
-	GrokInstalled             bool
-	GrokHookInstalled         bool
-	GrokFeishuEnabled         bool
-	GrokSystemEnabled         bool
-	GrokWechatEnabled         bool
-	GrokWechatWorkEnabled     bool
-	GrokDingTalkEnabled       bool
-	GrokBarkEnabled           bool
-	GrokNtfyEnabled           bool
-	GrokSlackEnabled          bool
-	DroidInstalled            bool
-	DroidHookInstalled        bool
-	OpenCodeInstalled         bool
-	OpenCodeHookInstalled     bool
-	OpenCodeFeishuEnabled     bool
-	OpenCodeSystemEnabled     bool
-	OpenCodeWechatEnabled     bool
-	OpenCodeWechatWorkEnabled bool
-	OpenCodeDingTalkEnabled   bool
-	OpenCodeBarkEnabled       bool
-	OpenCodeNtfyEnabled       bool
-	OpenCodeSlackEnabled      bool
-	OMPInstalled              bool
-	OMPHookInstalled          bool
-	OMPFeishuEnabled          bool
-	OMPSystemEnabled          bool
-	OMPWechatEnabled          bool
-	OMPWechatWorkEnabled      bool
-	OMPDingTalkEnabled        bool
-	OMPBarkEnabled            bool
-	OMPNtfyEnabled            bool
-	OMPSlackEnabled           bool
-	DSHInstalled              bool
-	DSHHookInstalled          bool
-	DSHFeishuEnabled          bool
-	DSHSystemEnabled          bool
-	DSHWechatEnabled          bool
-	DSHWechatWorkEnabled      bool
-	DSHDingTalkEnabled        bool
-	DSHBarkEnabled            bool
-	DSHNtfyEnabled            bool
-	DSHSlackEnabled           bool
-	DroidFeishuEnabled        bool
-	DroidSystemEnabled        bool
-	DroidWechatEnabled        bool
-	DroidWechatWorkEnabled    bool
-	DroidDingTalkEnabled      bool
-	DroidBarkEnabled          bool
-	DroidNtfyEnabled          bool
-	DroidSlackEnabled         bool
-	ClaudeIntegrationStatus   DiagnosticStatus
-	CodexIntegrationStatus    DiagnosticStatus
-	ZcodeIntegrationStatus    DiagnosticStatus
-	GrokIntegrationStatus     DiagnosticStatus
-	DroidIntegrationStatus    DiagnosticStatus
-	OpenCodeIntegrationStatus DiagnosticStatus
-	OMPIntegrationStatus      DiagnosticStatus
-	DSHIntegrationStatus      DiagnosticStatus
+	ConfigPath                   string
+	ConfigExists                 bool
+	ClaudeInstalled              bool
+	ClaudeHookInstalled          bool
+	CodexInstalled               bool
+	CodexHookInstalled           bool
+	SystemNotifyAvailable        bool
+	SystemNotifyName             string
+	ClickFocusHelperAvailable    bool
+	FeishuCLIReady               bool
+	ClaudeFeishuEnabled          bool
+	ClaudeSystemEnabled          bool
+	ClaudeWechatEnabled          bool
+	ClaudeWechatWorkEnabled      bool
+	ClaudeDingTalkEnabled        bool
+	ClaudeBarkEnabled            bool
+	ClaudeNtfyEnabled            bool
+	ClaudeSlackEnabled           bool
+	CodexFeishuEnabled           bool
+	CodexSystemEnabled           bool
+	CodexWechatEnabled           bool
+	CodexWechatWorkEnabled       bool
+	CodexDingTalkEnabled         bool
+	CodexBarkEnabled             bool
+	CodexNtfyEnabled             bool
+	CodexSlackEnabled            bool
+	ZcodeInstalled               bool
+	ZcodeHookInstalled           bool
+	ZcodeFeishuEnabled           bool
+	ZcodeSystemEnabled           bool
+	ZcodeWechatEnabled           bool
+	ZcodeWechatWorkEnabled       bool
+	ZcodeDingTalkEnabled         bool
+	ZcodeBarkEnabled             bool
+	ZcodeNtfyEnabled             bool
+	ZcodeSlackEnabled            bool
+	GrokInstalled                bool
+	GrokHookInstalled            bool
+	GrokFeishuEnabled            bool
+	GrokSystemEnabled            bool
+	GrokWechatEnabled            bool
+	GrokWechatWorkEnabled        bool
+	GrokDingTalkEnabled          bool
+	GrokBarkEnabled              bool
+	GrokNtfyEnabled              bool
+	GrokSlackEnabled             bool
+	DroidInstalled               bool
+	DroidHookInstalled           bool
+	OpenCodeInstalled            bool
+	OpenCodeHookInstalled        bool
+	OpenCodeFeishuEnabled        bool
+	OpenCodeSystemEnabled        bool
+	OpenCodeWechatEnabled        bool
+	OpenCodeWechatWorkEnabled    bool
+	OpenCodeDingTalkEnabled      bool
+	OpenCodeBarkEnabled          bool
+	OpenCodeNtfyEnabled          bool
+	OpenCodeSlackEnabled         bool
+	OMPInstalled                 bool
+	OMPHookInstalled             bool
+	OMPFeishuEnabled             bool
+	OMPSystemEnabled             bool
+	OMPWechatEnabled             bool
+	OMPWechatWorkEnabled         bool
+	OMPDingTalkEnabled           bool
+	OMPBarkEnabled               bool
+	OMPNtfyEnabled               bool
+	OMPSlackEnabled              bool
+	DSHInstalled                 bool
+	DSHHookInstalled             bool
+	DSHFeishuEnabled             bool
+	DSHSystemEnabled             bool
+	DSHWechatEnabled             bool
+	DSHWechatWorkEnabled         bool
+	DSHDingTalkEnabled           bool
+	DSHBarkEnabled               bool
+	DSHNtfyEnabled               bool
+	DSHSlackEnabled              bool
+	AntigravityInstalled         bool
+	AntigravityHookInstalled     bool
+	AntigravityFeishuEnabled     bool
+	AntigravitySystemEnabled     bool
+	AntigravityWechatEnabled     bool
+	AntigravityWechatWorkEnabled bool
+	AntigravityDingTalkEnabled   bool
+	AntigravityBarkEnabled       bool
+	AntigravityNtfyEnabled       bool
+	AntigravitySlackEnabled      bool
+	DroidFeishuEnabled           bool
+	DroidSystemEnabled           bool
+	DroidWechatEnabled           bool
+	DroidWechatWorkEnabled       bool
+	DroidDingTalkEnabled         bool
+	DroidBarkEnabled             bool
+	DroidNtfyEnabled             bool
+	DroidSlackEnabled            bool
+	ClaudeIntegrationStatus      DiagnosticStatus
+	CodexIntegrationStatus       DiagnosticStatus
+	ZcodeIntegrationStatus       DiagnosticStatus
+	GrokIntegrationStatus        DiagnosticStatus
+	DroidIntegrationStatus       DiagnosticStatus
+	OpenCodeIntegrationStatus    DiagnosticStatus
+	OMPIntegrationStatus         DiagnosticStatus
+	DSHIntegrationStatus         DiagnosticStatus
+	AntigravityIntegrationStatus DiagnosticStatus
 
 	// Per-agent system-channel focus precision (effective "app"|"window").
-	ClaudeSystemFocusPrecision   string
-	CodexSystemFocusPrecision    string
-	ZcodeSystemFocusPrecision    string
-	GrokSystemFocusPrecision     string
-	DroidSystemFocusPrecision    string
-	OpenCodeSystemFocusPrecision string
-	OMPSystemFocusPrecision      string
-	DSHSystemFocusPrecision      string
+	ClaudeSystemFocusPrecision      string
+	CodexSystemFocusPrecision       string
+	ZcodeSystemFocusPrecision       string
+	GrokSystemFocusPrecision        string
+	DroidSystemFocusPrecision       string
+	OpenCodeSystemFocusPrecision    string
+	OMPSystemFocusPrecision         string
+	DSHSystemFocusPrecision         string
+	AntigravitySystemFocusPrecision string
 
 	// Temporary notification freeze (from freeze.json).
 	FreezeActive   bool
@@ -237,6 +256,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.OpenCodeInstalled = s.opencodeIntegration != nil && s.opencodeIntegration.DetectInstalled()
 	result.OMPInstalled = s.ompIntegration != nil && s.ompIntegration.DetectInstalled()
 	result.DSHInstalled = s.dshIntegration != nil && s.dshIntegration.DetectInstalled()
+	result.AntigravityInstalled = s.antigravityIntegration != nil && s.antigravityIntegration.DetectInstalled()
 
 	// System notification detection
 	result.SystemNotifyAvailable, result.SystemNotifyName = detectSystemNotification()
@@ -250,7 +270,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.ConfigExists = cfgErr == nil
 
 	// hook 已注册但 command 指向的二进制不存在时,集成实际不可用(issue #34)
-	var claudeBinaryMissing, codexBinaryMissing, zcodeBinaryMissing, grokBinaryMissing, droidBinaryMissing, opencodeBinaryMissing, ompBinaryMissing, dshBinaryMissing bool
+	var claudeBinaryMissing, codexBinaryMissing, zcodeBinaryMissing, grokBinaryMissing, droidBinaryMissing, opencodeBinaryMissing, ompBinaryMissing, dshBinaryMissing, antigravityBinaryMissing bool
 
 	// Claude hooks settings
 	claudeSettingsPath, _ := s.claudeIntegration.SettingsPath("user")
@@ -331,6 +351,16 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 		}
 	}
 
+	// Antigravity hooks settings
+	if s.antigravityIntegration != nil {
+		antigravitySettingsPath, _ := s.antigravityIntegration.SettingsPath("user")
+		if antigravitySettingsPath != "" {
+			installed, err := s.antigravityIntegration.IsHookInstalled(antigravitySettingsPath)
+			result.AntigravityHookInstalled = err == nil && installed
+			antigravityBinaryMissing = result.AntigravityHookInstalled && hookBinaryMissing(antigravitySettingsPath, "handle-antigravity-hook")
+		}
+	}
+
 	// Config values
 	result.ClaudeFeishuEnabled = cfgLoadErr == nil && cfg.Notify.ClaudeCode.Channels.Feishu.Enabled
 	result.ClaudeSystemEnabled = cfgLoadErr == nil && cfg.Notify.ClaudeCode.Channels.System.Enabled
@@ -396,6 +426,14 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.DSHBarkEnabled = cfgLoadErr == nil && cfg.Notify.DSH.Channels.Bark.Enabled
 	result.DSHNtfyEnabled = cfgLoadErr == nil && cfg.Notify.DSH.Channels.Ntfy.Enabled
 	result.DSHSlackEnabled = cfgLoadErr == nil && cfg.Notify.DSH.Channels.Slack.Enabled
+	result.AntigravityFeishuEnabled = cfgLoadErr == nil && cfg.Notify.Antigravity.Channels.Feishu.Enabled
+	result.AntigravitySystemEnabled = cfgLoadErr == nil && cfg.Notify.Antigravity.Channels.System.Enabled
+	result.AntigravityWechatEnabled = cfgLoadErr == nil && cfg.Notify.Antigravity.Channels.Wechat.Enabled
+	result.AntigravityWechatWorkEnabled = cfgLoadErr == nil && cfg.Notify.Antigravity.Channels.WechatWork.Enabled
+	result.AntigravityDingTalkEnabled = cfgLoadErr == nil && cfg.Notify.Antigravity.Channels.DingTalk.Enabled
+	result.AntigravityBarkEnabled = cfgLoadErr == nil && cfg.Notify.Antigravity.Channels.Bark.Enabled
+	result.AntigravityNtfyEnabled = cfgLoadErr == nil && cfg.Notify.Antigravity.Channels.Ntfy.Enabled
+	result.AntigravitySlackEnabled = cfgLoadErr == nil && cfg.Notify.Antigravity.Channels.Slack.Enabled
 
 	// Per-agent effective system focus precision, read fresh from the
 	// AGENT_NOTIFY_FOCUS_PRECISION environment variable.
@@ -407,6 +445,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.OpenCodeSystemFocusPrecision = config.FocusPrecisionFromEnv()
 	result.OMPSystemFocusPrecision = config.FocusPrecisionFromEnv()
 	result.DSHSystemFocusPrecision = config.FocusPrecisionFromEnv()
+	result.AntigravitySystemFocusPrecision = config.FocusPrecisionFromEnv()
 
 	result.ClaudeIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.ClaudeInstalled, result.ClaudeHookInstalled, claudeBinaryMissing)
 	result.CodexIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.CodexInstalled, result.CodexHookInstalled, codexBinaryMissing)
@@ -416,6 +455,7 @@ func (s *Service) Run() (*DiagnosticsResult, error) {
 	result.OpenCodeIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.OpenCodeInstalled, result.OpenCodeHookInstalled, opencodeBinaryMissing)
 	result.OMPIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.OMPInstalled, result.OMPHookInstalled, ompBinaryMissing)
 	result.DSHIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.DSHInstalled, result.DSHHookInstalled, dshBinaryMissing)
+	result.AntigravityIntegrationStatus = integrationStatusWithBinary(result.ConfigExists, result.AntigravityInstalled, result.AntigravityHookInstalled, antigravityBinaryMissing)
 
 	// Feishu CLI
 	_, feishuCLIConfigErr := feishucli.ParseConfig()
@@ -541,6 +581,13 @@ func (s *Service) Print(output OutputWriter, result *DiagnosticsResult) {
 	// recommend for naming, so it stays recognisable.
 	output.Writef(i18n.T("doctor.row_format")+"\n", "DSH", dshInstallStatus, dshNotifyStatus)
 
+	antigravityInstallStatus := padRight(i18n.T("status.not_installed"), 8)
+	if result.AntigravityInstalled {
+		antigravityInstallStatus = padRight(i18n.T("status.installed"), 8)
+	}
+	antigravityNotifyStatus := padRight(diagnosticStatusLabel(result.AntigravityIntegrationStatus), 14)
+	output.Writef(i18n.T("doctor.row_format")+"\n", "Antigravity", antigravityInstallStatus, antigravityNotifyStatus)
+
 	output.Writef(i18n.T("doctor.agent_sep") + "\n")
 	output.Writef("\n")
 
@@ -631,6 +678,16 @@ func (s *Service) Print(output OutputWriter, result *DiagnosticsResult) {
 		boolIcon(result.DSHNtfyEnabled),
 		boolIcon(result.DSHSlackEnabled),
 	)
+	output.Writef(channelRow, "Antigravity",
+		boolIcon(result.AntigravityFeishuEnabled),
+		boolIcon(result.AntigravitySystemEnabled),
+		boolIcon(result.AntigravityWechatEnabled),
+		boolIcon(result.AntigravityWechatWorkEnabled),
+		boolIcon(result.AntigravityDingTalkEnabled),
+		boolIcon(result.AntigravityBarkEnabled),
+		boolIcon(result.AntigravityNtfyEnabled),
+		boolIcon(result.AntigravitySlackEnabled),
+	)
 	output.Writef(i18n.T("doctor.channel_sep") + "\n")
 	output.Writef("\n")
 
@@ -715,6 +772,10 @@ func firstEnabledAgentSystemPrecision(result *DiagnosticsResult) string {
 		precision = result.OpenCodeSystemFocusPrecision
 	case result.OMPSystemEnabled:
 		precision = result.OMPSystemFocusPrecision
+	case result.DSHSystemEnabled:
+		precision = result.DSHSystemFocusPrecision
+	case result.AntigravitySystemEnabled:
+		precision = result.AntigravitySystemFocusPrecision
 	}
 	if precision != config.FocusPrecisionWindow {
 		return config.FocusPrecisionApp

@@ -604,3 +604,63 @@ func TestDSHEventsMatchSupportedSurface(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadFillsAntigravityDefaultsForLegacyConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	legacy := `version: 2
+agent:
+    claude_code:
+        enabled: true
+        install_scope: user
+notify:
+    claude_code:
+        events:
+            - permission_required
+        channels:
+            system:
+                enabled: true
+                click_to_focus: true
+`
+	if err := os.WriteFile(path, []byte(legacy), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	def := Default()
+
+	if len(cfg.Notify.Antigravity.Events) != len(def.Notify.Antigravity.Events) {
+		t.Errorf("antigravity events = %v, want defaults %v", cfg.Notify.Antigravity.Events, def.Notify.Antigravity.Events)
+	}
+	if cfg.Notify.Antigravity.Channels.System.ClickToFocus != def.Notify.Antigravity.Channels.System.ClickToFocus {
+		t.Errorf("antigravity click_to_focus = %v, want %v",
+			cfg.Notify.Antigravity.Channels.System.ClickToFocus, def.Notify.Antigravity.Channels.System.ClickToFocus)
+	}
+	if cfg.Agent.Antigravity.InstallScope != def.Agent.Antigravity.InstallScope {
+		t.Errorf("antigravity install_scope = %q, want %q", cfg.Agent.Antigravity.InstallScope, def.Agent.Antigravity.InstallScope)
+	}
+	if cfg.Agent.Antigravity.Enabled {
+		t.Error("antigravity enabled = true, want false until the user opts in")
+	}
+}
+
+func TestAntigravityEventsMatchSupportedSurface(t *testing.T) {
+	def := Default()
+	want := map[string]bool{
+		"permission_required": true,
+		"input_required":      true,
+		"run_completed":       true,
+		"run_failed":          true,
+	}
+	if len(def.Notify.Antigravity.Events) != len(want) {
+		t.Fatalf("antigravity events = %v, want all four notification events", def.Notify.Antigravity.Events)
+	}
+	for _, e := range def.Notify.Antigravity.Events {
+		if !want[e] {
+			t.Errorf("antigravity events contains unexpected %q", e)
+		}
+	}
+}
