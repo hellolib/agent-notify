@@ -12,16 +12,24 @@
 package antigravityhooks
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/hellolib/agent-notify/internal/common"
 	"github.com/hellolib/agent-notify/internal/notify"
 )
 
-const agentID = "antigravity"
+const (
+	agentID = "antigravity"
+	// maxTranscriptTailBytes 限制读取 transcript.jsonl 尾部的最大字节数，
+	// 避免超长会话日志在 hook 进程里占用过多内存或拖慢响应。
+	maxTranscriptTailBytes = 256 * 1024
+)
 
 // payload 描述 Antigravity hooks 通过 stdin 投递的事件 JSON。
 type payload struct {
@@ -29,6 +37,7 @@ type payload struct {
 	ConversationID     string    `json:"conversationId"`
 	CWD                string    `json:"cwd"`
 	WorkspacePaths     []string  `json:"workspacePaths"`
+	TranscriptPath     string    `json:"transcriptPath"`
 	LastUserInput      string    `json:"lastUserInput"`
 	ToolCall           *toolCall `json:"toolCall"`
 	StepIdx            *int      `json:"stepIdx"`
@@ -214,8 +223,109 @@ func parseStop(p payload, sessionID, workspace string) (notify.Message, error) {
 		SessionID: sessionID,
 		Workspace: workspace,
 		Title:     notify.FormatTitle(agentID, "run_completed"),
-		Body:      notify.DefaultBody("run_completed"),
+		Body:      completedBody(p),
 	}, nil
+}
+
+// completedBody 为 Stop 完成事件生成尽量具体的通知正文：
+//  1. 优先从 transcriptPath 读取本轮最后一条 PLANNER_RESPONSE 的可见回复内容（与 Codex
+//     的 last_assistant_message 体验一致，按 rune 截断至 200 字）；
+//  2. 若读不到本轮回复，退回展示 lastUserInput 摘要；
+//  3. 都没有时退回通用默认文案。
+func completedBody(p payload) string {
+	if reply := extractLastAssistantMessage(p.TranscriptPath); reply != "" {
+		return common.TruncateRunes(reply, 200)
+	}
+	if prompt := strings.TrimSpace(p.LastUserInput); prompt != "" {
+		return fmt.Sprintf("任务已完成：%s", common.TruncateRunes(prompt, 120))
+	}
+	return notify.DefaultBody("run_completed")
+}
+
+type transcriptEntry struct {
+	Type    string `json:"type"`
+	Content string `json:"content"`
+}
+
+// extractLastAssistantMessage 从 Antigravity transcript.jsonl 尾部反向扫描，
+// 提取当前轮次（最近一次 USER_INPUT 之后）最后一条含非空 content 的 PLANNER_RESPONSE。
+func extractLastAssistantMessage(path string) string {
+	path = expandHomePath(strings.TrimSpace(path))
+	if path == "" {
+		return ""
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = f.Close() }()
+
+	info, err := f.Stat()
+	if err != nil || info.IsDir() || info.Size() == 0 {
+		return ""
+	}
+
+	offset := int64(0)
+	if info.Size() > maxTranscriptTailBytes {
+		offset = info.Size() - maxTranscriptTailBytes
+	}
+	if offset > 0 {
+		if _, err := f.Seek(offset, io.SeekStart); err != nil {
+			return ""
+		}
+	}
+
+	buf, err := io.ReadAll(io.LimitReader(f, maxTranscriptTailBytes))
+	if err != nil || len(buf) == 0 {
+		return ""
+	}
+	// 如果是从文件中间开始读的，第一段可能是不完整的半行，直接丢弃。
+	if offset > 0 {
+		if idx := bytes.IndexByte(buf, '\n'); idx >= 0 {
+			buf = buf[idx+1:]
+		} else {
+			return ""
+		}
+	}
+
+	lines := bytes.Split(buf, []byte{'\n'})
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := bytes.TrimSpace(lines[i])
+		if len(line) == 0 {
+			continue
+		}
+		var entry transcriptEntry
+		if err := json.Unmarshal(line, &entry); err != nil {
+			continue
+		}
+		if entry.Type == "USER_INPUT" {
+			// 已回溯到本轮用户输入边界，不再跨轮复用历史回复。
+			return ""
+		}
+		if entry.Type == "PLANNER_RESPONSE" {
+			if text := strings.TrimSpace(entry.Content); text != "" {
+				return text
+			}
+		}
+	}
+	return ""
+}
+
+func expandHomePath(p string) string {
+	if p == "" || p[0] != '~' {
+		return p
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return p
+	}
+	if p == "~" {
+		return home
+	}
+	if p[1] == '/' || p[1] == '\\' {
+		return filepath.Join(home, p[2:])
+	}
+	return p
 }
 
 func isFailureStop(reason, errMsg string) bool {
